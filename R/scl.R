@@ -4,6 +4,8 @@
 #'
 #' @param
 #' @return
+#' @examples
 #' @export
-qscl <- function() {
+qscl <- function(p, M, lower.tail = TRUE, log.p = FALSE) {
+    
 }
