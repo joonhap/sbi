@@ -6,21 +6,26 @@
 #' Quantile function, distribution function, and random generation for the SCL distribution. See Park and Won (2022) for information about the SCL distribution.
 #'
 #' @param p probability
+#' @param n number of draws
 #' @param M parameter to the SCL distribution
-#' @param precision The requested level of precision for the outputs of qscl and pscl functions, as the number of decimal places. See Details for more information. (Details: precision can be any positive real, and checks if the standard error of the output is not greater than 10^{-precision}.)
-#' @return b b
+#' @param precision The requested level of precision for the outputs of qscl and pscl functions, in terms of the estimated standard deviation of the output. (Details: e.g., precision of 0.01 will output values with the standard deviation of approximately 0.01.)
+#' @param lower logical; if TRUE, probabilities are P[X <= x], otherwise, P[X > x].
+#' @param log_p logical; if TRUE, probabilities p are given as log(p).
+#' @param force logical; if TRUE, the function will run regardless of how long it will take. If FALSE, the function will ask if you want to continue, stop, or give a new precision value whenever the expected run time is longer than 15 seconds. 
+#' @return numeric vector of quantiles.
 #' @examples
-#' asdf5
+#' qscl(.99, 5, 2)
+#' qscl(c(.01, .05, .95, .99), 10, 2.3)
 #' @export
-qscl <- function(p, M, precision, lower = TRUE, log = FALSE) {
-    .Call(`_mclle_qscl`, p, M, precision, lower, log)
+qscl <- function(p, M, precision, lower = TRUE, log_p = FALSE, force = FALSE) {
+    .Call(`_mclle_qscl`, p, M, precision, lower, log_p, force)
+}
+
+pscl <- function(q, M, precision, lower = TRUE, log_p = FALSE, force = FALSE) {
+    .Call(`_mclle_pscl`, q, M, precision, lower, log_p, force)
 }
 
 rscl <- function(n, M) {
     .Call(`_mclle_rscl`, n, M)
-}
-
-rscl2 <- function(n, M) {
-    .Call(`_mclle_rscl2`, n, M)
 }
 

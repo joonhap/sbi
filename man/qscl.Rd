@@ -4,21 +4,30 @@
 \alias{qscl}
 \title{The SCL Distribution}
 \usage{
-qscl(p, M, precision, lower = TRUE, log = FALSE)
+qscl(p, M, precision, lower = TRUE, log_p = FALSE, force = FALSE)
 }
 \arguments{
 \item{p}{probability}
 
 \item{M}{parameter to the SCL distribution}
 
-\item{precision}{The requested level of precision for the outputs of qscl and pscl functions, as the number of decimal places. See Details for more information. (Details: precision can be any positive real, and checks if the standard error of the output is not greater than 10^{-precision}.)}
+\item{precision}{The requested level of precision for the outputs of qscl and pscl functions, in terms of the estimated standard deviation of the output. (Details: e.g., precision of 0.01 will output values with the standard deviation of approximately 0.01.)}
+
+\item{lower}{logical; if TRUE, probabilities are P[X <= x], otherwise, P[X > x].}
+
+\item{log_p}{logical; if TRUE, probabilities p are given as log(p).}
+
+\item{force}{logical; if TRUE, the function will run regardless of how long it will take. If FALSE, the function will ask if you want to continue, stop, or give a new precision value whenever the expected run time is longer than 15 seconds.}
+
+\item{n}{number of draws}
 }
 \value{
-b b
+numeric vector of quantiles.
 }
 \description{
 Quantile function, distribution function, and random generation for the SCL distribution. See Park and Won (2022) for information about the SCL distribution.
 }
 \examples{
-asdf5
+qscl(.99, 5, 2)
+qscl(c(.01, .05, .95, .99), 10, 2.3)
 }

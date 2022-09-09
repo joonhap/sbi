@@ -11,17 +11,34 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // qscl
-Rcpp::NumericVector qscl(Rcpp::NumericVector p, double M, double precision, bool lower, bool log);
-RcppExport SEXP _mclle_qscl(SEXP pSEXP, SEXP MSEXP, SEXP precisionSEXP, SEXP lowerSEXP, SEXP logSEXP) {
+Rcpp::NumericVector qscl(Rcpp::NumericVector p, const double M, double precision, const bool lower, const bool log_p, const bool force);
+RcppExport SEXP _mclle_qscl(SEXP pSEXP, SEXP MSEXP, SEXP precisionSEXP, SEXP lowerSEXP, SEXP log_pSEXP, SEXP forceSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< Rcpp::NumericVector >::type p(pSEXP);
-    Rcpp::traits::input_parameter< double >::type M(MSEXP);
+    Rcpp::traits::input_parameter< const double >::type M(MSEXP);
     Rcpp::traits::input_parameter< double >::type precision(precisionSEXP);
-    Rcpp::traits::input_parameter< bool >::type lower(lowerSEXP);
-    Rcpp::traits::input_parameter< bool >::type log(logSEXP);
-    rcpp_result_gen = Rcpp::wrap(qscl(p, M, precision, lower, log));
+    Rcpp::traits::input_parameter< const bool >::type lower(lowerSEXP);
+    Rcpp::traits::input_parameter< const bool >::type log_p(log_pSEXP);
+    Rcpp::traits::input_parameter< const bool >::type force(forceSEXP);
+    rcpp_result_gen = Rcpp::wrap(qscl(p, M, precision, lower, log_p, force));
+    return rcpp_result_gen;
+END_RCPP
+}
+// pscl
+Rcpp::NumericVector pscl(Rcpp::NumericVector q, const double M, double precision, const bool lower, const bool log_p, const bool force);
+RcppExport SEXP _mclle_pscl(SEXP qSEXP, SEXP MSEXP, SEXP precisionSEXP, SEXP lowerSEXP, SEXP log_pSEXP, SEXP forceSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type q(qSEXP);
+    Rcpp::traits::input_parameter< const double >::type M(MSEXP);
+    Rcpp::traits::input_parameter< double >::type precision(precisionSEXP);
+    Rcpp::traits::input_parameter< const bool >::type lower(lowerSEXP);
+    Rcpp::traits::input_parameter< const bool >::type log_p(log_pSEXP);
+    Rcpp::traits::input_parameter< const bool >::type force(forceSEXP);
+    rcpp_result_gen = Rcpp::wrap(pscl(q, M, precision, lower, log_p, force));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -37,23 +54,11 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// rscl2
-Rcpp::NumericVector rscl2(int n, double M);
-RcppExport SEXP _mclle_rscl2(SEXP nSEXP, SEXP MSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< int >::type n(nSEXP);
-    Rcpp::traits::input_parameter< double >::type M(MSEXP);
-    rcpp_result_gen = Rcpp::wrap(rscl2(n, M));
-    return rcpp_result_gen;
-END_RCPP
-}
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_mclle_qscl", (DL_FUNC) &_mclle_qscl, 5},
+    {"_mclle_qscl", (DL_FUNC) &_mclle_qscl, 6},
+    {"_mclle_pscl", (DL_FUNC) &_mclle_pscl, 6},
     {"_mclle_rscl", (DL_FUNC) &_mclle_rscl, 2},
-    {"_mclle_rscl2", (DL_FUNC) &_mclle_rscl2, 2},
     {NULL, NULL, 0}
 };
 
