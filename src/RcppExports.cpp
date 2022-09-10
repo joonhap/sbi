@@ -11,14 +11,14 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // qscl
-Rcpp::NumericVector qscl(Rcpp::NumericVector p, const double M, double precision, const bool lower, const bool log_p, const bool force);
+Rcpp::NumericVector qscl(Rcpp::NumericVector p, const double M, const double precision, const bool lower, const bool log_p, const bool force);
 RcppExport SEXP _mclle_qscl(SEXP pSEXP, SEXP MSEXP, SEXP precisionSEXP, SEXP lowerSEXP, SEXP log_pSEXP, SEXP forceSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< Rcpp::NumericVector >::type p(pSEXP);
     Rcpp::traits::input_parameter< const double >::type M(MSEXP);
-    Rcpp::traits::input_parameter< double >::type precision(precisionSEXP);
+    Rcpp::traits::input_parameter< const double >::type precision(precisionSEXP);
     Rcpp::traits::input_parameter< const bool >::type lower(lowerSEXP);
     Rcpp::traits::input_parameter< const bool >::type log_p(log_pSEXP);
     Rcpp::traits::input_parameter< const bool >::type force(forceSEXP);
@@ -27,14 +27,14 @@ BEGIN_RCPP
 END_RCPP
 }
 // pscl
-Rcpp::NumericVector pscl(Rcpp::NumericVector q, const double M, double precision, const bool lower, const bool log_p, const bool force);
+Rcpp::NumericVector pscl(Rcpp::NumericVector q, const double M, const double precision, const bool lower, const bool log_p, const bool force);
 RcppExport SEXP _mclle_pscl(SEXP qSEXP, SEXP MSEXP, SEXP precisionSEXP, SEXP lowerSEXP, SEXP log_pSEXP, SEXP forceSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< Rcpp::NumericVector >::type q(qSEXP);
     Rcpp::traits::input_parameter< const double >::type M(MSEXP);
-    Rcpp::traits::input_parameter< double >::type precision(precisionSEXP);
+    Rcpp::traits::input_parameter< const double >::type precision(precisionSEXP);
     Rcpp::traits::input_parameter< const bool >::type lower(lowerSEXP);
     Rcpp::traits::input_parameter< const bool >::type log_p(log_pSEXP);
     Rcpp::traits::input_parameter< const bool >::type force(forceSEXP);
