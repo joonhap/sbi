@@ -19,7 +19,8 @@
 //' qscl(c(.01, .05, .95, .99), 10, 2.3)
 //' @export
 // [[Rcpp::export]]
-Rcpp::NumericVector qscl(Rcpp::NumericVector p, const double M, const double precision, const bool lower = true, const bool log_p = false, const bool force = false) {
+Rcpp::NumericVector qscl(Rcpp::NumericVector p, const double M, double const k, const double precision, const bool lower = true, const bool log_p = false, const bool force = false) {
+  // todo: check the addition of the second parameter is done correctly.
   int plen = p.size();
   if (log_p) {
     for (int i = 0; i < plen; i++) {
@@ -39,9 +40,9 @@ Rcpp::NumericVector qscl(Rcpp::NumericVector p, const double M, const double pre
   auto start = std::chrono::high_resolution_clock::now(); // start measuring time
   
   for (auto it = vec_scl.begin(); it != vec_scl.end(); it++) { // fill the random vector
-    double z = R::rnorm(0.0, 1.0);
-    double v = R::rchisq(M-1);
-    *it = .5*(-z*z - v + M*log(v));
+    double x1 = R::rchisq(k);
+    double x2 = R::rchisq(M-k);
+    *it = .5*(-x1 - x2 + M*log(x2));
   }
 
   for (int i = 0; i < nbloc; i++) { // sort each block
@@ -105,9 +106,9 @@ Rcpp::NumericVector qscl(Rcpp::NumericVector p, const double M, const double pre
   vec_scl.resize(nbloc*newbsize);
   
   for (int i = nbloc*bsize; i < nbloc*newbsize; i++) { // fill the extended block
-    double z = R::rnorm(0.0, 1.0);
-    double v = R::rchisq(M-1);
-    vec_scl[i] = .5*(-z*z - v + M*log(v));
+    double x1 = R::rchisq(k);
+    double x2 = R::rchisq(M-k);
+    vec_scl[i] = .5*(-x1 - x2 + M*log(x2));
   }
 
   std::sort(vec_scl.begin(), vec_scl.end()); 
@@ -119,7 +120,7 @@ Rcpp::NumericVector qscl(Rcpp::NumericVector p, const double M, const double pre
 
 
 // [[Rcpp::export]]
-Rcpp::NumericVector pscl(Rcpp::NumericVector q, const double M, const double precision, const bool lower = true, const bool log_p = false, const bool force = false) {
+Rcpp::NumericVector pscl(Rcpp::NumericVector q, const double M, const double k, const double precision = 0.01, const bool lower = true, const bool log_p = false, const bool force = false) {
   int qlen = q.size();
   
   int vsize = std::max(2000, int(1/precision)); // starting size of the vector of random draws
@@ -128,10 +129,9 @@ Rcpp::NumericVector pscl(Rcpp::NumericVector q, const double M, const double pre
   auto start = std::chrono::high_resolution_clock::now(); // start measuring time
   
   for (int i = 0; i < vsize; i++) { // generate SCL random variates
-    double z = R::rnorm(0.0, 1.0);
-    double v = R::rchisq(M-1);
-    //double draw = .5*(-z*z - v + M*log(v));
-    double draw = v;
+    double x1 = R::rchisq(k);
+    double x2 = R::rchisq(M-k);
+    double draw = .5*(-x1 - x2 + M*log(x2));
 
     for (int j = 0; j < qlen; j++) {
       counts[j] += (draw <= q[j]);
@@ -181,10 +181,9 @@ Rcpp::NumericVector pscl(Rcpp::NumericVector q, const double M, const double pre
   int newvsize = round(factor * vsize); // extended vector size (if necessary)
   
   for (int i = vsize; i < newvsize; i++) { // fill the extended vector with random draws
-    double z = R::rnorm(0.0, 1.0);
-    double v = R::rchisq(M-1);
-    //double draw = .5*(-z*z - v + M*log(v));
-    double draw = v;
+    double x1 = R::rchisq(k);
+    double x2 = R::rchisq(M-k);
+    double draw = .5*(-x1 - x2 + M*log(x2));
 
     for (int j = 0; j < qlen; j++) {
       counts[j] += (draw <= q[j]);
@@ -205,9 +204,9 @@ Rcpp::NumericVector rscl(int n, double M) {
   Rcpp::NumericVector out(n); // output
 
   for (int i = 0; i < n; i++) {
-    double z = R::rnorm(0.0, 1.0);
-    double v = R::rchisq(M-1);
-    out[i] = .5*(-z*z - v + M*log(v));
+    double x1 = R::rchisq(k);
+    double x2 = R::rchisq(M-k);
+    out[i] = .5*(-x1 - x2 + M*log(x2));
   }
 
   return out;
