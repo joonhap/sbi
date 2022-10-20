@@ -2,14 +2,18 @@
 #include <iostream>
 #include <chrono>
 
+
 //' The SCL Distribution
 //'
 //' Quantile function, distribution function, and random generation for the SCL distribution. See Park and Won (2022) for information about the SCL distribution.
 //'
-//' @param p probability
+//' @name SCLdist
+//' @param p vector of probabilities
+//' @param q vector of quantiles
 //' @param n number of draws
-//' @param M parameter to the SCL distribution
-//' @param precision The requested level of precision for the outputs of qscl and pscl functions, in terms of the estimated standard deviation of the output. (Details: e.g., precision of 0.01 will output values with the standard deviation of approximately 0.01.)
+//' @param M the first parameter for the SCL distribution
+//' @param k the second parameter for the SCL distribution
+//' @param precision The requested level of precision for the outputs of qscl and pscl functions, in terms of the estimated standard deviation of the output. For example precision of 0.01 will output values with the standard deviation of approximately equal to 0.01.
 //' @param lower logical; if TRUE, probabilities are P[X <= x], otherwise, P[X > x].
 //' @param log_p logical; if TRUE, probabilities p are given as log(p).
 //' @param force logical; if TRUE, the function will run regardless of how long it will take. If FALSE, the function will ask if you want to continue, stop, or give a new precision value whenever the expected run time is longer than 15 seconds. 
@@ -17,10 +21,13 @@
 //' @examples
 //' qscl(.99, 5, 2)
 //' qscl(c(.01, .05, .95, .99), 10, 2.3)
+//' qscl(c(.01, .05, .95, .99), 10, 2.3, precision=0.01, lower=TRUE)
+//' pscl(c(-8.3, -5.9), 8, 1)
+//' pscl(c(-8.3, -5.9), 8 ,1, force=TRUE)
+//' rscl(10, 7, 2)
 //' @export
 // [[Rcpp::export]]
-Rcpp::NumericVector qscl(Rcpp::NumericVector p, const double M, double const k, const double precision, const bool lower = true, const bool log_p = false, const bool force = false) {
-  // todo: check the addition of the second parameter is done correctly.
+Rcpp::NumericVector qscl(Rcpp::NumericVector p, const double M, double const k, const double precision = 0.01, const bool lower = true, const bool log_p = false, const bool force = false) {
   int plen = p.size();
   if (log_p) {
     for (int i = 0; i < plen; i++) {
@@ -32,7 +39,13 @@ Rcpp::NumericVector qscl(Rcpp::NumericVector p, const double M, double const k, 
       p[i] = 1.0 - p[i];
     }
   }
+
+  if (k < 0 || M < k) { 
+    std::cout << "M > k should be positive." << std::endl;
+    exit(1);
+  }
   
+  // draw from the SCL distribution in blocks, compute the quantile for each block, and check the standard deviation of the quantiles.
   const int nbloc = 50; // number of blocks
   int bsize = 200; // default block size
   std::vector<double> vec_scl(nbloc*bsize); // vector of SCL variates
@@ -42,7 +55,7 @@ Rcpp::NumericVector qscl(Rcpp::NumericVector p, const double M, double const k, 
   for (auto it = vec_scl.begin(); it != vec_scl.end(); it++) { // fill the random vector
     double x1 = R::rchisq(k);
     double x2 = R::rchisq(M-k);
-    *it = .5*(-x1 - x2 + M*log(x2));
+    *it = .5*(-x1 - x2 + M*log(x2/M));
   }
 
   for (int i = 0; i < nbloc; i++) { // sort each block
@@ -108,7 +121,7 @@ Rcpp::NumericVector qscl(Rcpp::NumericVector p, const double M, double const k, 
   for (int i = nbloc*bsize; i < nbloc*newbsize; i++) { // fill the extended block
     double x1 = R::rchisq(k);
     double x2 = R::rchisq(M-k);
-    vec_scl[i] = .5*(-x1 - x2 + M*log(x2));
+    vec_scl[i] = .5*(-x1 - x2 + M*log(x2/M));
   }
 
   std::sort(vec_scl.begin(), vec_scl.end()); 
@@ -118,7 +131,7 @@ Rcpp::NumericVector qscl(Rcpp::NumericVector p, const double M, double const k, 
   return quantiles;
 }
 
-
+//' @rdname SCLdist
 // [[Rcpp::export]]
 Rcpp::NumericVector pscl(Rcpp::NumericVector q, const double M, const double k, const double precision = 0.01, const bool lower = true, const bool log_p = false, const bool force = false) {
   int qlen = q.size();
@@ -131,7 +144,7 @@ Rcpp::NumericVector pscl(Rcpp::NumericVector q, const double M, const double k, 
   for (int i = 0; i < vsize; i++) { // generate SCL random variates
     double x1 = R::rchisq(k);
     double x2 = R::rchisq(M-k);
-    double draw = .5*(-x1 - x2 + M*log(x2));
+    double draw = .5*(-x1 - x2 + M*log(x2/M));
 
     for (int j = 0; j < qlen; j++) {
       counts[j] += (draw <= q[j]);
@@ -183,7 +196,7 @@ Rcpp::NumericVector pscl(Rcpp::NumericVector q, const double M, const double k, 
   for (int i = vsize; i < newvsize; i++) { // fill the extended vector with random draws
     double x1 = R::rchisq(k);
     double x2 = R::rchisq(M-k);
-    double draw = .5*(-x1 - x2 + M*log(x2));
+    double draw = .5*(-x1 - x2 + M*log(x2/M));
 
     for (int j = 0; j < qlen; j++) {
       counts[j] += (draw <= q[j]);
@@ -198,15 +211,15 @@ Rcpp::NumericVector pscl(Rcpp::NumericVector q, const double M, const double k, 
 }
 
 
-
+//' @rdname SCLdist
 // [[Rcpp::export]]
-Rcpp::NumericVector rscl(int n, double M) {
+Rcpp::NumericVector rscl(const int n, const double M, const double k) {
   Rcpp::NumericVector out(n); // output
 
   for (int i = 0; i < n; i++) {
     double x1 = R::rchisq(k);
     double x2 = R::rchisq(M-k);
-    out[i] = .5*(-x1 - x2 + M*log(x2));
+    out[i] = .5*(-x1 - x2 + M*log(x2/M));
   }
 
   return out;
