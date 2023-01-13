@@ -51,7 +51,7 @@ mclle <- function(loglik, param=NULL) {
 #' `ht` outputs the results of a hypothesis test based on the Monte Carlo log likelihood estimates (see Park and Won (2023) for details).
 #'
 #' @param mclle A class 'mclle' object, containing the Monte Carlo log likelihood estimates and (optional) the parameter values for which those estimates were obtained.
-#' @param null.value The null value for the hypothesis test. Either a numeric vector or a list of numeric vectors.  
+#' @param null.value The null value for the hypothesis test. Either a numeric vector or a list of numeric vectors.
 #' @param type A character string indicating what type of test will be carried out. One of "point", "regression", or "LAN". See Details.
 #' @param test A character string indicating the quantity to be tested about. One of "loglik", "moments", "MLE", "information", or "parameter". See Details.
 #' @param weights An optional argument for the weights of the Monte Carlo log likelihood estimates for regression. Either a numeric vector of length equal to the 'mclle' object, or a character string equal to "tricube".
@@ -60,14 +60,14 @@ mclle <- function(loglik, param=NULL) {
 #' @details
 #' This is a generic function, taking a class 'mclle' object x as the first argument.
 #' The hypothesis test is carried out under the assumption that the Monte Carlo likelihood estimator whose values are given in the 'mclle' object is (approximately) normally distributed.
-#' 
+#'
 #' When 'null.value' is a list, hypothesis tests are carried out for each component of the list.
-#' 
+#'
 #' The 'type' argument should be one of "point", "regression", or "LAN".
 #' The case 'type' = "point" means that the 'mclle' object contains Monte Carlo log likelihood estimates for a single, fixed parameter value.
 #' The case 'type' = "regression" means that the 'mclle' object contains Monte Carlo log likelihood estimates evaluated at a range of parameter values, specified by the 'param' attribute of the 'mclle' object. A local quadratic regression for the estimated log likelihood values will be used for the hypothesis test, where the x-axis values are given by the 'param' values of the 'mclle' object.
 #' The case 'type' = "LAN" means that inference on the model parameter will be carried out under the local asymptotic normality (Le Cam and Yang, 2000) condition.
-#' 
+#'
 #' When 'type' = "point", 'test' can only be "loglik" or "moments".
 #' In this case 'test' = "loglik" means the hypothesis test \eqn{H_0: l = null.value} versus \eqn{H_1: l != null.value} will be performed.
 #' If 'test' = "moments", a test about the mean and the variance of the Monte Carlo log likelihood estimator is conducted.
@@ -93,10 +93,23 @@ ht <- function(x, ...) {
     UseMethod("ht")
 }
 
-ht.mclle <- function(mclle, null.value, type="point", test="loglik", param.at=NULL, weights=NULL, fraction=NULL) {
+ht.mclle <- function(mclle, null.value, type, test=NULL, param.at=NULL, weights=NULL, fraction=NULL) {
     validate_mclle(mclle)
     match.arg(type, c("point", "regression", "LAN"))
-    match.arg(test, c("loglik", "moments", "MLE", "information", "parameter"))
+    if (!is.null(test)) {
+        match.arg(test, c("loglik", "moments", "MLE", "information", "parameter"))
+    }
+    if (is.null(test)) {
+        if (type=="point") {
+            test <- "loglik"
+        }
+        if (type=="regression") {
+            test <- "MLE"
+        }
+        if (type=="LAN") {
+            test <- "parameter"
+        }
+    }
 
     if (!is.numeric(null.value)) {
         if (!is.list(null.value)) {
@@ -134,8 +147,18 @@ ht.mclle <- function(mclle, null.value, type="point", test="loglik", param.at=NU
                 )
             }
         }
-        if (test=="
-        
+        if (test=="MLE" && !all(sapply(null.value, length)==1)) {
+         stop(
+                "If 'null.value' is a list and 'test' is 'MLE', all components of 'null.value' should be a numeric vector of length 1.",
+                call. = FALSE
+            )
+        }
+        if (test=="information" && !all(sapply(null.value, length)==1)) {
+         stop(
+                "If 'null.value' is a list and 'test' is 'information', all components of 'null.value' should be a numeric vector of length 1.",
+                call. = FALSE
+            )
+        }
     }
 
     if (!is.null(param.at) && !is.numeric(param.at)) {
@@ -167,7 +190,52 @@ ht.mclle <- function(mclle, null.value, type="point", test="loglik", param.at=NU
         )
     }
 
-    if (type=="point" 
+    w <- NULL # weights of the MCLLEs
+    if (type %in% c("regression", "LAN")) {
+        if (!is.null(attr(mclle, "weights"))) {
+            if (!is.numeric(attr(mclle, "weights"))) {
+                stop(
+                    "When 'type' = 'regression' or 'LAN' and the 'mclle' object has 'weights' attribute, it has to be a numeric vector.",
+                    call. = FALSE
+                )
+            }
+            if (length(mclle) != length(attr(mclle, "weights"))) {
+                stop(
+                    "When 'type' = 'regression' or 'LAN' and the 'mclle' object has 'weights' attribute, the length of 'weights' should be the same as the length of 'mclle'.",
+                    call. = FALSE
+                )
+            }
+            w <- attr(mclle, "weights")
+        }
+        if (!is.null(weights)) {
+            if (!is.numeric(weights) && weights!="tricube") {
+                stop(
+                    "When 'type' = 'regression' or 'LAN' and the 'weights' argument is given, 'weights' have to be a numeric vector or a string 'tricube'.",
+                    call. = FALSE
+                )
+            }
+            if (length(weights) != length(mclle) && weights!="tricube") {
+                stop(
+                    "When 'type' = 'regression' or 'LAN' and the 'weights' argument is given, the length of 'weights' should be the same as the length of 'mclle'.",
+                    call. = FALSE
+                )
+            }
+            if (weights=="tricube") {
+                if (is.null(fraction) || !is.numeric(fraction) || length(fraction) != 1) {
+                    stop(
+                        "When 'type' = 'regression' or 'LAN' and 'weights' = 'tricube', 'fraction' has to be given as a numeric value.",
+                        call. = FALSE
+                    )
+                }
+
+
+            }
+
+            w <- weights # if 'weights' argument is supplied, override the weights attributes of the mclle with the given weights vector.
+            if (
+        }
+
+
 }
 
 
