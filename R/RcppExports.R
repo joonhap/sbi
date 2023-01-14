@@ -25,16 +25,16 @@
 #' rscl(10, 7, 2)
 #' @export
 qscl <- function(p, M, k, precision = 0.01, lower = TRUE, log_p = FALSE, force = FALSE) {
-    .Call(`_mclle_qscl`, p, M, k, precision, lower, log_p, force)
+    .Call('_mclle_qscl', PACKAGE = 'mclle', p, M, k, precision, lower, log_p, force)
 }
 
 #' @rdname SCLdist
 pscl <- function(q, M, k, precision = 0.01, lower = TRUE, log_p = FALSE, force = FALSE) {
-    .Call(`_mclle_pscl`, q, M, k, precision, lower, log_p, force)
+    .Call('_mclle_pscl', PACKAGE = 'mclle', q, M, k, precision, lower, log_p, force)
 }
 
 #' @rdname SCLdist
 rscl <- function(n, M, k) {
-    .Call(`_mclle_rscl`, n, M, k)
+    .Call('_mclle_rscl', PACKAGE = 'mclle', n, M, k)
 }
 
