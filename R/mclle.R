@@ -176,37 +176,92 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
             )
         }
     }
-
     if (!is.null(param.at) && !is.numeric(param.at)) {
         stop(
             "'param.at' should be a numeric value (or NULL).",
             call. = FALSE
         )
     }
-
     if (type=="point" && !test %in% c("loglik", "moments")) {
         stop(
             "When 'type' = 'point', 'test' should be either 'loglik' (default) or 'moments'.",
             call. = FALSE
         )
     }
-
     if (type=="regression" && !test %in% c("loglik", "moments", "MLE", "information")) {
         stop(
             "When 'type' = 'regression', 'test' should be one of 'loglik', 'moments', 'MLE' (default), or 'information'.",
             call. = FALSE
         )
     }
-
     if (type=="LAN" && !test %in% c("loglik", "moments", "MLE", "information", "parameter")) {
         stop(
             "When 'type' = 'LAN', 'test' should be one of 'loglik', 'moments', 'MLE', 'information', or 'parameter' (default).",
             call. = FALSE
         )
     }
+    if (type %in% c("regression", "LAN") && test=="loglik" && is.null(param.at)) {
+        stop(
+            "If 'type' is 'regression' or 'LAN' and 'test' = 'loglik', then the point at which the log likelihood is to be estimated should be specified by 'param.at'.",
+            call. = FALSE
+        )
+    }
 
-    w <- NULL # weights of the MCLLEs
+    if (type=="point") {
+        llest <- unclass(mclle)
+        muhat <- mean(llest)
+        Ssq <- var(llest)
+        M <- length(llest)
+        if (test=="moments") {
+            if (!is.list(null.value)) {
+                null.value <- list(null.value)
+            }
+            if (any(sapply(null.value, function(x) x[2]<=0))) {
+                stop("The second components of null.value (the variance of Monte Carlo log likelihood estimator) should be positive.",
+                    call. = FALSE
+                )
+            }
+            teststats <- sapply(null.value, function(x) -.5*M*(muhat - x[1])^2/x[2] - (M-1)/2*Ssq/x[2] + M/2*log((M-1)*Ssq/(M*x[2])))
+            prec <- 0.01
+            pval <- pscl(teststats, M, 1, precision=prec)
+            if (any(pval < .01)) {
+                prec <- 0.001
+                pval <- pscl(teststats, M, 1, precision=prec)
+            }
+            out <- list(null.value=null.value, p.value=pval) # output
+            precdigits = ifelse(prec==0.01, 2, 3)
+            cat("Hypothesis tests on the moments of Monte Carlo log likelihood estimator (fixed parameter)\n",
+                "        null value(mu)   null value(sigma^2)               p-value\n",
+                sapply(1:length(null.value), function(i) paste0(paste0(format(c(null.value[[i]], format(round(pval[i], digits=precdigits), nsmall=precdigits)), width=22, justify="right"), collapse=''), '\n')),
+                "p-value precision: ", prec, '\n',
+                sep=''
+            )
+        }
+        if (test=="loglik") {
+            if (!is.list(null.value)) {
+                null.value <- list(null.value)
+            }
+            sigmaxsq <- sapply(null.value, function(x) 2*(M*(muhat - x)^2+(M-1)*Ssq)/(M+sqrt(M*(M*(muhat-x)^2+(M-1)*Ssq)+M^2))) # the value of sigma0^2 that maximizes the LLR statistics
+            teststats <- sapply(1:length(null.value), function(i) -.5*(muhat-null.value[[i]]+sigmaxsq[i]/2)^2/(sigmaxsq[i]/M) - (M-1)/2*Ssq/sigmaxsq[i] + M/2*log((M-1)*Ssq/(M*sigmaxsq[i])))
+            prec <- 0.01
+            pval <- pscl(teststats, M, 1, precision=prec)
+            if (any(pval < .01)) {
+                prec <- 0.001
+                pval <- pscl(teststats, M, 1, precision=prec)
+            }
+            out <- list(null.value=null.value, p.value=pval) # output
+            precdigits = ifelse(prec==0.01, 2, 3)
+            cat("Hypothesis tests on the value of log likelihood (fixed parameter)\n",
+                "null value (loglik)            p-value\n",
+                sapply(1:length(null.value), function(i) paste0(paste0(format(c(null.value[[i]], format(round(pval[i], digits=precdigits), nsmall=precdigits)), width=19, justify="right"), collapse=''), '\n')),
+                "p-value precision: ", prec, '\n',
+                sep=''
+            )
+        }
+    }
+
     if (type %in% c("regression", "LAN")) {
+        ## set weights (vector w)
         if (!is.null(weights)) {
             if (!is.numeric(weights) && weights!="tricube") {
                 stop(
@@ -262,59 +317,9 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
                 w <- attr(mclle, "weights")
             }
         }
-    }
-
-    if (type=="point") {
-        llest <- unclass(mclle)
-        muhat <- mean(llest)
-        Ssq <- var(llest)
-        M <- length(llest)
-        if (test=="moments") {
-            if (!is.list(null.value)) {
-                null.value <- list(null.value)
-            }
-            if (any(sapply(null.value, function(x) x[2]<=0))) {
-                stop("The second components of null.value (the variance of Monte Carlo log likelihood estimator) should be positive.",
-                    call. = FALSE
-                )
-            }
-            teststats <- sapply(null.value, function(x) -.5*M*(muhat - x[1])^2/x[2] - (M-1)/2*Ssq/x[2] + M/2*log((M-1)*Ssq/(M*x[2])))
-            prec <- 0.01
-            pval <- pscl(teststats, M, 1, precision=prec)
-            if (any(pval < .01)) {
-                prec <- 0.001
-                pval <- pscl(teststats, M, 1, precision=prec)
-            }
-            out <- list(null.value=null.value, p.value=pval) # output
-            precdigits = ifelse(prec==0.01, 2, 3)
-            cat("Hypothesis tests on the moments of Monte Carlo log likelihood estimator (fixed parameter)\n",
-                "        null value(mu)   null value(sigma^2)               p-value\n",
-                sapply(1:length(null.value), function(i) paste0(paste0(format(c(null.value[[i]], format(round(pval[i], digits=precdigits), nsmall=precdigits)), width=22, justify="right"), collapse=''), '\n')),
-                "p-value precision: ", prec, '\n',
-                sep=''
-            )
-        }
-        if (test=="loglik") {
-            if (!is.list(null.value)) {
-                null.value <- list(null.value)
-            }
-            sigmaxsq <- sapply(null.value, function(x) 2*(M*(muhat - x)^2+(M-1)*Ssq)/(M+sqrt(M*(M*(muhat-x)^2+(M-1)*Ssq)+M^2))) # the value of sigma0^2 that maximizes the LLR statistics
-            teststats <- sapply(1:length(null.value), function(i) -.5*(muhat-null.value[[i]]+sigmaxsq[i]/2)^2/(sigmaxsq[i]/M) - (M-1)/2*Ssq/sigmaxsq[i] + M/2*log((M-1)*Ssq/(M*sigmaxsq[i])))
-            prec <- 0.01
-            pval <- pscl(teststats, M, 1, precision=prec)
-            if (any(pval < .01)) {
-                prec <- 0.001
-                pval <- pscl(teststats, M, 1, precision=prec)
-            }
-            out <- list(null.value=null.value, p.value=pval) # output
-            precdigits = ifelse(prec==0.01, 2, 3)
-            cat("Hypothesis tests on the value of log likelihood (fixed parameter)\n",
-                "null value (loglik)            p-value\n",
-                sapply(1:length(null.value), function(i) paste0(paste0(format(c(null.value[[i]], format(round(pval[i], digits=precdigits), nsmall=precdigits)), width=19, justify="right"), collapse=''), '\n')),
-                "p-value precision: ", prec, '\n',
-                sep=''
-            )
-        }
+        ## CI for loglik
+        
+        ## CI for 
     }
 }
 
