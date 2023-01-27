@@ -259,7 +259,7 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
             )
         }
     }
-
+    ## TODO: add the MLE in the output    
     if (type %in% c("regression", "LAN")) {
         ## set weights (vector w)
         if (!is.null(weights)) {
@@ -317,7 +317,9 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
                 w <- attr(mclle, "weights")
             }
         }
-        ## CI for loglik
+        ## test about moments
+        
+
         
         ## CI for 
     }
