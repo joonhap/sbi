@@ -20,21 +20,28 @@ new_mclle <- function(llest, param=NULL) {
 
 ## Internal validator function for a class 'mclle' object
 validate_mclle <- function(x) {
-    llest <- unclass(x)
+    llest <- c(unclass(x))
     param <- attr(x, "param")
 
-    if (!is.null(param) && !is.numeric(param)) {
-        stop(
-            "The 'param' attribute should be a numeric vector or a NULL.",
-            call. = FALSE
-        )
-    }
-
-    if (!is.null(param) && length(param) != 1 && length(llest) != length(param)) {
-        stop(
-            "The length of the 'param' attribute of an mclle object should be equal to the length of the mclle object or 1.",
-            call. = FALSE
-        )
+    if (!is.null(param)) {
+        if (!is.numeric(param)) {
+            stop(
+                "The 'param' attribute should be a numeric vector or a NULL.",
+                call. = FALSE
+            )
+        }
+        if (!is.null(attr(param, "dim"))) {
+            stop(
+                "The 'param' attribute should be a numeric vector with no dim (dimension) attribute, or a NULL.",
+                call. = FALSE
+            )
+        }
+        if (length(param) != 1 && length(llest) != length(param)) {
+            stop(
+                "The length of the 'param' attribute of an mclle object should be equal to the length of the mclle object or 1.",
+                call. = FALSE
+            )
+        }
     }
 
     x
@@ -59,7 +66,7 @@ mclle <- function(llest, param=NULL) {
 #' @param weights An optional argument for the weights of the Monte Carlo log likelihood estimates for regression. Either a numeric vector of length equal to the 'mclle' object, or a character string equal to "tricube".
 #' @param fraction An optional argument indicating the fraction of points with nonzero weights for the case where 'weights' is specified as "tricube".
 #' @param center An optional argument indicating the center of the local regression for the case where 'weights' is specified as "tricube".
-#' 
+#'
 #' @details
 #' This is a generic function, taking a class 'mclle' object x as the first argument.
 #' The hypothesis test is carried out under the assumption that the Monte Carlo likelihood estimator whose values are given in the 'mclle' object is (approximately) normally distributed.
@@ -91,7 +98,17 @@ mclle <- function(llest, param=NULL) {
 #' If 'test' is "parameter", a test about the value of the model parameter is conducted under the local asymptotic normality assumption.
 #' When 'type' = "LAN", 'test' = "parameter" is assumed by default.
 #'
-#' When quadratic regression is carried out, the weights for the Monte Carlo likelihood estimates can be supplied.  The weights can either be given as an attribute 'weights' of the 'mclle' object, or as a function argument 'weights'. In both cases, 'weights' should be a numeric vector of length equal to that of 'mclle'. If 'weights' is given as a function argument to 'ht', it can be specified alternatively as a character string "tricube". In this case, the tricube weight (see Cleveland, 1979) is used, with fraction \eqn{f} of points with nonzero weights specified by 'fraction'. If weights are not supplied in either locations, all Monte Carlo log likelihood estimates are used with equal weights.
+#' When quadratic regression is carried out, the weights for the Monte Carlo likelihood estimates can be supplied.  The weights can either be given as an attribute 'weights' of the 'mclle' object, or as a function argument 'weights', with the latter being used when both are supplied. In either case, 'weights' should be a numeric vector of length equal to that of 'mclle'. If 'weights' is given as a function argument to 'ht', it can be specified alternatively as a character string "tricube". In this case, the tricube weight (see Cleveland, 1979) is used, with fraction \eqn{f} of points with nonzero weights specified by 'fraction'. If weights are not supplied in either locations, all Monte Carlo log likelihood estimates are used with equal weights.
+#'
+#' @return A list consisting of the followings are returned.
+#' \itemize{
+#' \item{Monte Carlo maximum likelihood estimate,}
+#' \item{a data frame of the null values and the corresponding (conservative) p-values,}
+#' \item{the precision (0.01 or 0.001) for the indicated conservative p-values.}
+#' }
+#' When 'test' = "moments", exact p-values are shown.
+#' In other cases, conservative p-values are shown, because the given null value does not fully specify a distribution (instead only defines a subspace of the parameter space.) See Park and Won (2023) for more detailed explanation.
+#' 
 #' @references Park, J. and Won, S. (2023) Simulation-based inference for partially observed, implicitly defined models
 #' @references Cleveland, W. S. (1979). Robust locally weighted regression and smoothing scatterplots. Journal of the American statistical association, 74(368), 829-836.
 #' @export
@@ -176,11 +193,19 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
             )
         }
     }
-    if (!is.null(param.at) && !is.numeric(param.at)) {
-        stop(
-            "'param.at' should be a numeric value (or NULL).",
-            call. = FALSE
-        )
+    if (!is.null(param.at)) {
+        if (!is.numeric(param.at)) {
+            stop(
+                "'param.at' should be a numeric value (or NULL).",
+                call. = FALSE
+            )
+        }
+        if (length(param.at)!=1) {
+            stop(
+                "'param.at' should be a single numeric value (or NULL).",
+                call. = FALSE
+            )
+        }
     }
     if (type=="point" && !test %in% c("loglik", "moments")) {
         stop(
@@ -208,7 +233,7 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
     }
 
     if (type=="point") {
-        llest <- unclass(mclle)
+        llest <- c(unclass(mclle))
         muhat <- mean(llest)
         Ssq <- var(llest)
         M <- length(llest)
@@ -217,7 +242,7 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
                 null.value <- list(null.value)
             }
             if (any(sapply(null.value, function(x) x[2]<=0))) {
-                stop("The second components of null.value (the variance of Monte Carlo log likelihood estimator) should be positive.",
+                stop("The second component of null.value (the variance of Monte Carlo log likelihood estimator) should be positive.",
                     call. = FALSE
                 )
             }
@@ -228,14 +253,18 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
                 prec <- 0.001
                 pval <- pscl(teststats, M, 1, precision=prec)
             }
-            out <- list(null.value=null.value, p.value=pval) # output
             precdigits = ifelse(prec==0.01, 2, 3)
-            cat("Hypothesis tests on the moments of Monte Carlo log likelihood estimator (fixed parameter)\n",
-                "        null value(mu)   null value(sigma^2)               p-value\n",
-                sapply(1:length(null.value), function(i) paste0(paste0(format(c(null.value[[i]], format(round(pval[i], digits=precdigits), nsmall=precdigits)), width=22, justify="right"), collapse=''), '\n')),
-                "p-value precision: ", prec, '\n',
-                sep=''
+            dfout <- data.frame(
+                mu=sapply(null.value, function(x) x[1]),
+                sigma_sq=sapply(null.value, function(x) x[2]),
+                pvalue=round(pval, digits=precdigits)
             )
+            out <- list(Monte_Carlo_MLE=c(mu=muhat, sigma_sq=(M-1)/M*Ssq),
+                Hypothesis_Tests=dfout,
+                pvalue_precision=prec
+            )
+            print(out, row.names=FALSE)
+            invisible(out)
         }
         if (test=="loglik") {
             if (!is.list(null.value)) {
@@ -249,17 +278,19 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
                 prec <- 0.001
                 pval <- pscl(teststats, M, 1, precision=prec)
             }
-            out <- list(null.value=null.value, p.value=pval) # output
             precdigits = ifelse(prec==0.01, 2, 3)
-            cat("Hypothesis tests on the value of log likelihood (fixed parameter)\n",
-                "null value (loglik)            p-value\n",
-                sapply(1:length(null.value), function(i) paste0(paste0(format(c(null.value[[i]], format(round(pval[i], digits=precdigits), nsmall=precdigits)), width=19, justify="right"), collapse=''), '\n')),
-                "p-value precision: ", prec, '\n',
-                sep=''
+            dfout <- data.frame(
+                log_lik=unlist(null.value),
+                conservative_pvalue=round(pval, digits=precdigits)
             )
+            out <- list(Monte_Carlo_MLE=c(log_lik=muhat+(M-1)/(2*M)*Ssq),
+                Hypothesis_Tests=dfout,
+                pvalue_precision=prec
+            )
+            print(out, row.names=FALSE)
+            invisible(out)
         }
     }
-    ## TODO: add the MLE in the output    
     if (type %in% c("regression", "LAN")) {
         ## set weights (vector w)
         if (!is.null(weights)) {
@@ -290,10 +321,7 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
                 }
                 distance <- abs(attr(mclle, "param") - center)
                 span <- distance[order(distance)[ceiling(fraction*length(mclle))]]
-                tricube <- function(x) {
-                    if (abs(x) > 1) 0
-                    if (abs(x) <= 1) (1-abs(x)^3)^3
-                }
+                tricube <- function(x) { pmax((1-abs(x)^3)^3, 0) }
                 w <- tricube(distance / span)
             }
             if (is.numeric(weights)) {
@@ -315,16 +343,136 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
                     )
                 }
                 w <- attr(mclle, "weights")
+            } else {
+                w <- rep(1, length(mclle))
             }
         }
-        ## test about moments
-        
+        ## weighted quadratic regression
+        W  <- diag(w)
+        theta <- attr(mclle, "param")
+        llest <- c(unclass(mclle))
+        M <- length(llest)
+        theta012 <- cbind(1, theta, theta^2)
+        Ahat <- c(solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%llest))
+        resids <- llest - c(theta012%*%Ahat)
+        sig2hat <- c(resids%*%W%*%resids) / M
 
+        ## test about moments
+        if (test=="moments") {
+            if (!is.list(null.value)) {
+                null.value <- list(null.value)
+            }
+            if (any(sapply(null.value, function(x) x[4]<=0))) {
+                stop("The fourth component of null.value (the variance of Monte Carlo log likelihood estimator) should be positive.",
+                    call. = FALSE
+                )
+            }
+            teststats <- sapply(null.value,
+                function(x) {
+                    err <- llest - c(theta012%*%x[1:3])
+                    .5*M*log(sig2hat/x[4]) - .5*c(err%*%W%*%err)/x[4]
+                })
+            prec <- 0.01
+            pval <- pscl(teststats, M, 3, precision=prec)
+            if (any(pval < .01)) {
+                prec <- 0.001
+                pval <- pscl(teststats, M, 3, precision=prec)
+            }
+            precdigits = ifelse(prec==0.01, 2, 3)
+            dfout <- data.frame(
+                a=sapply(null.value, function(x) x[1]),
+                b=sapply(null.value, function(x) x[2]),
+                c=sapply(null.value, function(x) x[3]),
+                sigma_sq=sapply(null.value, function(x) x[4]),
+                pvalue=round(pval, digits=precdigits)
+            )
+            out <- list(Monte_Carlo_MLE=c(a=Ahat[1], b=Ahat[2], c=Ahat[3], sigma_sq=sig2hat),
+                Hypothesis_Tests=dfout,
+                pvalue_precision=prec
+            )
+            print(out, row.names=FALSE)
+            invisible(out)
+        }
+        ## test about log likelihood
+        if (test=="loglik") {
+            if (!is.list(null.value)) {
+                null.value <- list(null.value)
+            }
+            nu <- c(c(1, param.at, param.at^2)%*%solve(t(theta012)%*%W%*%theta012, c(1, param.at, param.at^2)))
+            mu.at <- sum(c(1,param.at,param.at^2)*Ahat) # estimated mean of MCLLE at param.at
+            sigmaxsq <- sapply(null.value,
+                function(x) {
+                    nu1 <- M/2*sig2hat + (x-mu.at)^2/(2*nu)
+                    nu2 <- M/2
+                    nu3 <- 1/(8*nu)
+                    1/(nu2/(2*nu1)+sqrt(nu3/nu1+nu2^2/(4*nu1^2)))
+                }) # the value of sigma0^2 that maximizes the LLR statistics
+            teststats <- sapply(1:length(null.value), function(i) M/2*log(sig2hat/sigmaxsq[i]) - M*sig2hat/(2*sigmaxsq[i]) - (null.value[[i]]-sigmaxsq[i]/2-mu.at)^2/(2*nu*sigmaxsq[i]))
+            prec <- 0.01
+            pval <- pscl(teststats, M, 3, precision=prec)
+            if (any(pval < .01)) {
+                prec <- 0.001
+                pval <- pscl(teststats, M, 3, precision=prec)
+            }
+            precdigits = ifelse(prec==0.01, 2, 3)
+            dfout <- data.frame(
+                log_lik=unlist(null.value)
+                conservative_pvalue=round(pval, digits=precdigits)
+            )
+            out <- list(Monte_Carlo_MLE=c(a=Ahat[1], b=Ahat[2], c=Ahat[3], sigma_sq=sig2hat),
+                Hypothesis_Tests=dfout,
+                pvalue_precision=prec
+            )
+            print(out, row.names=FALSE)
+            invisible(out)
+        }
+        ## test about MLE
         
-        ## CI for 
+        ## 
     }
 }
 
 
 #' Construct a confidence interval using Monte Carlo log likelihood estimates
 
+
+
+
+
+
+
+
+### JUNK (TO BE REMOVED)
+if (FALSE){
+    cat("Hypothesis tests on the value of log likelihood (fixed parameter)\n",
+        "null value (loglik)            p-value\n",
+        sapply(1:length(null.value), function(i) paste0(paste0(format(c(null.value[[i]], format(round(pval[i], digits=precdigits), nsmall=precdigits)), width=19, justify="right"), collapse=''), '\n')),
+        "p-value precision: ", prec, '\n',
+        sep=''
+    )
+}
+if (FALSE){
+    cat("Hypothesis tests on the moments of Monte Carlo log likelihood estimator (fixed parameter)\n",
+        "        null value(mu)   null value(sigma^2)               p-value\n",
+        sapply(1:length(null.value), function(i) paste0(paste0(format(c(null.value[[i]], format(round(pval[i], digits=precdigits), nsmall=precdigits)), width=22, justify="right"), collapse=''), '\n')),
+        "p-value precision: ", prec, '\n',
+        sep=''
+    )
+}
+if(FALSE){
+    charlen <- c(16,16,16,22,12) # length of the output for each component
+    cat("Hypothesis tests on the local quadratic regression of Monte Carlo log likelihood estimates.\n",
+        "Model: MCLLE(theta) = a + b*theta + c*theta^2 + N(0, sigma^2)\n",
+        "   null value(a)   null value(b)   null value(c)   null value(sigma^2)     p-value\n",
+        sapply(1:length(null.value),
+            function(i) paste0(
+                format(null.value[[i]][1], width=charlen[1]),
+                format(null.value[[i]][2], width=charlen[2]),
+                format(null.value[[i]][3], width=charlen[3]),
+                format(null.value[[i]][4], width=charlen[4]),
+                format(round(pval[i], digits=precdigits), nsmall=precdigits, width=charlen[5]),
+                '\n')),
+        "p-value precision: ", prec, '\n',
+        sep=''
+    )
+}
