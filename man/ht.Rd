@@ -15,7 +15,7 @@ ht(x, ...)
 
 \item{test}{A character string indicating the quantity to be tested about. One of "loglik", "moments", "MLE", "information", or "parameter". See Details.}
 
-\item{weights}{An optional argument for the weights of the Monte Carlo log likelihood estimates for regression. Either a numeric vector of length equal to the 'mclle' object, or a character string equal to "tricube".}
+\item{weights}{An optional argument for the (non-relative) weights of the Monte Carlo log likelihood estimates for regression. Either a numeric vector of length equal to the 'mclle' object, or a character string equal to "tricube".}
 
 \item{fraction}{An optional argument indicating the fraction of points with nonzero weights for the case where 'weights' is specified as "tricube".}
 
@@ -27,10 +27,9 @@ A list consisting of the followings are returned.
 \item{Monte Carlo maximum likelihood estimate,}
 \item{a data frame of the null values and the corresponding (conservative) p-values,}
 \item{the precision (0.01 or 0.001) for the indicated conservative p-values.}
-\item{this}
 }
 When 'test' = "moments", exact p-values are shown.
-In other cases, conservative p-values are shown, because the given null value does not fully specify a distribution (instead only defines a subspace of the parameter space.)
+In other cases, conservative p-values are shown, because the given null value does not fully specify a distribution (instead only defines a subspace of the parameter space.) See Park and Won (2023) for more detailed explanation.
 }
 \description{
 `ht` outputs the results of a hypothesis test based on the Monte Carlo log likelihood estimates (see Park and Won (2023) for details).
@@ -66,7 +65,8 @@ If 'test' is "loglik", "moments", "MLE", or "information", the output is the sam
 If 'test' is "parameter", a test about the value of the model parameter is conducted under the local asymptotic normality assumption.
 When 'type' = "LAN", 'test' = "parameter" is assumed by default.
 
-When quadratic regression is carried out, the weights for the Monte Carlo likelihood estimates can be supplied.  The weights can either be given as an attribute 'weights' of the 'mclle' object, or as a function argument 'weights', with the latter being used when both are supplied. In either case, 'weights' should be a numeric vector of length equal to that of 'mclle'. If 'weights' is given as a function argument to 'ht', it can be specified alternatively as a character string "tricube". In this case, the tricube weight (see Cleveland, 1979) is used, with fraction \eqn{f} of points with nonzero weights specified by 'fraction'. If weights are not supplied in either locations, all Monte Carlo log likelihood estimates are used with equal weights.
+When quadratic regression is carried out, the weights for the Monte Carlo likelihood estimates can be supplied.  The weights can either be given as an attribute 'weights' of the 'mclle' object, or as a function argument 'weights', with the latter being used when both are supplied. In either case, 'weights' should be a numeric vector of length equal to that of 'mclle'. If 'weights' is given as a function argument to 'ht', it can be specified alternatively as a character string "tricube". In this case, the tricube weight (see Cleveland, 1979) is used, with fraction \eqn{f} of points with nonzero weights specified by 'fraction'. If weights are not supplied in either locations, all weights are taken to be equal to 1.
+It is important to note that the weights should NOT be normalized. Multiplying all weights by the same constant changes the local regression results. Roughly speaking, the variance of the error in the Monte Carlo log likelihood estimator is assumed to be sigma^2/(the weight for the point). See Park & Won (2023) for more information.
 }
 \references{
 Park, J. and Won, S. (2023) Simulation-based inference for partially observed, implicitly defined models
