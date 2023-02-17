@@ -163,7 +163,22 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
         if (ci=="loglik") {
             if (!is.list(level)) {
                 level <- list(level)
-            } ## TODO: revise from here.
+            }
+            prec <- 0.01
+            if (any(unlist(level)  < .05)) {
+                prec <- 0.001
+                pval <- pscl(teststats, M, 1, precision=prec)
+            }
+            lm <- function(x, lvl) { # lower margin
+                x/2 - sqrt(2*x/M*(-(M-1)/2*Ssq/x + M/2*log((M-1)*Ssq/(M*x)) - qscl(lvl, M, 1, precision=prec)))
+            }
+            um <- function(x, lvl) { # upper margin
+                x/2 + sqrt(2*x/M*(-(M-1)/2*Ssq/x + M/2*log((M-1)*Ssq/(M*x)) - qscl(lvl, M, 1, precision=prec)))
+            }
+            lub <- sapply(level, function(x) {
+                optimize(
+
+
             sigmaxsq <- sapply(level, function(x) 2*(M*(muhat - x)^2+(M-1)*Ssq)/(M+sqrt(M*(M*(muhat-x)^2+(M-1)*Ssq)+M^2))) # the value of sigma0^2 that maximizes the LLR statistics
             teststats <- sapply(1:length(null.value), function(i) -.5*(muhat-null.value[[i]]+sigmaxsq[i]/2)^2/(sigmaxsq[i]/M) - (M-1)/2*Ssq/sigmaxsq[i] + M/2*log((M-1)*Ssq/(M*sigmaxsq[i])))
             prec <- 0.01
