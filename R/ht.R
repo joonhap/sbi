@@ -203,12 +203,22 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
             }
             teststats <- sapply(null.value, function(x) -.5*M*(muhat - x[1])^2/x[2] - (M-1)/2*Ssq/x[2] + M/2*log((M-1)*Ssq/(M*x[2])))
             prec <- 0.01
-            pval <- pscl(teststats, M, 1, precision=prec)
+            psclout <- pscl(teststats, M, 1, precision=prec)
+            if (length(psclout)==0) { # execution of pscl stopped by user input
+                stop("Hypothesis tests stopped by user input", call. = FALSE)
+            }
+            pval <- psclout$probs
+            prec <- psclout$precision
             if (any(pval < .01)) {
                 prec <- 0.001
-                pval <- pscl(teststats, M, 1, precision=prec)
+                psclout <- pscl(teststats, M, 1, precision=prec)
+                if (length(psclout)==0) { # execution of pscl stopped by user input
+                    stop("Hypothesis tests stopped by user input", call. = FALSE)
+                }
+                pval <- psclout$probs
+                prec <- psclout$precision
             }
-            precdigits = ifelse(prec==0.01, 2, 3)
+            precdigits <- max(-floor(log10(prec)), 1)
             dfout <- data.frame(
                 mu_null=sapply(null.value, function(x) x[1]),
                 sigma_sq_null=sapply(null.value, function(x) x[2]),
@@ -228,12 +238,22 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
             sigmaxsq <- sapply(null.value, function(x) 2*(M*(muhat - x)^2+(M-1)*Ssq)/(M+sqrt(M*(M*(muhat-x)^2+(M-1)*Ssq)+M^2))) # the value of sigma0^2 that maximizes the LLR statistics
             teststats <- sapply(1:length(null.value), function(i) -.5*(muhat-null.value[[i]]+sigmaxsq[i]/2)^2/(sigmaxsq[i]/M) - (M-1)/2*Ssq/sigmaxsq[i] + M/2*log((M-1)*Ssq/(M*sigmaxsq[i])))
             prec <- 0.01
-            pval <- pscl(teststats, M, 1, precision=prec)
+            psclout <- pscl(teststats, M, 1, precision=prec)
+            if (length(psclout)==0) { # execution of pscl stopped by user input
+                stop("Hypothesis tests stopped by user input", call. = FALSE)
+            }
+            pval <- psclout$probs
+            prec <- psclout$precision
             if (any(pval < .01)) {
                 prec <- 0.001
-                pval <- pscl(teststats, M, 1, precision=prec)
+                psclout <- pscl(teststats, M, 1, precision=prec)
+                if (length(psclout)==0) { # execution of pscl stopped by user input
+                    stop("Hypothesis tests stopped by user input", call. = FALSE)
+                }
+                pval <- psclout$probs
+                prec <- psclout$precision
             }
-            precdigits = ifelse(prec==0.01, 2, 3)
+            precdigits <- max(-floor(log10(prec)), 1)
             dfout <- data.frame(
                 log_lik_null=unlist(null.value),
                 conservative_pvalue=round(pval, digits=precdigits)
@@ -327,12 +347,22 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
                     .5*M*log(sig2hat/x[4]) - .5*c(err%*%W%*%err)/x[4]
                 })
             prec <- 0.01
-            pval <- pscl(teststats, M, 3, precision=prec)
+            psclout <- pscl(teststats, M, 3, precision=prec)
+            if (length(psclout)==0) { # execution of pscl stopped by user input
+                stop("Hypothesis tests stopped by user input", call. = FALSE)
+            }
+            pval <- psclout$probs
+            prec <- psclout$precision
             if (any(pval < .01)) {
                 prec <- 0.001
-                pval <- pscl(teststats, M, 3, precision=prec)
+                psclout <- pscl(teststats, M, 3, precision=prec)
+                if (length(psclout)==0) { # execution of pscl stopped by user input
+                    stop("Hypothesis tests stopped by user input", call. = FALSE)
+                }
+                pval <- psclout$probs
+                prec <- psclout$precision
             }
-            precdigits = ifelse(prec==0.01, 2, 3)
+            precdigits <- max(-floor(log10(prec)), 1)
             dfout <- data.frame(
                 a_null=sapply(null.value, function(x) x[1]),
                 b_null=sapply(null.value, function(x) x[2]),
@@ -363,12 +393,22 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
                 }) # the value of sigma0^2 that maximizes the LLR statistics
             teststats <- sapply(1:length(null.value), function(i) M/2*log(sig2hat/sigmaxsq[i]) - M*sig2hat/(2*sigmaxsq[i]) - (null.value[[i]]-sigmaxsq[i]/2-mu.at)^2/(2*nu*sigmaxsq[i]))
             prec <- 0.01
-            pval <- pscl(teststats, M, 3, precision=prec)
+            psclout <- pscl(teststats, M, 3, precision=prec)
+            if (length(psclout)==0) { # execution of pscl stopped by user input
+                stop("Hypothesis tests stopped by user input", call. = FALSE)
+            }
+            pval <- psclout$probs
+            prec <- psclout$precision
             if (any(pval < .01)) {
                 prec <- 0.001
-                pval <- pscl(teststats, M, 3, precision=prec)
+                psclout <- pscl(teststats, M, 3, precision=prec)
+                if (length(psclout)==0) { # execution of pscl stopped by user input
+                    stop("Hypothesis tests stopped by user input", call. = FALSE)
+                }
+                pval <- psclout$probs
+                prec <- psclout$precision
             }
-            precdigits = ifelse(prec==0.01, 2, 3)
+            precdigits <- max(-floor(log10(prec)), 1)
             dfout <- data.frame(
                 log_lik_null=unlist(null.value),
                 conservative_pvalue=round(pval, digits=precdigits)
@@ -397,12 +437,22 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
                     -M/2*log(1 + 1/(M*sig2hat)*(Ahat[2]+2*x*Ahat[3])^2/(v22-4*v12*x+4*v11*x*x)*(v11*v22-v12^2)) - M/2
                 })
             prec <- 0.01
-            pval <- pscl(teststats, M, 3, precision=prec)
+            psclout <- pscl(teststats, M, 3, precision=prec)
+            if (length(psclout)==0) { # execution of pscl stopped by user input
+                stop("Hypothesis tests stopped by user input", call. = FALSE)
+            }
+            pval <- psclout$probs
+            prec <- psclout$precision
             if (any(pval < .01)) {
                 prec <- 0.001
-                pval <- pscl(teststats, M, 3, precision=prec)
+                psclout <- pscl(teststats, M, 3, precision=prec)
+                if (length(psclout)==0) { # execution of pscl stopped by user input
+                    stop("Hypothesis tests stopped by user input", call. = FALSE)
+                }
+                pval <- psclout$probs
+                prec <- psclout$precision
             }
-            precdigits = ifelse(prec==0.01, 2, 3)
+            precdigits <- max(-floor(log10(prec)), 1)
             dfout <- data.frame(
                 MLE_null=unlist(null.value),
                 conservative_pvalue=round(pval, digits=precdigits)
@@ -426,12 +476,22 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
                     -M/2*log(1+ 1/(M*sig2hat)*(Ahat[3]+x/2)^2*u3gv12) - M/2
                 })
             prec <- 0.01
-            pval <- pscl(teststats, M, 3, precision=prec)
+            psclout <- pscl(teststats, M, 3, precision=prec)
+            if (length(psclout)==0) { # execution of pscl stopped by user input
+                stop("Hypothesis tests stopped by user input", call. = FALSE)
+            }
+            pval <- psclout$probs
+            prec <- psclout$precision
             if (any(pval < .01)) {
                 prec <- 0.001
-                pval <- pscl(teststats, M, 3, precision=prec)
+                psclout <- pscl(teststats, M, 3, precision=prec)
+                if (length(psclout)==0) { # execution of pscl stopped by user input
+                    stop("Hypothesis tests stopped by user input", call. = FALSE)
+                }
+                pval <- psclout$probs
+                prec <- psclout$precision
             }
-            precdigits = ifelse(prec==0.01, 2, 3)
+            precdigits <- max(-floor(log10(prec)), 1)
             dfout <- data.frame(
                 information_null=unlist(null.value),
                 conservative_pvalue=round(pval, digits=precdigits)
@@ -466,21 +526,29 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
         theta_ss <- unname(est_ss[1,1]/K_ss)
         resids_ss <- unname(llest_chk - cbind(theta_chk, thetasq_chk)%*%est_ss)
         sig2hat_ss <- 1/(M-1)*c(t(resids_ss)%*%G1%*%resids_ss)
-        cat("sig2_fs", sig2hat_fs, "K_fs", -2*Ahat[3], "sig2_ss", sig2hat_ss, "K_ss", K_ss, "\n")
         teststats <- sapply(null.value,
             function(x) {
                 thdsq <- cbind(theta_chk, thetasq_chk)%*%c(x, -.5) # an intermediate step in computation
                 iota <- c(llest_chk%*%G1%*%llest_chk - (t(llest_chk)%*%G1%*%thdsq)^2/(t(thdsq)%*%G1%*%thdsq))
                 -(M-1)/2 + (M-1)/2*log((M-1)*sig2hat_ss/iota)
             })
-        cat(teststats, "\n")
         prec <- 0.01
-        pval <- pscl(teststats, M-1, 2, precision=prec)
+        psclout <- pscl(teststats, M-1, 2, precision=prec)
+        if (length(psclout)==0) { # execution of pscl stopped by user input
+            stop("Hypothesis tests stopped by user input", call. = FALSE)
+        }
+        pval <- psclout$probs
+        prec <- psclout$precision
         if (any(pval < .01)) {
             prec <- 0.001
-            pval <- pscl(teststats, M-1, 2, precision=prec)
+            psclout <- pscl(teststats, M-1, 2, precision=prec)
+            if (length(psclout)==0) { # execution of pscl stopped by user input
+                stop("Hypothesis tests stopped by user input", call. = FALSE)
+            }
+            pval <- psclout$probs
+            prec <- psclout$precision
         }
-        precdigits = ifelse(prec==0.01, 2, 3)
+        precdigits <- max(-floor(log10(prec)), 1)
         dfout <- data.frame(
             parameter_null=unlist(null.value),
             conservative_pvalue=round(pval, digits=precdigits)

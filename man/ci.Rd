@@ -47,6 +47,7 @@ A list consisting of the followings are returned.
 \details{
 This is a generic function, taking a class 'mclle' object as the first argument.
 Confidence intervals are constructed under the assumption that the Monte Carlo likelihood estimator whose values are given in the 'mclle' object is (approximately) normally distributed.
+
 When 'level' is a list, a conservative confidence interval is constructed for each level specified in the list.
 
 The constructed confidence intervals are conservative, in that all points for which there exists a null distribution that is not rejected at the specified confidence level will be included in the constructed interval. This complication arises because a point in the confidence interval does not fully specify a distribution (instead only defines a subspace of the parameter space.) See Park and Won (2023) for more detailed explanation.

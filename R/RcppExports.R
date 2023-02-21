@@ -15,7 +15,7 @@
 #' @param lower logical; if TRUE, probabilities are P[X <= x], otherwise, P[X > x].
 #' @param log_p logical; if TRUE, probabilities p are given as log(p).
 #' @param force logical; if TRUE, the function will run regardless of how long it will take. If FALSE, the function will ask if you want to continue, stop, or give a new precision value whenever the expected run time is longer than 15 seconds. 
-#' @return numeric vector of quantiles.
+#' @return a list consisting of the numeric vector of quantiles and the precision (numeric) used.
 #' @examples
 #' qscl(.99, 5, 2)
 #' qscl(c(.01, .05, .95, .99), 10, 2.3)

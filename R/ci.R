@@ -165,36 +165,44 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
                 level <- list(level)
             }
             prec <- 0.01
-            if (any(unlist(level)  < .05)) {
+            if (any(unlist(level) > .95)) {
                 prec <- 0.001
-                pval <- pscl(teststats, M, 1, precision=prec)
             }
-            lm <- function(x, lvl) { # lower margin
-                x/2 - sqrt(2*x/M*(-(M-1)/2*Ssq/x + M/2*log((M-1)*Ssq/(M*x)) - qscl(lvl, M, 1, precision=prec)))
+            qsclout <- qscl(1-unlist(level), M, 1, precision=prec)
+            if (length(qsclout)==0) { # execution of qscl stopped by user input
+                stop("Construction of confidence interval stopped by user input", call. = FALSE)
             }
-            um <- function(x, lvl) { # upper margin
-                x/2 + sqrt(2*x/M*(-(M-1)/2*Ssq/x + M/2*log((M-1)*Ssq/(M*x)) - qscl(lvl, M, 1, precision=prec)))
-            }
-            lub <- sapply(level, function(x) {
-                optimize(
-
-
-            sigmaxsq <- sapply(level, function(x) 2*(M*(muhat - x)^2+(M-1)*Ssq)/(M+sqrt(M*(M*(muhat-x)^2+(M-1)*Ssq)+M^2))) # the value of sigma0^2 that maximizes the LLR statistics
-            teststats <- sapply(1:length(null.value), function(i) -.5*(muhat-null.value[[i]]+sigmaxsq[i]/2)^2/(sigmaxsq[i]/M) - (M-1)/2*Ssq/sigmaxsq[i] + M/2*log((M-1)*Ssq/(M*sigmaxsq[i])))
-            prec <- 0.01
-            pval <- pscl(teststats, M, 1, precision=prec)
-            if (any(pval < .01)) {
-                prec <- 0.001
-                pval <- pscl(teststats, M, 1, precision=prec)
-            }
-            precdigits = ifelse(prec==0.01, 2, 3)
-            dfout <- data.frame(
-                log_lik_null=unlist(null.value),
-                conservative_pvalue=round(pval, digits=precdigits)
-            )
+            q <- qsclout$quantiles
+            prec <- qsclout$precision
+            print(qsclout)
+            cat("q", q, " prec ", prec, "\n")
+            lub <- sapply(1:length(level), function(i) {
+                lvl <- level[[i]]
+                f <- function(gamma) {
+                    -gamma/2 + M/2*log(gamma/M)
+                } # a function that takes its maximum at M
+                ## the interval (B) defined by {gamma; f(gamma) >= SCL_{1-alpha}(M,1)} is related to the interval for sigma_0^2 such that the radicand in the expression for the confidence interval is non-negative. The relationship is gamma = (M-1)*Ssq/sigma_0^2.
+                fprime <- function(gamma) { # derivative of gamma
+                    -1/2 + M/2/gamma
+                } 
+                tol <- .Machine$double.eps^.25 # uniroot's default tolerance level for numerical root finding
+                gamma_min <- uniroot(function(g) {f(g)-q[i]-tol}, interval=c(M*exp(2/M*q[i]), M))$root ## the lower limit of the interval B is between M*exp(2/M*q) and M
+                gamma_max <- uniroot(function(g) {f(g)-q[i]-tol}, interval=c(M, 2*M+(q[i]-f(2*M))/fprime(2*M)))$root ## the upper limit of interval B is between M and 2M+(q-f(2M))/f'(2M)
+                sigma0_sq_min <- (M-1)*Ssq/gamma_max # (numerically) smallest sigma0_sq such that the radicand is nonnegative
+                sigma0_sq_max <- (M-1)*Ssq/gamma_min # (numerically) largest sigma0_sq such that the radicand is nonnegative
+                lm <- function(x) { # lower margin
+                    x/2 - sqrt(2*x/M*(-(M-1)/2*Ssq/x + M/2*log((M-1)*Ssq/(M*x)) - q[i]))
+                }
+                um <- function(x) { # upper margin
+                    x/2 + sqrt(2*x/M*(-(M-1)/2*Ssq/x + M/2*log((M-1)*Ssq/(M*x)) - q[i]))
+                }
+                lb <- muhat + optimize(lm, c(sigma0_sq_min, sigma0_sq_max), maximum=FALSE)$objective # lower bound
+                ub <- muhat + optimize(um, c(sigma0_sq_min, sigma0_sq_max), maximum=TRUE)$objective # upper bound
+                return(c(level=lvl, lb=lb, ub=ub))
+            })
             out <- list(Monte_Carlo_MLE=c(log_lik=muhat+(M-1)/(2*M)*Ssq),
-                Hypothesis_Tests=dfout,
-                pvalue_precision=prec
+                confidence_interval=t(lub),
+                confidence_level_precision=prec
             )
             print(out, row.names=FALSE)
             invisible(out)
@@ -265,76 +273,49 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
         Ahat <- c(solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%llest))
         resids <- llest - c(theta012%*%Ahat)
         sig2hat <- c(resids%*%W%*%resids) / M
-        ## test about moments
-        if (ci=="moments") {
-            if (!is.list(null.value)) {
-                null.value <- list(null.value)
-            }
-            if (any(sapply(null.value, function(x) x[4]<=0))) {
-                stop("The fourth component of null.value (the variance of Monte Carlo log likelihood estimator) should be positive.",
-                    call. = FALSE
-                )
-            }
-            teststats <- sapply(null.value,
-                function(x) {
-                    err <- llest - c(theta012%*%x[1:3])
-                    .5*M*log(sig2hat/x[4]) - .5*c(err%*%W%*%err)/x[4]
-                })
-            prec <- 0.01
-            pval <- pscl(teststats, M, 3, precision=prec)
-            if (any(pval < .01)) {
-                prec <- 0.001
-                pval <- pscl(teststats, M, 3, precision=prec)
-            }
-            precdigits = ifelse(prec==0.01, 2, 3)
-            dfout <- data.frame(
-                a_null=sapply(null.value, function(x) x[1]),
-                b_null=sapply(null.value, function(x) x[2]),
-                c_null=sapply(null.value, function(x) x[3]),
-                sigma_sq_null=sapply(null.value, function(x) x[4]),
-                pvalue=round(pval, digits=precdigits)
-            )
-            out <- list(Monte_Carlo_MLE=c(a=Ahat[1], b=Ahat[2], c=Ahat[3], sigma_sq=sig2hat),
-                Hypothesis_Tests=dfout,
-                pvalue_precision=prec
-            )
-            print(out, row.names=FALSE)
-            invisible(out)
-        }
-        ## test about log likelihood
+        ## ci for log likelihood
         if (ci=="loglik") {
-            if (!is.list(null.value)) {
-                null.value <- list(null.value)
+            if (!is.list(level)) {
+                level <- list(level)
+            }
+            prec <- 0.01
+            if (any(unlist(level)  > .95)) {
+                prec <- 0.001
             }
             nu <- c(c(1, param.at, param.at^2)%*%solve(t(theta012)%*%W%*%theta012, c(1, param.at, param.at^2)))
             mu.at <- sum(c(1,param.at,param.at^2)*Ahat) # estimated mean of MCLLE at param.at
-            sigmaxsq <- sapply(null.value,
-                function(x) {
-                    nu1 <- M/2*sig2hat + (x-mu.at)^2/(2*nu)
-                    nu2 <- M/2
-                    nu3 <- 1/(8*nu)
-                    1/(nu2/(2*nu1)+sqrt(nu3/nu1+nu2^2/(4*nu1^2)))
-                }) # the value of sigma0^2 that maximizes the LLR statistics
-            teststats <- sapply(1:length(null.value), function(i) M/2*log(sig2hat/sigmaxsq[i]) - M*sig2hat/(2*sigmaxsq[i]) - (null.value[[i]]-sigmaxsq[i]/2-mu.at)^2/(2*nu*sigmaxsq[i]))
-            prec <- 0.01
-            pval <- pscl(teststats, M, 3, precision=prec)
-            if (any(pval < .01)) {
-                prec <- 0.001
-                pval <- pscl(teststats, M, 3, precision=prec)
-            }
-            precdigits = ifelse(prec==0.01, 2, 3)
-            dfout <- data.frame(
-                log_lik_null=unlist(null.value),
-                conservative_pvalue=round(pval, digits=precdigits)
-            )
+            lub <- sapply(level, function(lvl) {
+                f <- function(gamma) {
+                    log(gamma) - gamma
+                } # a function that takes its maximum at 1
+                ## the interval (B) defined by {gamma; M*f(gamma) >= 2*SCL_{1-alpha}(M,3)} is related to the interval for sigma0_sq such that the radicand in the expression for the confidence interval is non-negative. The relationship is gamma = sig2hat/sigma0_sq
+                fprime <- function(gamma) { # derivative of gamma
+                    1/gamma - 1
+                } 
+                q <- qscl(1-lvl, M, 3, precision=prec)
+                tol <- .Machine$double.eps^.25 # uniroot's default tolerance level for numerical root finding
+                gamma_min <- uniroot(function(g) {f(g)-2*q/M-tol}, interval=c(exp(2*q/M), 1))$root ## the lower limit of the interval B is between exp(2q/M) and 1
+                gamma_max <- uniroot(function(g) {f(g)-2*q/M-tol}, interval=c(1, 2+(2*q/M-f(2))/fprime(2)))$root ## the upper limit of interval B is between 1 and 2+(2q/M-f(2))/f'(2)
+                sigma0_sq_min <- sig2hat/gamma_max # (numerically) smallest sigma0_sq such that the radicand is nonnegative
+                sigma0_sq_max <- sig2hat/gamma_min # (numerically) largest sigma0_sq such that the radicand is nonnegative
+                lm <- function(x) { # lower margin
+                    x/2 - sqrt(x*nu*(M*log(sig2hat/x) - M*sig2hat/x - 2*q))
+                }
+                um <- function(x) { # upper margin
+                    x/2 + sqrt(x*nu*(M*log(sig2hat/x) - M*sig2hat/x - 2*q))
+                }
+                lb <- mu.at + optimize(lm, c(sigma0_sq_min, sigma0_sq_max), maximum=FALSE)$objective # lower bound
+                ub <- mu.at + optimize(um, c(sigma0_sq_min, sigma0_sq_max), maximum=TRUE)$objective # upper bound
+                return(c(level=lvl, lb=lb, ub=ub))
+            })
             out <- list(Monte_Carlo_MLE=c(log_lik=unname(mu.at+sig2hat/2)),
-                Hypothesis_Tests=dfout,
-                pvalue_precision=prec
+                confidence_interval=t(lub),
+                confidence_level_precision=prec
             )
             print(out, row.names=FALSE)
             invisible(out)
         }
-        ## ci about MLE
+        ## ci for MLE
         if (ci=="MLE") {
             if (!is.list(null.value)) {
                 null.value <- list(null.value)

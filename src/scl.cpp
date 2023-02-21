@@ -17,7 +17,7 @@
 //' @param lower logical; if TRUE, probabilities are P[X <= x], otherwise, P[X > x].
 //' @param log_p logical; if TRUE, probabilities p are given as log(p).
 //' @param force logical; if TRUE, the function will run regardless of how long it will take. If FALSE, the function will ask if you want to continue, stop, or give a new precision value whenever the expected run time is longer than 15 seconds. 
-//' @return numeric vector of quantiles.
+//' @return a list consisting of the numeric vector of quantiles and the precision (numeric) used.
 //' @examples
 //' qscl(.99, 5, 2)
 //' qscl(c(.01, .05, .95, .99), 10, 2.3)
@@ -27,7 +27,7 @@
 //' rscl(10, 7, 2)
 //' @export
 // [[Rcpp::export]]
-Rcpp::NumericVector qscl(Rcpp::NumericVector p, const double M, double const k, const double precision = 0.01, const bool lower = true, const bool log_p = false, const bool force = false) {
+Rcpp::List qscl(Rcpp::NumericVector p, const double M, double const k, double precision = 0.01, const bool lower = true, const bool log_p = false, const bool force = false) {
   int plen = p.size();
   if (log_p) {
     for (int i = 0; i < plen; i++) {
@@ -91,15 +91,16 @@ Rcpp::NumericVector qscl(Rcpp::NumericVector p, const double M, double const k, 
     for (int i = 0; i < plen; i++) {
       quantiles[i] = vec_scl[round(p[i]*bsize*nbloc) - 1];
     }
-    return quantiles;
+    return Rcpp::List::create(Rcpp::Named("quantiles") = quantiles, Rcpp::Named("precision") = precision);
   } else { // else, increase the simulation length
     factor = max_sumsq / (nbloc * precision * precision * (nbloc - 1));
     double req_time = duration.count() / 1000.0 * factor; // estimated time for completion in seconds
 
     if (req_time > 15.0 && (!force)) {
       do {
+	std::cout << "Computing quantile values for the SCL distribution (" << M << "," << k << ") with precision " << precision << ".\n";
 	std::cout << "This will take approximately " << round(duration.count() / 1000.0 * factor) << " seconds.\n";
-	std::cout << "Do you want to continue? (If so, type 'y'.)\nIf not, you can enter a new precision (= the number of decimal points, but can be any positive real) or type 'n' to stop.\n";
+	std::cout << "Do you want to continue? (If so, type 'y'.)\nIf not, you can enter a new precision (e.g., 0.005) or type 'n' to stop.\n";
 	std::string response;
 	std::cin >> response;
 	if (response == "y" || response == "Y") {
@@ -108,8 +109,8 @@ Rcpp::NumericVector qscl(Rcpp::NumericVector p, const double M, double const k, 
 	  std::cout << "Stopping.\n";
 	  return 0;
 	} else {
-	  double new_precision = std::stod(response);
-	  factor = max_sumsq / (nbloc * (nbloc - 1) * new_precision * new_precision);
+	  precision = std::stod(response);
+	  factor = max_sumsq / (nbloc * (nbloc - 1) * precision * precision);
 	  continue;
 	}
       } while (true);
@@ -128,12 +129,15 @@ Rcpp::NumericVector qscl(Rcpp::NumericVector p, const double M, double const k, 
   for (int i = 0; i < plen; i++) {
     quantiles[i] = vec_scl[round(p[i]*newbsize*nbloc) - 1];
   }
-  return quantiles;
+
+  return Rcpp::List::create(Rcpp::Named("quantiles") = quantiles, Rcpp::Named("precision") = precision);
 }
+
+
 
 //' @rdname SCLdist
 // [[Rcpp::export]]
-Rcpp::NumericVector pscl(Rcpp::NumericVector q, const double M, const double k, const double precision = 0.01, const bool lower = true, const bool log_p = false, const bool force = false) {
+Rcpp::List pscl(Rcpp::NumericVector q, const double M, const double k, double precision = 0.01, const bool lower = true, const bool log_p = false, const bool force = false) {
   int qlen = q.size();
   
   int vsize = std::max(2000, int(1/precision)); // starting size of the vector of random draws
@@ -168,14 +172,15 @@ Rcpp::NumericVector pscl(Rcpp::NumericVector q, const double M, const double k, 
     for (int i = 0; i < qlen; i++) {
       probs[i] = counts[i] / (vsize + 0.0);
     }
-    return probs;
+    return Rcpp::List::create(Rcpp::Named("probs") = probs, Rcpp::Named("precision") = precision);
   } else { // else, increase the number of draws
     double req_time = duration.count() / 1000000.0 * factor; // estimated time for completion in seconds
 
     if (req_time > 15.0 && (!force)) {
       do {
+	std::cout << "Computing the cdf for the SCL distribution (" << M << "," << k << ") with precision " << precision << ".\n";
 	std::cout << "This will take approximately " << round(req_time) << " seconds.\n";
-	std::cout << "Do you want to continue? (If so, type 'y'.)\nIf not, you can enter a new precision or type 'n' to stop.\n";
+	std::cout << "Do you want to continue? (If so, type 'y'.)\nIf not, you can enter a new precision (e.g., 0.005) or type 'n' to stop.\n";
 	std::string response;
 	std::cin >> response;
 	if (response == "y" || response == "Y") {
@@ -184,8 +189,8 @@ Rcpp::NumericVector pscl(Rcpp::NumericVector q, const double M, const double k, 
 	  std::cout << "Stopping.\n";
 	  return 0;
 	} else {
-	  double new_precision = std::stod(response);
-	  factor = max_var / (new_precision * new_precision);
+	  double precision = std::stod(response);
+	  factor = max_var / (precision * precision);
 	  continue;
 	}
       } while (true);
@@ -207,8 +212,10 @@ Rcpp::NumericVector pscl(Rcpp::NumericVector q, const double M, const double k, 
     probs[j] = counts[j] / (newvsize + 0.0);
   }
 
-  return probs;
+  return Rcpp::List::create(Rcpp::Named("probs") = probs, Rcpp::Named("precision") = precision);
 }
+
+
 
 
 //' @rdname SCLdist

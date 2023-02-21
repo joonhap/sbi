@@ -11,7 +11,7 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // qscl
-Rcpp::NumericVector qscl(Rcpp::NumericVector p, const double M, double const k, const double precision, const bool lower, const bool log_p, const bool force);
+Rcpp::List qscl(Rcpp::NumericVector p, const double M, double const k, double precision, const bool lower, const bool log_p, const bool force);
 RcppExport SEXP _mclle_qscl(SEXP pSEXP, SEXP MSEXP, SEXP kSEXP, SEXP precisionSEXP, SEXP lowerSEXP, SEXP log_pSEXP, SEXP forceSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
@@ -19,7 +19,7 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< Rcpp::NumericVector >::type p(pSEXP);
     Rcpp::traits::input_parameter< const double >::type M(MSEXP);
     Rcpp::traits::input_parameter< double const >::type k(kSEXP);
-    Rcpp::traits::input_parameter< const double >::type precision(precisionSEXP);
+    Rcpp::traits::input_parameter< double >::type precision(precisionSEXP);
     Rcpp::traits::input_parameter< const bool >::type lower(lowerSEXP);
     Rcpp::traits::input_parameter< const bool >::type log_p(log_pSEXP);
     Rcpp::traits::input_parameter< const bool >::type force(forceSEXP);
@@ -28,7 +28,7 @@ BEGIN_RCPP
 END_RCPP
 }
 // pscl
-Rcpp::NumericVector pscl(Rcpp::NumericVector q, const double M, const double k, const double precision, const bool lower, const bool log_p, const bool force);
+Rcpp::List pscl(Rcpp::NumericVector q, const double M, const double k, double precision, const bool lower, const bool log_p, const bool force);
 RcppExport SEXP _mclle_pscl(SEXP qSEXP, SEXP MSEXP, SEXP kSEXP, SEXP precisionSEXP, SEXP lowerSEXP, SEXP log_pSEXP, SEXP forceSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
@@ -36,7 +36,7 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< Rcpp::NumericVector >::type q(qSEXP);
     Rcpp::traits::input_parameter< const double >::type M(MSEXP);
     Rcpp::traits::input_parameter< const double >::type k(kSEXP);
-    Rcpp::traits::input_parameter< const double >::type precision(precisionSEXP);
+    Rcpp::traits::input_parameter< double >::type precision(precisionSEXP);
     Rcpp::traits::input_parameter< const bool >::type lower(lowerSEXP);
     Rcpp::traits::input_parameter< const bool >::type log_p(log_pSEXP);
     Rcpp::traits::input_parameter< const bool >::type force(forceSEXP);

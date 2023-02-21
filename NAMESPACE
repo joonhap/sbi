@@ -7,3 +7,6 @@ export(ht)
 export(mclle)
 export(new_mclle)
 export(qscl)
+useDynLib(mclle)
+importFrom(Rcpp, evalCpp)
+
