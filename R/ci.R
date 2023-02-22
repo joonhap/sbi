@@ -54,7 +54,7 @@ ci <- function(x, ...) {
 #' \itemize{
 #' \item{Monte Carlo maximum likelihood estimate,}
 #' \item{a data frame of the lower and upper bounds of the confidence intervals and the corresponding (conservative) confidence levels,}
-#' \item{the precision (0.01 or 0.001) for the (conservative) confidence levels.}
+#' \item{the precision of the quantile values of the SCL distribution used in the construction of confidence levels (0.01 by default).}
 #' }
 #' 
 #' @references Park, J. and Won, S. (2023). Simulation-based inference for partially observed, implicitly defined models
@@ -165,17 +165,12 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
                 level <- list(level)
             }
             prec <- 0.01
-            if (any(unlist(level) > .95)) {
-                prec <- 0.001
-            }
             qsclout <- qscl(1-unlist(level), M, 1, precision=prec)
             if (length(qsclout)==0) { # execution of qscl stopped by user input
                 stop("Construction of confidence interval stopped by user input", call. = FALSE)
             }
             q <- qsclout$quantiles
             prec <- qsclout$precision
-            print(qsclout)
-            cat("q", q, " prec ", prec, "\n")
             lub <- sapply(1:length(level), function(i) {
                 lvl <- level[[i]]
                 f <- function(gamma) {
@@ -270,7 +265,7 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
         llest <- c(unclass(mclle))
         M <- length(llest)
         theta012 <- cbind(1, theta, theta^2)
-        Ahat <- c(solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%llest))
+        Ahat <- c(solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%llest)) # Ahat=(ahat,bhat,chat)
         resids <- llest - c(theta012%*%Ahat)
         sig2hat <- c(resids%*%W%*%resids) / M
         ## ci for log likelihood
@@ -279,12 +274,16 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
                 level <- list(level)
             }
             prec <- 0.01
-            if (any(unlist(level)  > .95)) {
-                prec <- 0.001
+            qsclout <- qscl(1-unlist(level), M, 3, precision=prec)
+            if (length(qsclout)==0) { # execution of qscl stopped by user input
+                stop("Construction of confidence interval stopped by user input", call. = FALSE)
             }
+            q <- qsclout$quantiles
+            prec <- qsclout$precision
             nu <- c(c(1, param.at, param.at^2)%*%solve(t(theta012)%*%W%*%theta012, c(1, param.at, param.at^2)))
             mu.at <- sum(c(1,param.at,param.at^2)*Ahat) # estimated mean of MCLLE at param.at
-            lub <- sapply(level, function(lvl) {
+            lub <- sapply(1:length(level), function(i) {
+                lvl <- level[[i]]
                 f <- function(gamma) {
                     log(gamma) - gamma
                 } # a function that takes its maximum at 1
@@ -292,17 +291,16 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
                 fprime <- function(gamma) { # derivative of gamma
                     1/gamma - 1
                 } 
-                q <- qscl(1-lvl, M, 3, precision=prec)
                 tol <- .Machine$double.eps^.25 # uniroot's default tolerance level for numerical root finding
-                gamma_min <- uniroot(function(g) {f(g)-2*q/M-tol}, interval=c(exp(2*q/M), 1))$root ## the lower limit of the interval B is between exp(2q/M) and 1
-                gamma_max <- uniroot(function(g) {f(g)-2*q/M-tol}, interval=c(1, 2+(2*q/M-f(2))/fprime(2)))$root ## the upper limit of interval B is between 1 and 2+(2q/M-f(2))/f'(2)
+                gamma_min <- uniroot(function(g) {f(g)-2*q[i]/M-tol}, interval=c(exp(2*q[i]/M), 1))$root ## the lower limit of the interval B is between exp(2q/M) and 1
+                gamma_max <- uniroot(function(g) {f(g)-2*q[i]/M-tol}, interval=c(1, 2+(2*q[i]/M-f(2))/fprime(2)))$root ## the upper limit of interval B is between 1 and 2+(2q/M-f(2))/f'(2)
                 sigma0_sq_min <- sig2hat/gamma_max # (numerically) smallest sigma0_sq such that the radicand is nonnegative
                 sigma0_sq_max <- sig2hat/gamma_min # (numerically) largest sigma0_sq such that the radicand is nonnegative
                 lm <- function(x) { # lower margin
-                    x/2 - sqrt(x*nu*(M*log(sig2hat/x) - M*sig2hat/x - 2*q))
+                    x/2 - sqrt(x*nu*(M*log(sig2hat/x) - M*sig2hat/x - 2*q[i]))
                 }
                 um <- function(x) { # upper margin
-                    x/2 + sqrt(x*nu*(M*log(sig2hat/x) - M*sig2hat/x - 2*q))
+                    x/2 + sqrt(x*nu*(M*log(sig2hat/x) - M*sig2hat/x - 2*q[i]))
                 }
                 lb <- mu.at + optimize(lm, c(sigma0_sq_min, sigma0_sq_max), maximum=FALSE)$objective # lower bound
                 ub <- mu.at + optimize(um, c(sigma0_sq_min, sigma0_sq_max), maximum=TRUE)$objective # upper bound
@@ -310,15 +308,15 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
             })
             out <- list(Monte_Carlo_MLE=c(log_lik=unname(mu.at+sig2hat/2)),
                 confidence_interval=t(lub),
-                confidence_level_precision=prec
+                quantile_SCL_precision=prec
             )
             print(out, row.names=FALSE)
             invisible(out)
         }
         ## ci for MLE
         if (ci=="MLE") {
-            if (!is.list(null.value)) {
-                null.value <- list(null.value)
+            if (!is.list(level)) {
+                level <- list(level)
             }
             mtheta1 <- sum(w*theta)/sum(w)
             mtheta2 <- sum(w*theta*theta)/sum(w)
@@ -327,29 +325,43 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
             v11 <- sum(w)*(mtheta2 - mtheta1*mtheta1)
             v12 <- sum(w)*(mtheta3 - mtheta1*mtheta2)
             v22 <- sum(w)*(mtheta4 - mtheta2*mtheta2)
-            teststats <- sapply(null.value,
-                function(x) {
-                    -M/2*log(1 + 1/(M*sig2hat)*(Ahat[2]+2*x*Ahat[3])^2/(v22-4*v12*x+4*v11*x*x)*(v11*v22-v12^2)) - M/2
-                })
+            detV <- v11*v22-v12*v12
+            Vl <- sum(w*llest^2) - sum(w*llest)^2/sum(w)
             prec <- 0.01
-            pval <- pscl(teststats, M, 3, precision=prec)
-            if (any(pval < .01)) {
-                prec <- 0.001
-                pval <- pscl(teststats, M, 3, precision=prec)
+            qsclout <- qscl(1-unlist(level), M, 3, precision=prec)
+            if (length(qsclout)==0) { # execution of qscl stopped by user input
+                stop("Construction of confidence interval stopped by user input", call. = FALSE)
             }
-            precdigits = ifelse(prec==0.01, 2, 3)
-            dfout <- data.frame(
-                MLE_null=unlist(null.value),
-                conservative_pvalue=round(pval, digits=precdigits)
-            )
+            q <- qsclout$quantiles
+            prec <- qsclout$precision
+            xi <- M*(exp(-1-2*q/M)-1)
+            D <- detV * xi * sig2hat * (Vl - (xi+M)*sig2hat)
+            lub <- sapply(1:length(level), function(i) {
+                lvl <- level[[i]]
+                if (xi[i]*sig2hat < Ahat[3]^2*detV/v11) { # Case 1
+                    int <- (-(Ahat[2]*Ahat[3]*detV+v12*xi[i]*sig2hat) + c(-1,1)*sqrt(D[i])) /2/(Ahat[3]^2*detV-v11*xi[i]*sig2hat)
+                    return(c(level=lvl, lb=int[1], ub=int[2], inverted=0))
+                } else if (Ahat[3]^2*detV/v11 <= xi[i]*sig2hat && xi[i]*sig2hat < Vl-M*sig2hat) { # Case 2
+                    int <- (-(Ahat[2]*Ahat[3]*detV+v12*xi[i]*sig2hat) + c(1,-1)*sqrt(D[i])) /2/(Ahat[3]^2*detV-v11*xi[i]*sig2hat)
+                    return(c(level=lvl, lb=int[1], ub=int[2], inverted=1))
+                } else { # Case 3
+                    return(c(level=lvl, lb=-Inf, ub=Inf, inverted=0))
+                }
+            })
+            if (any(lub["inverted",]==1)) { # if for any given level the confidence interval is inverted (Case 2)
+                warning(paste0("For level(s) ", toString(unlist(level)[which(lub["inverted",]==1)]), ", the constructed confidence is of the form (-Inf, lb) U (ub, Inf)."), call.=FALSE)
+            } else { # otherwise, remove the "inverted" column
+                lub <- lub[-4,]
+            }
             out <- list(Monte_Carlo_MLE=c(MLE=unname(-Ahat[2]/(2*Ahat[3]))),
-                Hypothesis_Tests=dfout,
-                pvalue_precision=prec
+                confidence_interval=t(lub),
+                quantile_SCL_precision=prec
             )
             print(out, row.names=FALSE)
             invisible(out)
         }
         ## ci about Fisher information
+        ## TODO:
         if (ci=="information") {
             if (!is.list(null.value)) {
                 null.value <- list(null.value)
