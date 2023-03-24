@@ -47,7 +47,7 @@ ci <- function(x, ...) {
 #' If 'ci' is "parameter", confidence intervals for the value of the model parameter are constructed under the local asymptotic normality assumption.
 #' When 'type' = "LAN", 'ci' = "parameter" is assumed by default.
 #'
-#' When quadratic regression is carried out, the weights for the Monte Carlo likelihood estimates can be supplied.  The weights can either be given as an attribute 'weights' of the 'mclle' object, or as a function argument 'weights', with the latter being used when both are supplied. In either case, 'weights' should be a numeric vector of length equal to that of 'mclle'. If 'weights' is given as a function argument, it can be specified alternatively as a character string "tricube". In this case, the tricube weight (see Cleveland, 1979) is used, and the specified 'fraction' of the points will have nonzero weights. If weights are not supplied in either locations, all weights are taken to be equal to 1.
+#' When quadratic regression is carried out, the weights for the Monte Carlo likelihood estimates can be supplied.  The weights can either be given as an attribute 'weights' of the 'mclle' object, or as a function argument 'weights', with the latter being used when both are supplied. In either case, 'weights' should be a numeric vector of length equal to that of 'mclle'. If 'weights' is given as a function argument, it can be specified alternatively as a character string "tricube". In this case, the tricube weight (see Cleveland, 1979) is used, and the specified 'fraction' of the points will have nonzero weights. The 'center' argument determines at which parameter value the tricube weight takes the maximum. If weights are not supplied in either location, all weights are taken to be equal to 1.
 #' It is important to note that the weights should NOT be normalized. Multiplying all weights by the same constant changes the local regression results. Roughly speaking, the variance of the error in the Monte Carlo log likelihood estimate is assumed to be sigma^2/(the weight for the point). See Park & Won (2023) for more information.
 #'
 #' @return A list consisting of the followings are returned.
@@ -109,6 +109,11 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
                 )
             }
         }
+    } else if (length(level) != 1) {
+            stop(
+                "If 'level' is a numeric vector (and not a list), its length should be 1.",
+                call. = FALSE
+            )
     }
     if (!is.null(param.at)) {
         if (!is.numeric(param.at)) {
@@ -196,7 +201,7 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
                 return(c(level=lvl, lb=lb, ub=ub))
             })
             out <- list(Monte_Carlo_MLE=c(log_lik=muhat+(M-1)/(2*M)*Ssq),
-                confidence_interval=t(lub),
+                conservative_confidence_interval=t(lub),
                 confidence_level_precision=prec
             )
             print(out, row.names=FALSE)
@@ -307,7 +312,7 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
                 return(c(level=lvl, lb=lb, ub=ub))
             })
             out <- list(Monte_Carlo_MLE=c(log_lik=unname(mu.at+sig2hat/2)),
-                confidence_interval=t(lub),
+                conservative_confidence_interval=t(lub),
                 quantile_SCL_precision=prec
             )
             print(out, row.names=FALSE)
@@ -354,44 +359,41 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
                 lub <- lub[-4,]
             }
             out <- list(Monte_Carlo_MLE=c(MLE=unname(-Ahat[2]/(2*Ahat[3]))),
-                confidence_interval=t(lub),
+                conservative_confidence_interval=t(lub),
                 quantile_SCL_precision=prec
             )
             print(out, row.names=FALSE)
             invisible(out)
         }
-        ## ci about Fisher information
-        ## TODO:
+        ## ci for Fisher information
         if (ci=="information") {
-            if (!is.list(null.value)) {
-                null.value <- list(null.value)
+            if (!is.list(level)) {
+                level <- list(level)
             }
             U <- t(theta012)%*%W%*%theta012
             u3gv12 <- U[3,3] - c(U[3,1:2]%*%solve(U[1:2,1:2], U[1:2,3])) # u_{3|12}
-            teststats <- sapply(null.value,
-                function(x) {
-                    -M/2*log(1+ 1/(M*sig2hat)*(Ahat[3]+x/2)^2*u3gv12) - M/2
-                })
             prec <- 0.01
-            pval <- pscl(teststats, M, 3, precision=prec)
-            if (any(pval < .01)) {
-                prec <- 0.001
-                pval <- pscl(teststats, M, 3, precision=prec)
+            qsclout <- qscl(1-unlist(level), M, 3, precision=prec)
+            if (length(qsclout)==0) { # execution of qscl stopped by user input
+                stop("Construction of confidence interval stopped by user input", call. = FALSE)
             }
-            precdigits = ifelse(prec==0.01, 2, 3)
-            dfout <- data.frame(
-                information_null=unlist(null.value),
-                conservative_pvalue=round(pval, digits=precdigits)
-            )
+            q <- qsclout$quantiles
+            prec <- qsclout$precision
+            xi <- M*(exp(-1-2*q/M)-1)
+            lub <- sapply(1:length(level), function(i) {
+                lvl <- level[[i]]
+                int <- -2*Ahat[3] + c(-1,1)*2*sqrt(xi[i]/u3gv12*sig2hat)
+                return(c(level=lvl, lb=max(0,int[1]), ub=max(0,int[2])))
+            })
             out <- list(Monte_Carlo_MLE=c(Fisher_information=unname(-2*Ahat[3])),
-                Hypothesis_Tests=dfout,
-                pvalue_precision=prec
+                conservative_confidence_interval=t(lub),
+                quantile_SCL_precision=prec
             )
             print(out, row.names=FALSE)
             invisible(out)
         }
     }
-    ## ci about the model parameter under LAN
+    ## ci for the model parameter under LAN
     if (type=="LAN" && ci=="parameter") {
         warning("For parameter estimation under the LAN assumption, all Monte Carlo log likelihood estimates in the 'mclle' object are used with weights equal to 1. If the 'weights' argument is supplied to the 'ht' function or if the 'mclle' object has the 'weights' attribute, it is ignored.", call.=FALSE)
         theta <- attr(mclle, "param")
@@ -401,8 +403,8 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
         Ahat <- c(solve(t(theta012)%*%theta012, t(theta012)%*%llest))
         resids_fs <- llest - c(theta012%*%Ahat)
         sig2hat_fs <- sum(resids_fs*resids_fs) / M # the first stage estimate of sigma^2
-        if (!is.list(null.value)) {
-            null.value <- list(null.value)
+        if (!is.list(level)) {
+            level <- list(level)
         }
         theta_chk <- theta - mean(theta)
         thetasq_chk <- theta^2 - mean(theta^2)
@@ -413,28 +415,43 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
         theta_ss <- unname(est_ss[1,1]/K_ss)
         resids_ss <- unname(llest_chk - cbind(theta_chk, thetasq_chk)%*%est_ss)
         sig2hat_ss <- 1/(M-1)*c(t(resids_ss)%*%G1%*%resids_ss)
-        cat("sig2_fs", sig2hat_fs, "K_fs", -2*Ahat[3], "sig2_ss", sig2hat_ss, "K_ss", K_ss, "\n")
-        teststats <- sapply(null.value,
-            function(x) {
-                thdsq <- cbind(theta_chk, thetasq_chk)%*%c(x, -.5) # an intermediate step in computation
-                iota <- c(llest_chk%*%G1%*%llest_chk - (t(llest_chk)%*%G1%*%thdsq)^2/(t(thdsq)%*%G1%*%thdsq))
-                -(M-1)/2 + (M-1)/2*log((M-1)*sig2hat_ss/iota)
-            })
-        cat(teststats, "\n")
         prec <- 0.01
-        pval <- pscl(teststats, M-1, 2, precision=prec)
-        if (any(pval < .01)) {
-            prec <- 0.001
-            pval <- pscl(teststats, M-1, 2, precision=prec)
+        qsclout <- qscl(1-unlist(level), M-1, 2, precision=prec)
+        if (length(qsclout)==0) { # execution of qscl stopped by user input
+            stop("Construction of confidence interval stopped by user input", call. = FALSE)
         }
-        precdigits = ifelse(prec==0.01, 2, 3)
-        dfout <- data.frame(
-            parameter_null=unlist(null.value),
-            conservative_pvalue=round(pval, digits=precdigits)
-        )
-        out <- list(Monte_Carlo_MLE=c(parameter=theta_ss, information=K_ss, error_variance=sig2hat_ss),
-            Hypothesis_Tests=dfout,
-            pvalue_precision=prec
+        q <- qsclout$quantiles
+        prec <- qsclout$precision
+        xi <- c(llest_chk%*%G1%*%llest_chk) - (M-1)*sig2hat_ss*exp(-1-2*q/(M-1))
+        lub <- sapply(1:length(level), function(i) {
+            lvl <- level[[i]]
+            qco <- c((llest_chk%*%G1%*%theta_chk)^2 - xi[i]*theta_chk%*%G1%*%theta_chk) # quadratic term coefficient for the quadratic polynomial that determines the Monte Carlo CI
+            lco <- -c((llest_chk%*%G1%*%thetasq_chk)*(llest_chk%*%G1%*%theta_chk) - xi[i]*theta_chk%*%G1%*%thetasq_chk) # linear term coefficient
+            con <- 1/4*c((llest_chk%*%G1%*%thetasq_chk)^2 - xi[i]*thetasq_chk%*%G1%*%thetasq_chk)
+            D <- lco^2 - 4*qco*con
+            if (D > 0) {
+                int <- 1/(2*qco)*(-lco+c(1,-1)*sqrt(D))
+                if (qco < 0) {
+                    return(c(level=lvl, lb=int[1], ub=int[2], inverted=0))
+                } else {
+                    return(c(level=lvl, lb=int[2], ub=int[1], inverted=1))
+                }
+            } else {
+                if (qco > 0) {
+                    return(c(level=lvl, lb=-Inf, ub=Inf, inverted=0))
+                } else {
+                    return(c(level=lvl, lb=NA, ub=NA, inverted=0)) 
+                }
+            }
+        })
+        if (any(lub["inverted",]==1)) { # if for any given level the confidence interval is inverted 
+            warning(paste0("For level(s) ", toString(unlist(level)[which(lub["inverted",]==1)]), ", the constructed confidence is of the form (-Inf, lb) U (ub, Inf)."), call.=FALSE)
+        } else { # otherwise, remove the "inverted" column
+            lub <- lub[-4,]
+        }
+        out <- list(Monte_Carlo_MLE=c(parameter=theta_ss),
+            conservative_confidence_interval=t(lub),
+            quantile_SCL_precision=prec
         )
         print(out, row.names=FALSE)
         invisible(out)
