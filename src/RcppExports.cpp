@@ -10,26 +10,26 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
-// qscl
-Rcpp::List qscl(Rcpp::NumericVector p, const double M, double const k, double precision, const bool lower, const bool log_p, const bool force);
-RcppExport SEXP _mclle_qscl(SEXP pSEXP, SEXP MSEXP, SEXP kSEXP, SEXP precisionSEXP, SEXP lowerSEXP, SEXP log_pSEXP, SEXP forceSEXP) {
+// qmllr1
+Rcpp::List qmllr1(Rcpp::NumericVector p, const double M, const double k, double precision, const bool lower, const bool log_p, const bool force);
+RcppExport SEXP _siblle_qmllr1(SEXP pSEXP, SEXP MSEXP, SEXP kSEXP, SEXP precisionSEXP, SEXP lowerSEXP, SEXP log_pSEXP, SEXP forceSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< Rcpp::NumericVector >::type p(pSEXP);
     Rcpp::traits::input_parameter< const double >::type M(MSEXP);
-    Rcpp::traits::input_parameter< double const >::type k(kSEXP);
+    Rcpp::traits::input_parameter< const double >::type k(kSEXP);
     Rcpp::traits::input_parameter< double >::type precision(precisionSEXP);
     Rcpp::traits::input_parameter< const bool >::type lower(lowerSEXP);
     Rcpp::traits::input_parameter< const bool >::type log_p(log_pSEXP);
     Rcpp::traits::input_parameter< const bool >::type force(forceSEXP);
-    rcpp_result_gen = Rcpp::wrap(qscl(p, M, k, precision, lower, log_p, force));
+    rcpp_result_gen = Rcpp::wrap(qmllr1(p, M, k, precision, lower, log_p, force));
     return rcpp_result_gen;
 END_RCPP
 }
-// pscl
-Rcpp::List pscl(Rcpp::NumericVector q, const double M, const double k, double precision, const bool lower, const bool log_p, const bool force);
-RcppExport SEXP _mclle_pscl(SEXP qSEXP, SEXP MSEXP, SEXP kSEXP, SEXP precisionSEXP, SEXP lowerSEXP, SEXP log_pSEXP, SEXP forceSEXP) {
+// pmllr1
+Rcpp::List pmllr1(Rcpp::NumericVector q, const double M, const double k, double precision, const bool lower, const bool log_p, const bool force);
+RcppExport SEXP _siblle_pmllr1(SEXP qSEXP, SEXP MSEXP, SEXP kSEXP, SEXP precisionSEXP, SEXP lowerSEXP, SEXP log_pSEXP, SEXP forceSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -40,32 +40,88 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const bool >::type lower(lowerSEXP);
     Rcpp::traits::input_parameter< const bool >::type log_p(log_pSEXP);
     Rcpp::traits::input_parameter< const bool >::type force(forceSEXP);
-    rcpp_result_gen = Rcpp::wrap(pscl(q, M, k, precision, lower, log_p, force));
+    rcpp_result_gen = Rcpp::wrap(pmllr1(q, M, k, precision, lower, log_p, force));
     return rcpp_result_gen;
 END_RCPP
 }
-// rscl
-Rcpp::NumericVector rscl(const int n, const double M, const double k);
-RcppExport SEXP _mclle_rscl(SEXP nSEXP, SEXP MSEXP, SEXP kSEXP) {
+// rmllr1
+Rcpp::NumericVector rmllr1(const int n, const double M, const double k);
+RcppExport SEXP _siblle_rmllr1(SEXP nSEXP, SEXP MSEXP, SEXP kSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const int >::type n(nSEXP);
     Rcpp::traits::input_parameter< const double >::type M(MSEXP);
     Rcpp::traits::input_parameter< const double >::type k(kSEXP);
-    rcpp_result_gen = Rcpp::wrap(rscl(n, M, k));
+    rcpp_result_gen = Rcpp::wrap(rmllr1(n, M, k));
+    return rcpp_result_gen;
+END_RCPP
+}
+// qmllr2
+Rcpp::List qmllr2(Rcpp::NumericVector p, const double M, const double k, const double nu, const double s0, double precision, const bool lower, const bool log_p, const bool force);
+RcppExport SEXP _siblle_qmllr2(SEXP pSEXP, SEXP MSEXP, SEXP kSEXP, SEXP nuSEXP, SEXP s0SEXP, SEXP precisionSEXP, SEXP lowerSEXP, SEXP log_pSEXP, SEXP forceSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type p(pSEXP);
+    Rcpp::traits::input_parameter< const double >::type M(MSEXP);
+    Rcpp::traits::input_parameter< const double >::type k(kSEXP);
+    Rcpp::traits::input_parameter< const double >::type nu(nuSEXP);
+    Rcpp::traits::input_parameter< const double >::type s0(s0SEXP);
+    Rcpp::traits::input_parameter< double >::type precision(precisionSEXP);
+    Rcpp::traits::input_parameter< const bool >::type lower(lowerSEXP);
+    Rcpp::traits::input_parameter< const bool >::type log_p(log_pSEXP);
+    Rcpp::traits::input_parameter< const bool >::type force(forceSEXP);
+    rcpp_result_gen = Rcpp::wrap(qmllr2(p, M, k, nu, s0, precision, lower, log_p, force));
+    return rcpp_result_gen;
+END_RCPP
+}
+// pmllr2
+Rcpp::List pmllr2(Rcpp::NumericVector q, const double M, const double k, const double nu, const double s0, double precision, const bool lower, const bool log_p, const bool force);
+RcppExport SEXP _siblle_pmllr2(SEXP qSEXP, SEXP MSEXP, SEXP kSEXP, SEXP nuSEXP, SEXP s0SEXP, SEXP precisionSEXP, SEXP lowerSEXP, SEXP log_pSEXP, SEXP forceSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::NumericVector >::type q(qSEXP);
+    Rcpp::traits::input_parameter< const double >::type M(MSEXP);
+    Rcpp::traits::input_parameter< const double >::type k(kSEXP);
+    Rcpp::traits::input_parameter< const double >::type nu(nuSEXP);
+    Rcpp::traits::input_parameter< const double >::type s0(s0SEXP);
+    Rcpp::traits::input_parameter< double >::type precision(precisionSEXP);
+    Rcpp::traits::input_parameter< const bool >::type lower(lowerSEXP);
+    Rcpp::traits::input_parameter< const bool >::type log_p(log_pSEXP);
+    Rcpp::traits::input_parameter< const bool >::type force(forceSEXP);
+    rcpp_result_gen = Rcpp::wrap(pmllr2(q, M, k, nu, s0, precision, lower, log_p, force));
+    return rcpp_result_gen;
+END_RCPP
+}
+// rmllr2
+Rcpp::NumericVector rmllr2(const int n, const double M, const double k, const double nu, const double s0);
+RcppExport SEXP _siblle_rmllr2(SEXP nSEXP, SEXP MSEXP, SEXP kSEXP, SEXP nuSEXP, SEXP s0SEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const int >::type n(nSEXP);
+    Rcpp::traits::input_parameter< const double >::type M(MSEXP);
+    Rcpp::traits::input_parameter< const double >::type k(kSEXP);
+    Rcpp::traits::input_parameter< const double >::type nu(nuSEXP);
+    Rcpp::traits::input_parameter< const double >::type s0(s0SEXP);
+    rcpp_result_gen = Rcpp::wrap(rmllr2(n, M, k, nu, s0));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_mclle_qscl", (DL_FUNC) &_mclle_qscl, 7},
-    {"_mclle_pscl", (DL_FUNC) &_mclle_pscl, 7},
-    {"_mclle_rscl", (DL_FUNC) &_mclle_rscl, 3},
+    {"_siblle_qmllr1", (DL_FUNC) &_siblle_qmllr1, 7},
+    {"_siblle_pmllr1", (DL_FUNC) &_siblle_pmllr1, 7},
+    {"_siblle_rmllr1", (DL_FUNC) &_siblle_rmllr1, 3},
+    {"_siblle_qmllr2", (DL_FUNC) &_siblle_qmllr2, 9},
+    {"_siblle_pmllr2", (DL_FUNC) &_siblle_pmllr2, 9},
+    {"_siblle_rmllr2", (DL_FUNC) &_siblle_rmllr2, 5},
     {NULL, NULL, 0}
 };
 
-RcppExport void R_init_mclle(DllInfo *dll) {
+RcppExport void R_init_siblle(DllInfo *dll) {
     R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
     R_useDynamicSymbols(dll, FALSE);
 }

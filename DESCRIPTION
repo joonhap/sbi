@@ -1,14 +1,13 @@
-Package: mclle
-Type: Package
-Title: What the Package Does in One 'Title Case' Line
-Version: 1.0
-Date: 2022-09-08
-Author: Your Name
-Maintainer: Your Name <your@email.com>
-Description: One paragraph description of what the package does as one
-        or more full sentences.
-License: GPL (>= 2)
+Package: siblle
+Title: Simulation Based Inference Using Log Likelihood Estimates
+Version: 0.0.0.9000
+Authors@R: 
+    person("Joonha", "Park", , "j.park@ku.edu", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0002-4493-7730"))
+Description: This package offers inference methods for the cases where the probability model can be simulated but its density function cannot be evaluated. Inference is made by using random estimates of log likelihood obtained via simulation of the underlying process at specified parameter values. The package enables estimation of data dependent statistics, such as the maximum likelihood estimate or the value of the log likelihood function at a given point, under certain (e.g., normal) distributional assumptions on the log likelihood estimates. Furthermore, it carries out parameter inference under local asymptotic normality (LAN) assumption. Estimation and uncertainty quantification can be carried out via "ht" (hypothesis testing) and "ci" (confidence interval) functions.
+License: GPL (>= 3)
 Encoding: UTF-8
-Imports: Rcpp (>= 1.0.9)
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.2.3
 LinkingTo: Rcpp
-RoxygenNote: 7.2.1
+Imports: Rcpp

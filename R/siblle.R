@@ -1,25 +1,25 @@
-## Class mclle
-#' Monte Carlo log likelihood estimator (MCLLE) class
+## Class siblle
+#' Simulation based log likelihood estimator (SIBLLE) class
 #'
 #' @param llest A numeric vector of log likelihood estimates
 #' @param param A numeric vector of one-dimensional parameter values (optional).
-#' @returns A class 'mclle' object
+#' @returns A class 'siblle' object
 #'
-#' Constructor for a class 'mclle' object
+#' Constructor for a class 'siblle' object
 #' @export
-new_mclle <- function(llest, param=NULL) {
+new_siblle <- function(llest, param=NULL) {
     stopifnot(is.numeric(llest))
 
     structure(
         llest,
         param = param,
-        class = "mclle"
+        class = "siblle"
     )
 }
 
 
-## Internal validator function for a class 'mclle' object
-validate_mclle <- function(x) {
+## Internal validator function for a class 'siblle' object
+validate_siblle <- function(x) {
     llest <- c(unclass(x))
     param <- attr(x, "param")
 
@@ -38,7 +38,7 @@ validate_mclle <- function(x) {
         }
         if (length(param) != 1 && length(llest) != length(param)) {
             stop(
-                "The length of the 'param' attribute of an mclle object should be equal to the length of the mclle object or 1.",
+                "The length of the 'param' attribute of an siblle object should be equal to the length of the siblle object or 1.",
                 call. = FALSE
             )
         }
@@ -48,8 +48,8 @@ validate_mclle <- function(x) {
 }
 
 
-#' Helper function that creates a class mclle object
+#' Helper function that creates a class siblle object
 #' @export
-mclle <- function(llest, param=NULL) {
-    validate_mclle(new_mclle(llest, param))
+siblle <- function(llest, param=NULL) {
+    validate_siblle(new_siblle(llest, param))
 }

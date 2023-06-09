@@ -3,34 +3,34 @@ ci <- function(x, ...) {
     UseMethod("ci")
 }
 
-#' Confidence intervals constructed using Monte Carlo log likelihood estimates in simulation-based inference
+#' Confidence intervals constructed using log likelihood estimates in simulation-based inference
 #'
-#' `ci` constructs conservative confidence intervals using Monte Carlo log likelihood estimates. See Park and Won (2023) for more information.
+#' `ci` constructs conservative confidence intervals using simulation based log likelihood estimates. See Park and Won (2023) for more information.
 #'
 #' @name ci
-#' @param mclle A class 'mclle' object, containing the Monte Carlo log likelihood estimates and (optional) the parameter values for which those estimates were obtained.
+#' @param siblle A class 'siblle' object, containing the simulation based log likelihood estimates and (optional) the parameter values for which those estimates were obtained.
 #' @param level The conservative confidence level. Either a numeric (vector of length one) or a list of numerics (for constructing multiple confidence intervals).
 #' @param type A character string indicating what type of situation is considered. One of "point", "regression", or "LAN". See Details.
 #' @param ci A character string indicating the quantity for which a confidence interval is to be constructed. One of "loglik", "MLE", "information", or "parameter". See Details.
 #' @param param.at If 'ci' = "loglik", a confidence interval is constructed for the value of the log likelihood function evaluated at 'param.at' (for the cases 'type' = "regression" or "LAN".)
-#' @param weights An optional argument for the (non-relative) weights of the Monte Carlo log likelihood estimates for regression. Either a numeric vector of length equal to the 'mclle' object, or a character string equal to "tricube".
+#' @param weights An optional argument for the (non-relative) weights of the simulation based log likelihood estimates for regression. Either a numeric vector of length equal to the 'siblle' object, or a character string equal to "tricube".
 #' @param fraction An optional argument indicating the fraction of points with nonzero weights for the case where 'weights' is specified as "tricube".
 #' @param center An optional argument indicating the center of the local regression for the case where 'weights' is specified as "tricube".
 #'
 #' @details
-#' This is a generic function, taking a class 'mclle' object as the first argument.
-#' Confidence intervals are constructed under the assumption that the Monte Carlo likelihood estimator whose values are given in the 'mclle' object is (approximately) normally distributed.
+#' This is a generic function, taking a class 'siblle' object as the first argument.
+#' Confidence intervals are constructed under the assumption that the simulation based likelihood estimator whose values are given in the 'siblle' object is (approximately) normally distributed.
 #' 
 #' When 'level' is a list, a conservative confidence interval is constructed for each level specified in the list.
 #'
 #' The constructed confidence intervals are conservative, in that all points for which there exists a null distribution that is not rejected at the specified confidence level will be included in the constructed interval. This complication arises because a point in the confidence interval does not fully specify a distribution (instead only defines a subspace of the parameter space.) See Park and Won (2023) for more detailed explanation.
 #'
 #' The 'type' argument should be one of "point", "regression", or "LAN".
-#' The case 'type' = "point" means that the 'mclle' object contains Monte Carlo log likelihood estimates for a single, fixed parameter value.
-#' The case 'type' = "regression" means that the 'mclle' object contains Monte Carlo log likelihood estimates evaluated at a range of parameter values, specified by the 'param' attribute of the 'mclle' object. A local quadratic regression for the estimated log likelihood values will be used for constructing confidence intervals, where the x-axis values are given by the 'param' values of the 'mclle' object.
+#' The case 'type' = "point" means that the 'siblle' object contains simulation based log likelihood estimates for a single, fixed parameter value.
+#' The case 'type' = "regression" means that the 'siblle' object contains simulation based log likelihood estimates evaluated at a range of parameter values, specified by the 'param' attribute of the 'siblle' object. A local quadratic regression for the estimated log likelihood values will be used for constructing confidence intervals, where the x-axis values are given by the 'param' values of the 'siblle' object.
 #' The case 'type' = "LAN" means that inference on the model parameter will be carried out under the local asymptotic normality (Le Cam and Yang, 2000) condition.
-#' If the 'mclle' object has 'param' attribute whose length is equal to the length of the object, then 'type' defaults to "LAN".
-#' If the 'mclle' object does not have 'param' attribute, then 'type' defaults to "point".
+#' If the 'siblle' object has 'param' attribute whose length is equal to the length of the object, then 'type' defaults to "LAN".
+#' If the 'siblle' object does not have 'param' attribute, then 'type' defaults to "point".
 #'
 #' When 'type' = "point", 'ci' can only be "loglik".
 #' In this case a conservative confidence interval for the log likelihood given the observed data is constructed.
@@ -39,7 +39,7 @@ ci <- function(x, ...) {
 #' When 'type' = "regression", 'ci' can be "loglik", "MLE", or "information".
 #' If 'ci' = "loglik", confidence intervals are constructed for the value of the log likelihood function evaluated at 'param.at' given the observed data.
 #' If 'ci' = "MLE", confidence intervals are constructed for the location of the maximum likelihood estimate given the observed data.
-#' If 'ci' = "information", confidence intervals are constructed for the Fisher information, which is assumed to be equal to (-2) times the value of the quadratic coefficient of the regression polynomial describing the mean of the MCLLE.
+#' If 'ci' = "information", confidence intervals are constructed for the Fisher information, which is assumed to be equal to (-2) times the value of the quadratic coefficient of the regression polynomial describing the mean of the SIBLLE.
 #' When 'type' = "regression", 'ci' = "MLE" is assumed by default.
 #'
 #' When 'type' = "LAN", 'ci' can be "loglik", "MLE", "information", or "parameter".
@@ -47,29 +47,29 @@ ci <- function(x, ...) {
 #' If 'ci' is "parameter", confidence intervals for the value of the model parameter are constructed under the local asymptotic normality assumption.
 #' When 'type' = "LAN", 'ci' = "parameter" is assumed by default.
 #'
-#' When quadratic regression is carried out, the weights for the Monte Carlo likelihood estimates can be supplied.  The weights can either be given as an attribute 'weights' of the 'mclle' object, or as a function argument 'weights', with the latter being used when both are supplied. In either case, 'weights' should be a numeric vector of length equal to that of 'mclle'. If 'weights' is given as a function argument, it can be specified alternatively as a character string "tricube". In this case, the tricube weight (see Cleveland, 1979) is used, and the specified 'fraction' of the points will have nonzero weights. The 'center' argument determines at which parameter value the tricube weight takes the maximum. If weights are not supplied in either location, all weights are taken to be equal to 1.
-#' It is important to note that the weights should NOT be normalized. Multiplying all weights by the same constant changes the local regression results. Roughly speaking, the variance of the error in the Monte Carlo log likelihood estimate is assumed to be sigma^2/(the weight for the point). See Park & Won (2023) for more information.
+#' When quadratic regression is carried out, the weights for the simulation based likelihood estimates can be supplied.  The weights can either be given as an attribute 'weights' of the 'siblle' object, or as a function argument 'weights', with the latter being used when both are supplied. In either case, 'weights' should be a numeric vector of length equal to that of 'siblle'. If 'weights' is given as a function argument, it can be specified alternatively as a character string "tricube". In this case, the tricube weight (see Cleveland, 1979) is used, and the specified 'fraction' of the points will have nonzero weights. The 'center' argument determines at which parameter value the tricube weight takes the maximum. If weights are not supplied in either location, all weights are taken to be equal to 1.
+#' It is important to note that the weights should NOT be normalized. Multiplying all weights by the same constant changes the local regression results. Roughly speaking, the variance of the error in the simulation based log likelihood estimate is assumed to be sigma^2/(the weight for the point). See Park (2023) for more information.
 #'
 #' @return A list consisting of the followings are returned.
 #' \itemize{
-#' \item{Monte Carlo maximum likelihood estimate,}
+#' \item{simulation based maximum likelihood estimate,}
 #' \item{a data frame of the lower and upper bounds of the confidence intervals and the corresponding (conservative) confidence levels,}
-#' \item{the precision of the quantile values of the SCL distribution used in the construction of confidence levels (0.01 by default).}
+#' \item{the precision of the quantile values of the distributions used in the construction of confidence levels (0.01 by default).}
 #' }
 #' 
-#' @references Park, J. and Won, S. (2023). Simulation-based inference for partially observed, implicitly defined models
+#' @references Park, J. (2023). On simulation based inference for implicitly defined models
 #' @references Cleveland, W. S. (1979). Robust locally weighted regression and smoothing scatterplots. Journal of the American statistical association, 74(368), 829-836.
 #' @references Le Cam, L. and Yang, G. L. (2000). Asymptotics in statistics: some basic concepts. Springer-Verlag, New York.
 #' @export
-ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NULL, fraction=NULL, center=NULL) {
-    validate_mclle(mclle)
+ci.siblle <- function(siblle, level, type=NULL, ci=NULL, param.at=NULL, weights=NULL, fraction=NULL, center=NULL) {
+    validate_siblle(siblle)
     if (!is.null(type)) {
         match.arg(type, c("point", "regression", "LAN"))
     }
-    if (is.null(type) && is.null(attr(mclle, "param"))) {
+    if (is.null(type) && is.null(attr(siblle, "param"))) {
         type <- "point"
     }
-    if (is.null(type) && !is.null(attr(mclle, "param")) && length(mclle) == length(attr(mclle, "param"))) {
+    if (is.null(type) && !is.null(attr(siblle, "param")) && length(siblle) == length(attr(siblle, "param"))) {
         type <- "LAN"
     }
     
@@ -161,7 +161,7 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
     }
 
     if (type=="point") {
-        llest <- c(unclass(mclle))
+        llest <- c(unclass(siblle))
         muhat <- mean(llest)
         Ssq <- var(llest)
         M <- length(llest)
@@ -170,18 +170,18 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
                 level <- list(level)
             }
             prec <- 0.01
-            qsclout <- qscl(1-unlist(level), M, 1, precision=prec)
-            if (length(qsclout)==0) { # execution of qscl stopped by user input
+            qmllr1out <- qmllr1(1-unlist(level), M, 1, precision=prec)
+            if (length(qmllr1out)==0) { # execution of qmllr1 stopped by user input
                 stop("Construction of confidence interval stopped by user input", call. = FALSE)
             }
-            q <- qsclout$quantiles
-            prec <- qsclout$precision
+            q <- qmllr1out$quantiles
+            prec <- qmllr1out$precision
             lub <- sapply(1:length(level), function(i) {
                 lvl <- level[[i]]
                 f <- function(gamma) {
                     -gamma/2 + M/2*log(gamma/M)
                 } # a function that takes its maximum at M
-                ## the interval (B) defined by {gamma; f(gamma) >= SCL_{1-alpha}(M,1)} is related to the interval for sigma_0^2 such that the radicand in the expression for the confidence interval is non-negative. The relationship is gamma = (M-1)*Ssq/sigma_0^2.
+                ## the interval (B) defined by {gamma; f(gamma) >= MLLR1_{1-alpha}(M,1)} is related to the interval for sigma_0^2 such that the radicand in the expression for the confidence interval is non-negative. The relationship is gamma = (M-1)*Ssq/sigma_0^2.
                 fprime <- function(gamma) { # derivative of gamma
                     -1/2 + M/2/gamma
                 } 
@@ -217,9 +217,9 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
                     call. = FALSE
                 )
             }
-            if (length(weights) != length(mclle) && weights!="tricube") {
+            if (length(weights) != length(siblle) && weights!="tricube") {
                 stop(
-                    "When 'type' = 'regression' or 'LAN' and the 'weights' argument is given, the length of 'weights' should be the same as the length of 'mclle'.",
+                    "When 'type' = 'regression' or 'LAN' and the 'weights' argument is given, the length of 'weights' should be the same as the length of 'siblle'.",
                     call. = FALSE
                 )
             }
@@ -236,8 +236,8 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
                         call. = FALSE
                     )
                 }
-                distance <- abs(attr(mclle, "param") - center)
-                span <- distance[order(distance)[ceiling(fraction*length(mclle))]]
+                distance <- abs(attr(siblle, "param") - center)
+                span <- distance[order(distance)[ceiling(fraction*length(siblle))]]
                 tricube <- function(x) { pmax((1-abs(x)^3)^3, 0) }
                 w <- tricube(distance / span)
             }
@@ -246,28 +246,28 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
             }
         }
         if (is.null(weights)) {
-            if (!is.null(attr(mclle, "weights"))) {
-                if (!is.numeric(attr(mclle, "weights"))) {
+            if (!is.null(attr(siblle, "weights"))) {
+                if (!is.numeric(attr(siblle, "weights"))) {
                     stop(
-                        "When 'type' = 'regression' or 'LAN' and the 'mclle' object has 'weights' attribute, it has to be a numeric vector.",
+                        "When 'type' = 'regression' or 'LAN' and the 'siblle' object has 'weights' attribute, it has to be a numeric vector.",
                         call. = FALSE
                     )
                 }
-                if (length(mclle) != length(attr(mclle, "weights"))) {
+                if (length(siblle) != length(attr(siblle, "weights"))) {
                     stop(
-                        "When 'type' = 'regression' or 'LAN' and the 'mclle' object has 'weights' attribute, the length of 'weights' should be the same as the length of 'mclle'.",
+                        "When 'type' = 'regression' or 'LAN' and the 'siblle' object has 'weights' attribute, the length of 'weights' should be the same as the length of 'siblle'.",
                         call. = FALSE
                     )
                 }
-                w <- attr(mclle, "weights")
+                w <- attr(siblle, "weights")
             } else {
-                w <- rep(1, length(mclle))
+                w <- rep(1, length(siblle))
             }
         }
         ## weighted quadratic regression
         W  <- diag(w)
-        theta <- attr(mclle, "param")
-        llest <- c(unclass(mclle))
+        theta <- attr(siblle, "param")
+        llest <- c(unclass(siblle))
         M <- length(llest)
         theta012 <- cbind(1, theta, theta^2)
         Ahat <- c(solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%llest)) # Ahat=(ahat,bhat,chat)
@@ -279,20 +279,20 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
                 level <- list(level)
             }
             prec <- 0.01
-            qsclout <- qscl(1-unlist(level), M, 3, precision=prec)
-            if (length(qsclout)==0) { # execution of qscl stopped by user input
+            qmllr1out <- qmllr1(1-unlist(level), M, 3, precision=prec)
+            if (length(qmllr1out)==0) { # execution of qmllr1 stopped by user input
                 stop("Construction of confidence interval stopped by user input", call. = FALSE)
             }
-            q <- qsclout$quantiles
-            prec <- qsclout$precision
+            q <- qmllr1out$quantiles
+            prec <- qmllr1out$precision
             nu <- c(c(1, param.at, param.at^2)%*%solve(t(theta012)%*%W%*%theta012, c(1, param.at, param.at^2)))
-            mu.at <- sum(c(1,param.at,param.at^2)*Ahat) # estimated mean of MCLLE at param.at
+            mu.at <- sum(c(1,param.at,param.at^2)*Ahat) # estimated mean of SIBLLE at param.at
             lub <- sapply(1:length(level), function(i) {
                 lvl <- level[[i]]
                 f <- function(gamma) {
                     log(gamma) - gamma
                 } # a function that takes its maximum at 1
-                ## the interval (B) defined by {gamma; M*f(gamma) >= 2*SCL_{1-alpha}(M,3)} is related to the interval for sigma0_sq such that the radicand in the expression for the confidence interval is non-negative. The relationship is gamma = sig2hat/sigma0_sq
+                ## the interval (B) defined by {gamma; M*f(gamma) >= 2*MLLR1_{1-alpha}(M,3)} is related to the interval for sigma0_sq such that the radicand in the expression for the confidence interval is non-negative. The relationship is gamma = sig2hat/sigma0_sq
                 fprime <- function(gamma) { # derivative of gamma
                     1/gamma - 1
                 } 
@@ -313,7 +313,7 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
             })
             out <- list(Monte_Carlo_MLE=c(log_lik=unname(mu.at+sig2hat/2)),
                 conservative_confidence_interval=t(lub),
-                quantile_SCL_precision=prec
+                quantile_MLLR1_precision=prec
             )
             print(out, row.names=FALSE)
             invisible(out)
@@ -333,12 +333,12 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
             detV <- v11*v22-v12*v12
             Vl <- sum(w*llest^2) - sum(w*llest)^2/sum(w)
             prec <- 0.01
-            qsclout <- qscl(1-unlist(level), M, 3, precision=prec)
-            if (length(qsclout)==0) { # execution of qscl stopped by user input
+            qmllr1out <- qmllr1(1-unlist(level), M, 3, precision=prec)
+            if (length(qmllr1out)==0) { # execution of qmllr1 stopped by user input
                 stop("Construction of confidence interval stopped by user input", call. = FALSE)
             }
-            q <- qsclout$quantiles
-            prec <- qsclout$precision
+            q <- qmllr1out$quantiles
+            prec <- qmllr1out$precision
             xi <- M*(exp(-1-2*q/M)-1)
             D <- detV * xi * sig2hat * (Vl - (xi+M)*sig2hat)
             lub <- sapply(1:length(level), function(i) {
@@ -360,7 +360,7 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
             }
             out <- list(Monte_Carlo_MLE=c(MLE=unname(-Ahat[2]/(2*Ahat[3]))),
                 conservative_confidence_interval=t(lub),
-                quantile_SCL_precision=prec
+                quantile_MLLR1_precision=prec
             )
             print(out, row.names=FALSE)
             invisible(out)
@@ -373,12 +373,12 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
             U <- t(theta012)%*%W%*%theta012
             u3gv12 <- U[3,3] - c(U[3,1:2]%*%solve(U[1:2,1:2], U[1:2,3])) # u_{3|12}
             prec <- 0.01
-            qsclout <- qscl(1-unlist(level), M, 3, precision=prec)
-            if (length(qsclout)==0) { # execution of qscl stopped by user input
+            qmllr1out <- qmllr1(1-unlist(level), M, 3, precision=prec)
+            if (length(qmllr1out)==0) { # execution of qmllr1 stopped by user input
                 stop("Construction of confidence interval stopped by user input", call. = FALSE)
             }
-            q <- qsclout$quantiles
-            prec <- qsclout$precision
+            q <- qmllr1out$quantiles
+            prec <- qmllr1out$precision
             xi <- M*(exp(-1-2*q/M)-1)
             lub <- sapply(1:length(level), function(i) {
                 lvl <- level[[i]]
@@ -387,7 +387,7 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
             })
             out <- list(Monte_Carlo_MLE=c(Fisher_information=unname(-2*Ahat[3])),
                 conservative_confidence_interval=t(lub),
-                quantile_SCL_precision=prec
+                quantile_MLLR1_precision=prec
             )
             print(out, row.names=FALSE)
             invisible(out)
@@ -395,9 +395,9 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
     }
     ## ci for the model parameter under LAN
     if (type=="LAN" && ci=="parameter") {
-        warning("For parameter estimation under the LAN assumption, all Monte Carlo log likelihood estimates in the 'mclle' object are used with weights equal to 1. If the 'weights' argument is supplied to the 'ht' function or if the 'mclle' object has the 'weights' attribute, it is ignored.", call.=FALSE)
-        theta <- attr(mclle, "param")
-        llest <- c(unclass(mclle))
+        warning("For parameter estimation under the LAN assumption, all simulation based log likelihood estimates in the 'siblle' object are used with weights equal to 1. If the 'weights' argument is supplied to the 'ht' function or if the 'siblle' object has the 'weights' attribute, it is ignored.", call.=FALSE)
+        theta <- attr(siblle, "param")
+        llest <- c(unclass(siblle))
         M <- length(llest)
         theta012 <- cbind(1, theta, theta^2)
         Ahat <- c(solve(t(theta012)%*%theta012, t(theta012)%*%llest))
@@ -416,16 +416,16 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
         resids_ss <- unname(llest_chk - cbind(theta_chk, thetasq_chk)%*%est_ss)
         sig2hat_ss <- 1/(M-1)*c(t(resids_ss)%*%G1%*%resids_ss)
         prec <- 0.01
-        qsclout <- qscl(1-unlist(level), M-1, 2, precision=prec)
-        if (length(qsclout)==0) { # execution of qscl stopped by user input
+        qmllr1out <- qmllr1(1-unlist(level), M-1, 2, precision=prec)
+        if (length(qmllr1out)==0) { # execution of qmllr1 stopped by user input
             stop("Construction of confidence interval stopped by user input", call. = FALSE)
         }
-        q <- qsclout$quantiles
-        prec <- qsclout$precision
+        q <- qmllr1out$quantiles
+        prec <- qmllr1out$precision
         xi <- c(llest_chk%*%G1%*%llest_chk) - (M-1)*sig2hat_ss*exp(-1-2*q/(M-1))
         lub <- sapply(1:length(level), function(i) {
             lvl <- level[[i]]
-            qco <- c((llest_chk%*%G1%*%theta_chk)^2 - xi[i]*theta_chk%*%G1%*%theta_chk) # quadratic term coefficient for the quadratic polynomial that determines the Monte Carlo CI
+            qco <- c((llest_chk%*%G1%*%theta_chk)^2 - xi[i]*theta_chk%*%G1%*%theta_chk) # quadratic term coefficient for the quadratic polynomial that determines the simulation based CI
             lco <- -c((llest_chk%*%G1%*%thetasq_chk)*(llest_chk%*%G1%*%theta_chk) - xi[i]*theta_chk%*%G1%*%thetasq_chk) # linear term coefficient
             con <- 1/4*c((llest_chk%*%G1%*%thetasq_chk)^2 - xi[i]*thetasq_chk%*%G1%*%thetasq_chk)
             D <- lco^2 - 4*qco*con
@@ -451,7 +451,7 @@ ci.mclle <- function(mclle, level, type=NULL, ci=NULL, param.at=NULL, weights=NU
         }
         out <- list(Monte_Carlo_MLE=c(parameter=theta_ss),
             conservative_confidence_interval=t(lub),
-            quantile_SCL_precision=prec
+            quantile_MLLR1_precision=prec
         )
         print(out, row.names=FALSE)
         invisible(out)

@@ -3,46 +3,46 @@ ht <- function(x, ...) {
     UseMethod("ht")
 }
 
-#' Hypothesis tests using Monte Carlo log likelihood estimates in simulation-based inference
+#' Hypothesis tests using simulation based log likelihood estimates
 #'
-#' `ht` outputs results of hypothesis tests carried out using Monte Carlo log likelihood estimates. See Park and Won (2023) for more information.
+#' `ht` outputs results of hypothesis tests carried out using simulation based log likelihood estimates. See Park (2023) for more information.
 #' 
 #' @name ht
-#' @param mclle A class 'mclle' object, containing the Monte Carlo log likelihood estimates and (optional) the parameter values for which those estimates were obtained.
+#' @param siblle A class 'siblle' object, containing the simulation based log likelihood estimates and (optional) the parameter values for which those estimates were obtained.
 #' @param null.value The null value for the hypothesis test. Either a numeric vector or a list of numeric vectors.
 #' @param type A character string indicating what type of situation is considered. One of "point", "regression", or "LAN". See Details.
 #' @param test A character string indicating the quantity to be tested about. One of "loglik", "moments", "MLE", "information", or "parameter". See Details.
 #' @param param.at If 'test' = "loglik", the hypothesis test is about the value of the log likelihood function evaluated at 'param.at' (for the cases 'type' = "regression" or "LAN".)
-#' @param weights An optional argument for the (non-relative) weights of the Monte Carlo log likelihood estimates for regression. Either a numeric vector of length equal to the 'mclle' object, or a character string equal to "tricube".
+#' @param weights An optional argument for the (non-relative) weights of the simulation based log likelihood estimates for regression. Either a numeric vector of length equal to the 'siblle' object, or a character string equal to "tricube".
 #' @param fraction An optional argument indicating the fraction of points with nonzero weights for the case where 'weights' is specified as "tricube".
 #' @param center An optional argument indicating the center of the local regression for the case where 'weights' is specified as "tricube".
 #'
 #' @details
-#' This is a generic function, taking a class 'mclle' object as the first argument.
-#' Hypothesis tests are carried out under the assumption that the Monte Carlo likelihood estimator whose values are given in the 'mclle' object is (approximately) normally distributed.
+#' This is a generic function, taking a class 'siblle' object as the first argument.
+#' Hypothesis tests are carried out under the assumption that the simulation based likelihood estimator whose values are given in the 'siblle' object is (approximately) normally distributed.
 #' 
 #' When 'null.value' is a list, a hypothesis test is carried out for each null value specified in the list.
 #'
 #' The tests are conservative, in that the null hypothesis will not be rejected at level \eqn{alpha} if there exists a null distribution that is not rejected at level \eqn{alpha}. This complication arises because the given null value does not fully specify a distribution (instead only defines a subspace of the parameter space.) See Park and Won (2023) for more detailed explanation.
 #'
 #' The 'type' argument should be one of "point", "regression", or "LAN".
-#' The case 'type' = "point" means that the 'mclle' object contains Monte Carlo log likelihood estimates for a single, fixed parameter value.
-#' The case 'type' = "regression" means that the 'mclle' object contains Monte Carlo log likelihood estimates evaluated at a range of parameter values, specified by the 'param' attribute of the 'mclle' object. A local quadratic regression for the estimated log likelihood values will be used for hypothesis tests, where the x-axis values are given by the 'param' values of the 'mclle' object.
+#' The case 'type' = "point" means that the 'siblle' object contains simulation based log likelihood estimates for a single, fixed parameter value.
+#' The case 'type' = "regression" means that the 'siblle' object contains simulation based log likelihood estimates evaluated at a range of parameter values, specified by the 'param' attribute of the 'siblle' object. A local quadratic regression for the estimated log likelihood values will be used for hypothesis tests, where the x-axis values are given by the 'param' values of the 'siblle' object.
 #' The case 'type' = "LAN" means that inference on the model parameter will be carried out under the local asymptotic normality (Le Cam and Yang, 2000) condition.
-#' If the 'mclle' object has 'param' attribute whose length is equal to the length of the object, then 'type' defaults to "LAN".
-#' If the 'mclle' object does not have 'param' attribute, then 'type' defaults to "point".
+#' If the 'siblle' object has 'param' attribute whose length is equal to the length of the object, then 'type' defaults to "LAN".
+#' If the 'siblle' object does not have 'param' attribute, then 'type' defaults to "point".
 #'
 #' When 'type' = "point", 'test' can only be "loglik" or "moments".
 #' In this case 'test' = "loglik" means the hypothesis test \eqn{H_0: l = null.value} versus \eqn{H_1: l != null.value} will be performed.
-#' If 'test' = "moments", a test about the mean and the variance of the Monte Carlo log likelihood estimator is conducted.
+#' If 'test' = "moments", a test about the mean and the variance of the simulation based log likelihood estimator is conducted.
 #' The 'null.value' should be a numeric vector of length two (the first component being the mean and the second being the variance), or a list of numeric vectors of length two.
 #' When 'type' = "point", 'test' = "loglik" is assumed by default, unless the 'test' argument is supplied.
 #'
 #' When 'type' = "regression", 'test' can be "loglik", "moments", "MLE", or "information".
 #' If 'test' = "loglik", the test is about the value of the log likelihood function evaluated at 'param.at'.
-#' If 'test' = "moments", the test is about the quadruple \eqn{a, b, c, sigma^2} where \eqn{a, b, c} are coefficients of the polynomial describing the mean of the Monte Carlo likelihood estimator (i.e., \eqn{l(\theta) = a + b theta + c theta^2}) and \eqn{sigma^2} is the variance of the MCLLE.
+#' If 'test' = "moments", the test is about the quadruple \eqn{a, b, c, sigma^2} where \eqn{a, b, c} are coefficients of the polynomial describing the mean of the simulation based likelihood estimator (i.e., \eqn{l(\theta) = a + b theta + c theta^2}) and \eqn{sigma^2} is the variance of the SIBLLE.
 #' If 'test' = "MLE", the test is about the location of the maximum likelihood estimate.
-#' If 'test' = "information", the test is about the Fisher information, which is (-2) times the value of \eqn{c}, the quadratic coefficient of the mean function of the MCLLE.
+#' If 'test' = "information", the test is about the Fisher information, which is (-2) times the value of \eqn{c}, the quadratic coefficient of the mean function of the SIBLLE.
 #' When 'type' = "regression", 'test' = "MLE" is assumed by default.
 #'
 #' When 'type' = "LAN", 'test' can be "loglik", "moments", "MLE", "information", or "parameter".
@@ -50,31 +50,31 @@ ht <- function(x, ...) {
 #' If 'test' is "parameter", a test about the value of the model parameter is conducted under the local asymptotic normality assumption.
 #' When 'type' = "LAN", 'test' = "parameter" is assumed by default.
 #'
-#' When quadratic regression is carried out, the weights for the Monte Carlo likelihood estimates can be supplied.  The weights can either be given as an attribute 'weights' of the 'mclle' object, or as a function argument 'weights', with the latter being used when both are supplied. In either case, 'weights' should be a numeric vector of length equal to that of 'mclle'. If 'weights' is given as a function argument, it can be specified alternatively as a character string "tricube". In this case, the tricube weight (see Cleveland, 1979) is used, and the specified 'fraction' of the points will have nonzero weights. The 'center' argument determines at which parameter value the tricube weight takes the maximum. If weights are not supplied in either location, all weights are taken to be equal to 1.
-#' It is important to note that the weights should NOT be normalized. Multiplying all weights by the same constant changes the local regression results. Roughly speaking, the variance of the error in the Monte Carlo log likelihood estimate is assumed to be sigma^2/(the weight for the point). See Park & Won (2023) for more information.
+#' When quadratic regression is carried out, the weights for the simulation based likelihood estimates can be supplied.  The weights can either be given as an attribute 'weights' of the 'siblle' object, or as a function argument 'weights', with the latter being used when both are supplied. In either case, 'weights' should be a numeric vector of length equal to that of 'siblle'. If 'weights' is given as a function argument, it can be specified alternatively as a character string "tricube". In this case, the tricube weight (see Cleveland, 1979) is used, and the specified 'fraction' of the points will have nonzero weights. The 'center' argument determines at which parameter value the tricube weight takes the maximum. If weights are not supplied in either location, all weights are taken to be equal to 1.
+#' It is important to note that the weights should NOT be normalized. Multiplying all weights by the same constant changes the local regression results. Roughly speaking, the variance of the error in the simulation based log likelihood estimate is assumed to be sigma^2/(the weight for the point). See Park (2023) for more information.
 #'
 #' @return A list consisting of the followings are returned.
 #' \itemize{
-#' \item{Monte Carlo maximum likelihood estimate,}
+#' \item{simulation based maximum likelihood estimate,}
 #' \item{a data frame of the null values and the corresponding (conservative) p-values,}
 #' \item{the precision (0.01 or 0.001) for the indicated conservative p-values.}
 #' }
 #' When 'test' = "moments", exact p-values are shown.
 #' In other cases, conservative p-values are shown.
 #' 
-#' @references Park, J. and Won, S. (2023). Simulation-based inference for partially observed, implicitly defined models
+#' @references Park, J. (2023). On simulation based inference for implicitly defined models
 #' @references Cleveland, W. S. (1979). Robust locally weighted regression and smoothing scatterplots. Journal of the American statistical association, 74(368), 829-836.
 #' @references Le Cam, L. and Yang, G. L. (2000). Asymptotics in statistics: some basic concepts. Springer-Verlag, New York.
 #' @export
-ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, weights=NULL, fraction=NULL, center=NULL) {
-    validate_mclle(mclle)
+ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, param.at=NULL, weights=NULL, fraction=NULL, center=NULL) {
+    validate_siblle(siblle)
     if (!is.null(type)) {
         match.arg(type, c("point", "regression", "LAN"))
     }
-    if (is.null(type) && is.null(attr(mclle, "param"))) {
+    if (is.null(type) && is.null(attr(siblle, "param"))) {
         type <- "point"
     }
-    if (is.null(type) && !is.null(attr(mclle, "param")) && length(mclle) == length(attr(mclle, "param"))) {
+    if (is.null(type) && !is.null(attr(siblle, "param")) && length(siblle) == length(attr(siblle, "param"))) {
         type <- "LAN"
     }
     
@@ -118,13 +118,13 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
         if (test=="moments") {
             if (type=="point" && !all(sapply(null.value, length)==2)) {
                 stop(
-                    "If 'null.value' is a list, 'test' is 'moments', and 'type' is 'point', all components of 'null.value' should be a numeric vector of length 2 (mean and variance of MCLLE).",
+                    "If 'null.value' is a list, 'test' is 'moments', and 'type' is 'point', all components of 'null.value' should be a numeric vector of length 2 (mean and variance of SIBLLE).",
                     call. = FALSE
                 )
             }
             if (type %in% c("regression", "LAN") && !all(sapply(null.value, length)==4)) {
                 stop(
-                    "If 'null.value' is a list, 'test' is 'moments', and 'type' is 'regression' or 'LAN', all components of 'null.value' should be a numeric vector of length 4 (the three coefficients of a quadratic polynomial for the mean function, and the variance of the MCLLE).",
+                    "If 'null.value' is a list, 'test' is 'moments', and 'type' is 'regression' or 'LAN', all components of 'null.value' should be a numeric vector of length 4 (the three coefficients of a quadratic polynomial for the mean function, and the variance of the SIBLLE).",
                     call. = FALSE
                 )
             }
@@ -188,7 +188,7 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
     }
 
     if (type=="point") {
-        llest <- c(unclass(mclle))
+        llest <- c(unclass(siblle))
         muhat <- mean(llest)
         Ssq <- var(llest)
         M <- length(llest)
@@ -197,26 +197,26 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
                 null.value <- list(null.value)
             }
             if (any(sapply(null.value, function(x) x[2]<=0))) {
-                stop("The second component of null.value (the variance of Monte Carlo log likelihood estimator) should be positive.",
+                stop("The second component of null.value (the variance of simulation based log likelihood estimator) should be positive.",
                     call. = FALSE
                 )
             }
             teststats <- sapply(null.value, function(x) -.5*M*(muhat - x[1])^2/x[2] - (M-1)/2*Ssq/x[2] + M/2*log((M-1)*Ssq/(M*x[2])))
             prec <- 0.01
-            psclout <- pscl(teststats, M, 1, precision=prec)
-            if (length(psclout)==0) { # execution of pscl stopped by user input
+            pmllr1out <- pmllr1(teststats, M, 1, precision=prec)
+            if (length(pmllr1out)==0) { # execution of pmllr1 stopped by user input
                 stop("Hypothesis tests stopped by user input", call. = FALSE)
             }
-            pval <- psclout$probs
-            prec <- psclout$precision
+            pval <- pmllr1out$probs
+            prec <- pmllr1out$precision
             if (any(pval < .01)) {
                 prec <- 0.001
-                psclout <- pscl(teststats, M, 1, precision=prec)
-                if (length(psclout)==0) { # execution of pscl stopped by user input
+                pmllr1out <- pmllr1(teststats, M, 1, precision=prec)
+                if (length(pmllr1out)==0) { # execution of pmllr1 stopped by user input
                     stop("Hypothesis tests stopped by user input", call. = FALSE)
                 }
-                pval <- psclout$probs
-                prec <- psclout$precision
+                pval <- pmllr1out$probs
+                prec <- pmllr1out$precision
             }
             precdigits <- max(-floor(log10(prec)), 1)
             dfout <- data.frame(
@@ -238,20 +238,20 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
             sigmaxsq <- sapply(null.value, function(x) 2*(M*(muhat - x)^2+(M-1)*Ssq)/(M+sqrt(M*(M*(muhat-x)^2+(M-1)*Ssq)+M^2))) # the value of sigma0^2 that maximizes the LLR statistics
             teststats <- sapply(1:length(null.value), function(i) -.5*(muhat-null.value[[i]]+sigmaxsq[i]/2)^2/(sigmaxsq[i]/M) - (M-1)/2*Ssq/sigmaxsq[i] + M/2*log((M-1)*Ssq/(M*sigmaxsq[i])))
             prec <- 0.01
-            psclout <- pscl(teststats, M, 1, precision=prec)
-            if (length(psclout)==0) { # execution of pscl stopped by user input
+            pmllr1out <- pmllr1(teststats, M, 1, precision=prec)
+            if (length(pmllr1out)==0) { # execution of pmllr1 stopped by user input
                 stop("Hypothesis tests stopped by user input", call. = FALSE)
             }
-            pval <- psclout$probs
-            prec <- psclout$precision
+            pval <- pmllr1out$probs
+            prec <- pmllr1out$precision
             if (any(pval < .01)) {
                 prec <- 0.001
-                psclout <- pscl(teststats, M, 1, precision=prec)
-                if (length(psclout)==0) { # execution of pscl stopped by user input
+                pmllr1out <- pmllr1(teststats, M, 1, precision=prec)
+                if (length(pmllr1out)==0) { # execution of pmllr1 stopped by user input
                     stop("Hypothesis tests stopped by user input", call. = FALSE)
                 }
-                pval <- psclout$probs
-                prec <- psclout$precision
+                pval <- pmllr1out$probs
+                prec <- pmllr1out$precision
             }
             precdigits <- max(-floor(log10(prec)), 1)
             dfout <- data.frame(
@@ -275,9 +275,9 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
                     call. = FALSE
                 )
             }
-            if (length(weights) != length(mclle) && weights!="tricube") {
+            if (length(weights) != length(siblle) && weights!="tricube") {
                 stop(
-                    "When 'type' = 'regression' or 'LAN' and the 'weights' argument is given, the length of 'weights' should be the same as the length of 'mclle'.",
+                    "When 'type' = 'regression' or 'LAN' and the 'weights' argument is given, the length of 'weights' should be the same as the length of 'siblle'.",
                     call. = FALSE
                 )
             }
@@ -294,8 +294,8 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
                         call. = FALSE
                     )
                 }
-                distance <- abs(attr(mclle, "param") - center)
-                span <- distance[order(distance)[ceiling(fraction*length(mclle))]]
+                distance <- abs(attr(siblle, "param") - center)
+                span <- distance[order(distance)[ceiling(fraction*length(siblle))]]
                 tricube <- function(x) { pmax((1-abs(x)^3)^3, 0) }
                 w <- tricube(distance / span)
             }
@@ -304,28 +304,28 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
             }
         }
         if (is.null(weights)) {
-            if (!is.null(attr(mclle, "weights"))) {
-                if (!is.numeric(attr(mclle, "weights"))) {
+            if (!is.null(attr(siblle, "weights"))) {
+                if (!is.numeric(attr(siblle, "weights"))) {
                     stop(
-                        "When 'type' = 'regression' or 'LAN' and the 'mclle' object has 'weights' attribute, it has to be a numeric vector.",
+                        "When 'type' = 'regression' or 'LAN' and the 'siblle' object has 'weights' attribute, it has to be a numeric vector.",
                         call. = FALSE
                     )
                 }
-                if (length(mclle) != length(attr(mclle, "weights"))) {
+                if (length(siblle) != length(attr(siblle, "weights"))) {
                     stop(
-                        "When 'type' = 'regression' or 'LAN' and the 'mclle' object has 'weights' attribute, the length of 'weights' should be the same as the length of 'mclle'.",
+                        "When 'type' = 'regression' or 'LAN' and the 'siblle' object has 'weights' attribute, the length of 'weights' should be the same as the length of 'siblle'.",
                         call. = FALSE
                     )
                 }
-                w <- attr(mclle, "weights")
+                w <- attr(siblle, "weights")
             } else {
-                w <- rep(1, length(mclle))
+                w <- rep(1, length(siblle))
             }
         }
         ## weighted quadratic regression
         W  <- diag(w)
-        theta <- attr(mclle, "param")
-        llest <- c(unclass(mclle))
+        theta <- attr(siblle, "param")
+        llest <- c(unclass(siblle))
         M <- length(llest)
         theta012 <- cbind(1, theta, theta^2)
         Ahat <- c(solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%llest))
@@ -337,7 +337,7 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
                 null.value <- list(null.value)
             }
             if (any(sapply(null.value, function(x) x[4]<=0))) {
-                stop("The fourth component of null.value (the variance of Monte Carlo log likelihood estimator) should be positive.",
+                stop("The fourth component of null.value (the variance of simulation based log likelihood estimator) should be positive.",
                     call. = FALSE
                 )
             }
@@ -347,20 +347,20 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
                     .5*M*log(sig2hat/x[4]) - .5*c(err%*%W%*%err)/x[4]
                 })
             prec <- 0.01
-            psclout <- pscl(teststats, M, 3, precision=prec)
-            if (length(psclout)==0) { # execution of pscl stopped by user input
+            pmllr1out <- pmllr1(teststats, M, 3, precision=prec)
+            if (length(pmllr1out)==0) { # execution of pmllr1 stopped by user input
                 stop("Hypothesis tests stopped by user input", call. = FALSE)
             }
-            pval <- psclout$probs
-            prec <- psclout$precision
+            pval <- pmllr1out$probs
+            prec <- pmllr1out$precision
             if (any(pval < .01)) {
                 prec <- 0.001
-                psclout <- pscl(teststats, M, 3, precision=prec)
-                if (length(psclout)==0) { # execution of pscl stopped by user input
+                pmllr1out <- pmllr1(teststats, M, 3, precision=prec)
+                if (length(pmllr1out)==0) { # execution of pmllr1 stopped by user input
                     stop("Hypothesis tests stopped by user input", call. = FALSE)
                 }
-                pval <- psclout$probs
-                prec <- psclout$precision
+                pval <- pmllr1out$probs
+                prec <- pmllr1out$precision
             }
             precdigits <- max(-floor(log10(prec)), 1)
             dfout <- data.frame(
@@ -383,7 +383,7 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
                 null.value <- list(null.value)
             }
             nu <- c(c(1, param.at, param.at^2)%*%solve(t(theta012)%*%W%*%theta012, c(1, param.at, param.at^2)))
-            mu.at <- sum(c(1,param.at,param.at^2)*Ahat) # estimated mean of MCLLE at param.at
+            mu.at <- sum(c(1,param.at,param.at^2)*Ahat) # estimated mean of SIBLLE at param.at
             sigmaxsq <- sapply(null.value,
                 function(x) {
                     nu1 <- M/2*sig2hat + (x-mu.at)^2/(2*nu)
@@ -393,20 +393,20 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
                 }) # the value of sigma0^2 that maximizes the LLR statistics
             teststats <- sapply(1:length(null.value), function(i) M/2*log(sig2hat/sigmaxsq[i]) - M*sig2hat/(2*sigmaxsq[i]) - (null.value[[i]]-sigmaxsq[i]/2-mu.at)^2/(2*nu*sigmaxsq[i]))
             prec <- 0.01
-            psclout <- pscl(teststats, M, 3, precision=prec)
-            if (length(psclout)==0) { # execution of pscl stopped by user input
+            pmllr1out <- pmllr1(teststats, M, 3, precision=prec)
+            if (length(pmllr1out)==0) { # execution of pmllr1 stopped by user input
                 stop("Hypothesis tests stopped by user input", call. = FALSE)
             }
-            pval <- psclout$probs
-            prec <- psclout$precision
+            pval <- pmllr1out$probs
+            prec <- pmllr1out$precision
             if (any(pval < .01)) {
                 prec <- 0.001
-                psclout <- pscl(teststats, M, 3, precision=prec)
-                if (length(psclout)==0) { # execution of pscl stopped by user input
+                pmllr1out <- pmllr1(teststats, M, 3, precision=prec)
+                if (length(pmllr1out)==0) { # execution of pmllr1 stopped by user input
                     stop("Hypothesis tests stopped by user input", call. = FALSE)
                 }
-                pval <- psclout$probs
-                prec <- psclout$precision
+                pval <- pmllr1out$probs
+                prec <- pmllr1out$precision
             }
             precdigits <- max(-floor(log10(prec)), 1)
             dfout <- data.frame(
@@ -437,20 +437,20 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
                     -M/2*log(1 + 1/(M*sig2hat)*(Ahat[2]+2*x*Ahat[3])^2/(v22-4*v12*x+4*v11*x*x)*(v11*v22-v12^2)) - M/2
                 })
             prec <- 0.01
-            psclout <- pscl(teststats, M, 3, precision=prec)
-            if (length(psclout)==0) { # execution of pscl stopped by user input
+            pmllr1out <- pmllr1(teststats, M, 3, precision=prec)
+            if (length(pmllr1out)==0) { # execution of pmllr1 stopped by user input
                 stop("Hypothesis tests stopped by user input", call. = FALSE)
             }
-            pval <- psclout$probs
-            prec <- psclout$precision
+            pval <- pmllr1out$probs
+            prec <- pmllr1out$precision
             if (any(pval < .01)) {
                 prec <- 0.001
-                psclout <- pscl(teststats, M, 3, precision=prec)
-                if (length(psclout)==0) { # execution of pscl stopped by user input
+                pmllr1out <- pmllr1(teststats, M, 3, precision=prec)
+                if (length(pmllr1out)==0) { # execution of pmllr1 stopped by user input
                     stop("Hypothesis tests stopped by user input", call. = FALSE)
                 }
-                pval <- psclout$probs
-                prec <- psclout$precision
+                pval <- pmllr1out$probs
+                prec <- pmllr1out$precision
             }
             precdigits <- max(-floor(log10(prec)), 1)
             dfout <- data.frame(
@@ -476,20 +476,20 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
                     -M/2*log(1+ 1/(M*sig2hat)*(Ahat[3]+x/2)^2*u3gv12) - M/2
                 })
             prec <- 0.01
-            psclout <- pscl(teststats, M, 3, precision=prec)
-            if (length(psclout)==0) { # execution of pscl stopped by user input
+            pmllr1out <- pmllr1(teststats, M, 3, precision=prec)
+            if (length(pmllr1out)==0) { # execution of pmllr1 stopped by user input
                 stop("Hypothesis tests stopped by user input", call. = FALSE)
             }
-            pval <- psclout$probs
-            prec <- psclout$precision
+            pval <- pmllr1out$probs
+            prec <- pmllr1out$precision
             if (any(pval < .01)) {
                 prec <- 0.001
-                psclout <- pscl(teststats, M, 3, precision=prec)
-                if (length(psclout)==0) { # execution of pscl stopped by user input
+                pmllr1out <- pmllr1(teststats, M, 3, precision=prec)
+                if (length(pmllr1out)==0) { # execution of pmllr1 stopped by user input
                     stop("Hypothesis tests stopped by user input", call. = FALSE)
                 }
-                pval <- psclout$probs
-                prec <- psclout$precision
+                pval <- pmllr1out$probs
+                prec <- pmllr1out$precision
             }
             precdigits <- max(-floor(log10(prec)), 1)
             dfout <- data.frame(
@@ -506,9 +506,9 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
     }
     ## test about the model parameter under LAN
     if (type=="LAN" && test=="parameter") {
-        warning("For parameter estimation under the LAN assumption, all Monte Carlo log likelihood estimates in the 'mclle' object are used with weights equal to 1. If the 'weights' argument is supplied to the 'ht' function or if the 'mclle' object has the 'weights' attribute, it is ignored.", call.=FALSE)
-        theta <- attr(mclle, "param")
-        llest <- c(unclass(mclle))
+        warning("For parameter estimation under the LAN assumption, all simulation based log likelihood estimates in the 'siblle' object are used with weights equal to 1. If the 'weights' argument is supplied to the 'ht' function or if the 'siblle' object has the 'weights' attribute, it is ignored.", call.=FALSE)
+        theta <- attr(siblle, "param")
+        llest <- c(unclass(siblle))
         M <- length(llest)
         theta012 <- cbind(1, theta, theta^2)
         Ahat <- c(solve(t(theta012)%*%theta012, t(theta012)%*%llest))
@@ -533,20 +533,20 @@ ht.mclle <- function(mclle, null.value, type=NULL, test=NULL, param.at=NULL, wei
                 -(M-1)/2 + (M-1)/2*log((M-1)*sig2hat_ss/iota)
             })
         prec <- 0.01
-        psclout <- pscl(teststats, M-1, 2, precision=prec)
-        if (length(psclout)==0) { # execution of pscl stopped by user input
+        pmllr1out <- pmllr1(teststats, M-1, 2, precision=prec)
+        if (length(pmllr1out)==0) { # execution of pmllr1 stopped by user input
             stop("Hypothesis tests stopped by user input", call. = FALSE)
         }
-        pval <- psclout$probs
-        prec <- psclout$precision
+        pval <- pmllr1out$probs
+        prec <- pmllr1out$precision
         if (any(pval < .01)) {
             prec <- 0.001
-            psclout <- pscl(teststats, M-1, 2, precision=prec)
-            if (length(psclout)==0) { # execution of pscl stopped by user input
+            pmllr1out <- pmllr1(teststats, M-1, 2, precision=prec)
+            if (length(pmllr1out)==0) { # execution of pmllr1 stopped by user input
                 stop("Hypothesis tests stopped by user input", call. = FALSE)
             }
-            pval <- psclout$probs
-            prec <- psclout$precision
+            pval <- pmllr1out$probs
+            prec <- pmllr1out$precision
         }
         precdigits <- max(-floor(log10(prec)), 1)
         dfout <- data.frame(
