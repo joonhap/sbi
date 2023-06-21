@@ -17,9 +17,9 @@
 )
 }
 \arguments{
-\item{siblle}{A class 'siblle' object, containing the simulation based log likelihood estimates and (optional) the parameter values for which those estimates were obtained.}
+\item{siblle}{A class 'siblle' object, containing the simulation based log likelihood estimates and, if relevant, the parameter values for which those estimates were obtained.}
 
-\item{null.value}{The null value for the hypothesis test. Either a numeric vector or a list of numeric vectors.}
+\item{null.value}{The null value for the hypothesis test. Either a numeric vector (for running a single test) or a list of numeric vectors (for running multiple tests).}
 
 \item{type}{A character string indicating what type of situation is considered. One of "point", "regression", or "LAN". See Details.}
 
@@ -27,9 +27,9 @@
 
 \item{param.at}{If 'test' = "loglik", the hypothesis test is about the value of the log likelihood function evaluated at 'param.at' (for the cases 'type' = "regression" or "LAN".)}
 
-\item{weights}{An optional argument for the (non-relative) weights of the simulation based log likelihood estimates for regression. Either a numeric vector of length equal to the 'siblle' object, or a character string equal to "tricube".}
+\item{weights}{An optional argument. The (non-relative) weights of the log likelihood estimates for regression. Either a numeric vector of length equal to the 'siblle' object, or a character string equal to "tricube". See Details below.}
 
-\item{fraction}{An optional argument indicating the fraction of points with nonzero weights for the case where 'weights' is specified as "tricube".}
+\item{fraction}{An optional argument used when the 'weights' argument is equal to "tricube". This argument specifies the fraction of points with nonzero weights when the tricube function is used for weight assignment.}
 
 \item{center}{An optional argument indicating the center of the local regression for the case where 'weights' is specified as "tricube".}
 }
@@ -48,15 +48,15 @@ In other cases, conservative p-values are shown.
 }
 \details{
 This is a generic function, taking a class 'siblle' object as the first argument.
-Hypothesis tests are carried out under the assumption that the simulation based likelihood estimator whose values are given in the 'siblle' object is (approximately) normally distributed.
+Hypothesis tests are carried out under a normal meta model--that is, the log likelihood estimates (whose values are given in the 'siblle' object) are normally distributed.
 
 When 'null.value' is a list, a hypothesis test is carried out for each null value specified in the list.
 
-The tests are conservative, in that the null hypothesis will not be rejected at level \eqn{alpha} if there exists a null distribution that is not rejected at level \eqn{alpha}. This complication arises because the given null value does not fully specify a distribution (instead only defines a subspace of the parameter space.) See Park and Won (2023) for more detailed explanation.
+Some tests are exact under the normal meta model (e.g., tests on the mean and the variance of the log likelihood estimator) while others are approximate.  See Park (2023) for more information.
 
 The 'type' argument should be one of "point", "regression", or "LAN".
 The case 'type' = "point" means that the 'siblle' object contains simulation based log likelihood estimates for a single, fixed parameter value.
-The case 'type' = "regression" means that the 'siblle' object contains simulation based log likelihood estimates evaluated at a range of parameter values, specified by the 'param' attribute of the 'siblle' object. A local quadratic regression for the estimated log likelihood values will be used for hypothesis tests, where the x-axis values are given by the 'param' values of the 'siblle' object.
+The case 'type' = "regression" means that the 'siblle' object contains simulation based log likelihood estimates obtained at more than one parameter values, specified by the 'param' attribute of the 'siblle' object. A local quadratic regression for the estimated log likelihood values will be used for hypothesis tests, where the x-axis values are given by the 'param' values of the 'siblle' object.
 The case 'type' = "LAN" means that inference on the model parameter will be carried out under the local asymptotic normality (Le Cam and Yang, 2000) condition.
 If the 'siblle' object has 'param' attribute whose length is equal to the length of the object, then 'type' defaults to "LAN".
 If the 'siblle' object does not have 'param' attribute, then 'type' defaults to "point".

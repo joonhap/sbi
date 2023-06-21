@@ -8,7 +8,7 @@ ci <- function(x, ...) {
 #' `ci` constructs conservative confidence intervals using simulation based log likelihood estimates. See Park and Won (2023) for more information.
 #'
 #' @name ci
-#' @param siblle A class 'siblle' object, containing the simulation based log likelihood estimates and (optional) the parameter values for which those estimates were obtained.
+#' @param siblle A class 'siblle' object, containing the simulation based log likelihood estimates and, if relevant, the parameter values for which those estimates were obtained.
 #' @param level The conservative confidence level. Either a numeric (vector of length one) or a list of numerics (for constructing multiple confidence intervals).
 #' @param type A character string indicating what type of situation is considered. One of "point", "regression", or "LAN". See Details.
 #' @param ci A character string indicating the quantity for which a confidence interval is to be constructed. One of "loglik", "MLE", "information", or "parameter". See Details.
@@ -20,7 +20,7 @@ ci <- function(x, ...) {
 #' @details
 #' This is a generic function, taking a class 'siblle' object as the first argument.
 #' Confidence intervals are constructed under the assumption that the simulation based likelihood estimator whose values are given in the 'siblle' object is (approximately) normally distributed.
-#' 
+#'
 #' When 'level' is a list, a conservative confidence interval is constructed for each level specified in the list.
 #'
 #' The constructed confidence intervals are conservative, in that all points for which there exists a null distribution that is not rejected at the specified confidence level will be included in the constructed interval. This complication arises because a point in the confidence interval does not fully specify a distribution (instead only defines a subspace of the parameter space.) See Park and Won (2023) for more detailed explanation.
@@ -56,7 +56,7 @@ ci <- function(x, ...) {
 #' \item{a data frame of the lower and upper bounds of the confidence intervals and the corresponding (conservative) confidence levels,}
 #' \item{the precision of the quantile values of the distributions used in the construction of confidence levels (0.01 by default).}
 #' }
-#' 
+#'
 #' @references Park, J. (2023). On simulation based inference for implicitly defined models
 #' @references Cleveland, W. S. (1979). Robust locally weighted regression and smoothing scatterplots. Journal of the American statistical association, 74(368), 829-836.
 #' @references Le Cam, L. and Yang, G. L. (2000). Asymptotics in statistics: some basic concepts. Springer-Verlag, New York.
@@ -72,7 +72,7 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, param.at=NULL, weights=
     if (is.null(type) && !is.null(attr(siblle, "param")) && length(siblle) == length(attr(siblle, "param"))) {
         type <- "LAN"
     }
-    
+
     if (!is.null(ci)) {
         match.arg(ci, c("loglik", "MLE", "information", "parameter"))
     }
@@ -184,7 +184,7 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, param.at=NULL, weights=
                 ## the interval (B) defined by {gamma; f(gamma) >= MLLR1_{1-alpha}(M,1)} is related to the interval for sigma_0^2 such that the radicand in the expression for the confidence interval is non-negative. The relationship is gamma = (M-1)*Ssq/sigma_0^2.
                 fprime <- function(gamma) { # derivative of gamma
                     -1/2 + M/2/gamma
-                } 
+                }
                 tol <- .Machine$double.eps^.25 # uniroot's default tolerance level for numerical root finding
                 gamma_min <- uniroot(function(g) {f(g)-q[i]-tol}, interval=c(M*exp(2/M*q[i]), M))$root ## the lower limit of the interval B is between M*exp(2/M*q) and M
                 gamma_max <- uniroot(function(g) {f(g)-q[i]-tol}, interval=c(M, 2*M+(q[i]-f(2*M))/fprime(2*M)))$root ## the upper limit of interval B is between M and 2M+(q-f(2M))/f'(2M)
@@ -295,7 +295,7 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, param.at=NULL, weights=
                 ## the interval (B) defined by {gamma; M*f(gamma) >= 2*MLLR1_{1-alpha}(M,3)} is related to the interval for sigma0_sq such that the radicand in the expression for the confidence interval is non-negative. The relationship is gamma = sig2hat/sigma0_sq
                 fprime <- function(gamma) { # derivative of gamma
                     1/gamma - 1
-                } 
+                }
                 tol <- .Machine$double.eps^.25 # uniroot's default tolerance level for numerical root finding
                 gamma_min <- uniroot(function(g) {f(g)-2*q[i]/M-tol}, interval=c(exp(2*q[i]/M), 1))$root ## the lower limit of the interval B is between exp(2q/M) and 1
                 gamma_max <- uniroot(function(g) {f(g)-2*q[i]/M-tol}, interval=c(1, 2+(2*q[i]/M-f(2))/fprime(2)))$root ## the upper limit of interval B is between 1 and 2+(2q/M-f(2))/f'(2)
@@ -440,11 +440,11 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, param.at=NULL, weights=
                 if (qco > 0) {
                     return(c(level=lvl, lb=-Inf, ub=Inf, inverted=0))
                 } else {
-                    return(c(level=lvl, lb=NA, ub=NA, inverted=0)) 
+                    return(c(level=lvl, lb=NA, ub=NA, inverted=0))
                 }
             }
         })
-        if (any(lub["inverted",]==1)) { # if for any given level the confidence interval is inverted 
+        if (any(lub["inverted",]==1)) { # if for any given level the confidence interval is inverted
             warning(paste0("For level(s) ", toString(unlist(level)[which(lub["inverted",]==1)]), ", the constructed confidence is of the form (-Inf, lb) U (ub, Inf)."), call.=FALSE)
         } else { # otherwise, remove the "inverted" column
             lub <- lub[-4,]

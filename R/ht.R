@@ -6,28 +6,28 @@ ht <- function(x, ...) {
 #' Hypothesis tests using simulation based log likelihood estimates
 #'
 #' `ht` outputs results of hypothesis tests carried out using simulation based log likelihood estimates. See Park (2023) for more information.
-#' 
+#'
 #' @name ht
-#' @param siblle A class 'siblle' object, containing the simulation based log likelihood estimates and (optional) the parameter values for which those estimates were obtained.
-#' @param null.value The null value for the hypothesis test. Either a numeric vector or a list of numeric vectors.
+#' @param siblle A class 'siblle' object, containing the simulation based log likelihood estimates and, if relevant, the parameter values for which those estimates were obtained.
+#' @param null.value The null value for the hypothesis test. Either a numeric vector (for running a single test) or a list of numeric vectors (for running multiple tests).
 #' @param type A character string indicating what type of situation is considered. One of "point", "regression", or "LAN". See Details.
 #' @param test A character string indicating the quantity to be tested about. One of "loglik", "moments", "MLE", "information", or "parameter". See Details.
 #' @param param.at If 'test' = "loglik", the hypothesis test is about the value of the log likelihood function evaluated at 'param.at' (for the cases 'type' = "regression" or "LAN".)
-#' @param weights An optional argument for the (non-relative) weights of the simulation based log likelihood estimates for regression. Either a numeric vector of length equal to the 'siblle' object, or a character string equal to "tricube".
-#' @param fraction An optional argument indicating the fraction of points with nonzero weights for the case where 'weights' is specified as "tricube".
+#' @param weights An optional argument. The (non-relative) weights of the log likelihood estimates for regression. Either a numeric vector of length equal to the 'siblle' object, or a character string equal to "tricube". See Details below.
+#' @param fraction An optional argument used when the 'weights' argument is equal to "tricube". This argument specifies the fraction of points with nonzero weights when the tricube function is used for weight assignment.
 #' @param center An optional argument indicating the center of the local regression for the case where 'weights' is specified as "tricube".
 #'
 #' @details
 #' This is a generic function, taking a class 'siblle' object as the first argument.
-#' Hypothesis tests are carried out under the assumption that the simulation based likelihood estimator whose values are given in the 'siblle' object is (approximately) normally distributed.
-#' 
+#' Hypothesis tests are carried out under a normal meta model--that is, the log likelihood estimates (whose values are given in the 'siblle' object) are normally distributed.
+#'
 #' When 'null.value' is a list, a hypothesis test is carried out for each null value specified in the list.
 #'
-#' The tests are conservative, in that the null hypothesis will not be rejected at level \eqn{alpha} if there exists a null distribution that is not rejected at level \eqn{alpha}. This complication arises because the given null value does not fully specify a distribution (instead only defines a subspace of the parameter space.) See Park and Won (2023) for more detailed explanation.
+#' Some tests are exact under the normal meta model (e.g., tests on the mean and the variance of the log likelihood estimator) while others are approximate.  See Park (2023) for more information.
 #'
 #' The 'type' argument should be one of "point", "regression", or "LAN".
 #' The case 'type' = "point" means that the 'siblle' object contains simulation based log likelihood estimates for a single, fixed parameter value.
-#' The case 'type' = "regression" means that the 'siblle' object contains simulation based log likelihood estimates evaluated at a range of parameter values, specified by the 'param' attribute of the 'siblle' object. A local quadratic regression for the estimated log likelihood values will be used for hypothesis tests, where the x-axis values are given by the 'param' values of the 'siblle' object.
+#' The case 'type' = "regression" means that the 'siblle' object contains simulation based log likelihood estimates obtained at more than one parameter values, specified by the 'param' attribute of the 'siblle' object. A local quadratic regression for the estimated log likelihood values will be used for hypothesis tests, where the x-axis values are given by the 'param' values of the 'siblle' object.
 #' The case 'type' = "LAN" means that inference on the model parameter will be carried out under the local asymptotic normality (Le Cam and Yang, 2000) condition.
 #' If the 'siblle' object has 'param' attribute whose length is equal to the length of the object, then 'type' defaults to "LAN".
 #' If the 'siblle' object does not have 'param' attribute, then 'type' defaults to "point".
@@ -40,7 +40,7 @@ ht <- function(x, ...) {
 #'
 #' When 'type' = "regression", 'test' can be "loglik", "moments", "MLE", or "information".
 #' If 'test' = "loglik", the test is about the value of the log likelihood function evaluated at 'param.at'.
-#' If 'test' = "moments", the test is about the quadruple \eqn{a, b, c, sigma^2} where \eqn{a, b, c} are coefficients of the polynomial describing the mean of the simulation based likelihood estimator (i.e., \eqn{l(\theta) = a + b theta + c theta^2}) and \eqn{sigma^2} is the variance of the SIBLLE.
+#' If 'test' = "moments", the test is about the quadruple \eqn{a, b, c, sigma^2} where \eqn{a, b, c} are coefficients of the polynomial describing the mean of the simulation based likelihood estimator (i.e., \eqn{l(\theta) = a + b \theta + c \theta^2}) and \eqn{\sigma^2} is the variance of the SIBLLE.
 #' If 'test' = "MLE", the test is about the location of the maximum likelihood estimate.
 #' If 'test' = "information", the test is about the Fisher information, which is (-2) times the value of \eqn{c}, the quadratic coefficient of the mean function of the SIBLLE.
 #' When 'type' = "regression", 'test' = "MLE" is assumed by default.
@@ -50,7 +50,7 @@ ht <- function(x, ...) {
 #' If 'test' is "parameter", a test about the value of the model parameter is conducted under the local asymptotic normality assumption.
 #' When 'type' = "LAN", 'test' = "parameter" is assumed by default.
 #'
-#' When quadratic regression is carried out, the weights for the simulation based likelihood estimates can be supplied.  The weights can either be given as an attribute 'weights' of the 'siblle' object, or as a function argument 'weights', with the latter being used when both are supplied. In either case, 'weights' should be a numeric vector of length equal to that of 'siblle'. If 'weights' is given as a function argument, it can be specified alternatively as a character string "tricube". In this case, the tricube weight (see Cleveland, 1979) is used, and the specified 'fraction' of the points will have nonzero weights. The 'center' argument determines at which parameter value the tricube weight takes the maximum. If weights are not supplied in either location, all weights are taken to be equal to 1.
+#' When quadratic regression is carried out, the weights for the simulation based likelihood estimates can be specified.  The weights can either be given as an attribute 'weights' of the 'siblle' object, or as a function argument 'weights', with the latter being used when both are supplied. In either case, 'weights' should be a numeric vector of length equal to that of 'siblle'. If 'weights' is given as an argument to the "ht" function, it can be specified alternatively as a character string "tricube". In this case, the tricube weight (see Cleveland, 1979) is used, and the specified 'fraction' of the points will have nonzero weights. The 'center' argument determines at which parameter value the tricube weight takes the maximum. If weights are not supplied in either location, all weights are taken to be equal to 1.
 #' It is important to note that the weights should NOT be normalized. Multiplying all weights by the same constant changes the local regression results. Roughly speaking, the variance of the error in the simulation based log likelihood estimate is assumed to be sigma^2/(the weight for the point). See Park (2023) for more information.
 #'
 #' @return A list consisting of the followings are returned.
@@ -61,7 +61,7 @@ ht <- function(x, ...) {
 #' }
 #' When 'test' = "moments", exact p-values are shown.
 #' In other cases, conservative p-values are shown.
-#' 
+#'
 #' @references Park, J. (2023). On simulation based inference for implicitly defined models
 #' @references Cleveland, W. S. (1979). Robust locally weighted regression and smoothing scatterplots. Journal of the American statistical association, 74(368), 829-836.
 #' @references Le Cam, L. and Yang, G. L. (2000). Asymptotics in statistics: some basic concepts. Springer-Verlag, New York.
@@ -77,7 +77,7 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, param.at=NULL, w
     if (is.null(type) && !is.null(attr(siblle, "param")) && length(siblle) == length(attr(siblle, "param"))) {
         type <- "LAN"
     }
-    
+
     if (!is.null(test)) {
         match.arg(test, c("loglik", "moments", "MLE", "information", "parameter"))
     }

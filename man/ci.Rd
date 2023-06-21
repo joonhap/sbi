@@ -17,7 +17,7 @@
 )
 }
 \arguments{
-\item{siblle}{A class 'siblle' object, containing the simulation based log likelihood estimates and (optional) the parameter values for which those estimates were obtained.}
+\item{siblle}{A class 'siblle' object, containing the simulation based log likelihood estimates and, if relevant, the parameter values for which those estimates were obtained.}
 
 \item{level}{The conservative confidence level. Either a numeric (vector of length one) or a list of numerics (for constructing multiple confidence intervals).}
 
