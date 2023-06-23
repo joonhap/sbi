@@ -9,7 +9,7 @@ ht <- function(x, ...) {
 #'
 #' @name ht
 #' @param siblle A class 'siblle' object, containing the simulation based log likelihood estimates and, if relevant, the parameter values for which those estimates were obtained.
-#' @param null.value The null value for the hypothesis test. Either a numeric vector (for running a single test) or a list of numeric vectors (for running multiple tests).
+#' @param null.value The null value(s) for the hypothesis test. Either a numeric vector (for running a test for a single null value, which can have one or more components) or a list of numeric vectors (for running tests for multiple null values). 
 #' @param type A character string indicating what type of situation is considered. One of "point", "regression", or "LAN". See Details.
 #' @param test A character string indicating the quantity to be tested about. One of "loglik", "moments", "MLE", "information", or "parameter". See Details.
 #' @param param.at For the cases 'type' = "regression" or "LAN" and 'test' = "loglik", the hypothesis test is about the value of the log likelihood function evaluated at 'param.at' 
@@ -22,7 +22,7 @@ ht <- function(x, ...) {
 #' This is a generic function, taking a class 'siblle' object as the first argument.
 #' Hypothesis tests are carried out under a normal meta model--that is, the log likelihood estimates (whose values are given in the 'siblle' object) are normally distributed.
 #'
-#' When 'null.value' is a list, a hypothesis test is carried out for each null value specified in the list.
+#' When 'null.value' is a list, a hypothesis test is carried out for each null value specified in the list. For example, in order to run tests for more than one null values for a single-component parameter, you can let 'null.value=as.list(vector_of_null_values)'.
 #'
 #' Some tests are exact under the normal meta model (e.g., tests on the mean and the variance of the log likelihood estimator) while others are approximate.  See Park (2023) for more information.
 #'
@@ -34,7 +34,7 @@ ht <- function(x, ...) {
 #' If the 'siblle' object does not have 'param' attribute, then 'type' defaults to "point".
 #'
 #' When 'type' = "point", 'test' can only be "loglik" or "moments".
-#' In this case 'test' = "loglik" means the hypothesis test \eqn{H_0: l = null.value} versus \eqn{H_1: l != null.value} will be performed.
+#' In this case 'test' = "loglik" means the hypothesis test \eqn{H_0: l = null.value} versus \eqn{H_1: l != null.value} will be performed where l is the log likelihood given the observed data.
 #' If 'test' = "moments", a test about the mean and the variance of the simulation based log likelihood estimator is conducted.
 #' The 'null.value' should be a numeric vector of length two (the first component being the mean and the second being the variance), or a list of numeric vectors of length two.
 #' When 'type' = "point", 'test' = "loglik" is assumed by default, unless the 'test' argument is supplied.
@@ -58,7 +58,7 @@ ht <- function(x, ...) {
 #' \itemize{
 #' \item{meta model maximum likelihood estimate,}
 #' \item{a data frame of the null values and the corresponding (approximate) p-values,}
-#' \item{approximate size of error in numerical evaluation of p-values (0.01 or 0.001 or 0). When 'test'="moments" or "loglik", the MLLR_1 or MLLR_2 distributions are used to compute the p-values. The cumulative distribution functions for these distributions are numerically evaluated using random number generations, thus having some stochastic error. The size of the numerical error is automatically set to either approximately 0.01 or 0.001 for the output p-values. When 'test'="MLE", "information", or "parameter", the standard F distribution is used, so the numerical error is basically zero.}
+#' \item{When 'test'="moments" or "loglik", approximate size of error in numerical evaluation of p-values (automatically set to approximately 0.01 or 0.001). For these case, p-values are found using the MLLR_1 or MLLR_2 distributions, whose cumulative distribution functions are numerically evaluated using random number generations. Thus p-values have some stochastic error. The size of the numerical error is automatically set to 0.01, but if p-value found is less than 0.01 for any of the provided null values, more computations are carried out to reduce the numerical error size to approximately 0.001. Note that when 'test'="MLE", "information", or "parameter", the standard F distribution is used, so the size numerical error is not outputted.}
 #' }
 #' When 'test' = "moments", exact p-values are shown (here "exact" means that the formula for the p-value is not based on approximation; this does not mean that size of the numerical evaluation is equal to zero.)
 #' In other cases, approximate p-values are shown. See Park, J. (2023) for how approximations are made.
@@ -109,6 +109,46 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, param.at=NULL, w
         }
     }
 
+    if (is.numeric(null.value)) {
+        if (test=="loglik" && length(null.value)!=1) {
+            stop(
+                "If 'test' is 'loglik' and 'null.value' is not a list, the length of 'null.value' should be 1.",
+                call. = FALSE
+            )
+        }
+        if (test=="moments") {
+            if (type=="point" && length(null.value)!=2) {
+                stop(
+                    "If 'test' is 'moments', 'type' is 'point', and 'null.value' is not a list, the length of 'null.value' should be 2 (mean and variance of 'siblle').",
+                    call. = FALSE
+                )
+            }
+            if (type %in% c("regression", "LAN") && length(null.value)!=4) {
+                stop(
+                    "If 'test' is 'moments', and 'type' is 'regression' or 'LAN', and 'null.value' is not a list, the length of 'null.value' should be 4 (the three coefficients of a quadratic polynomial for the mean function, and the variance of the SIBLLE).",
+                    call. = FALSE
+                )
+            }
+        }
+        if (test=="MLE" && length(null.value)!=1) {
+         stop(
+                "If 'test' is 'MLE' and 'null.value' is not a list, the length of 'null.value' should be 1.",
+                call. = FALSE
+            )
+        }
+        if (test=="information" && length(null.value)!=1) {
+         stop(
+                "If 'test' is 'information' and 'null.value' is not a list, the length of 'null.value' should be 1.",
+                call. = FALSE
+            )
+        }
+        if (test=="parameter" && length(null.value)!=1) {
+            stop(
+                "If 'test' is 'parameter' and 'null.value' is not a list, the length of 'null.value' should be 1.",
+                call. = FALSE
+            )
+        }
+    }
     if (is.list(null.value)) {
         if (test=="loglik" && !all(sapply(null.value, length)==1)) {
             stop(
@@ -131,14 +171,20 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, param.at=NULL, w
             }
         }
         if (test=="MLE" && !all(sapply(null.value, length)==1)) {
-         stop(
+            stop(
                 "If 'null.value' is a list and 'test' is 'MLE', all components of 'null.value' should be a numeric vector of length 1.",
                 call. = FALSE
             )
         }
         if (test=="information" && !all(sapply(null.value, length)==1)) {
-         stop(
+            stop(
                 "If 'null.value' is a list and 'test' is 'information', all components of 'null.value' should be a numeric vector of length 1.",
+                call. = FALSE
+            )
+        }
+        if (test=="parameter" && !all(sapply(null.value, length)==1)) {
+            stop(
+                "If 'null.value' is a list and 'test' is 'parameter', all components of 'null.value' should be a numeric vector of length 1.",
                 call. = FALSE
             )
         }
@@ -218,20 +264,20 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, param.at=NULL, w
             }
             teststats <- sapply(null.value, function(x) -.5*M*(muhat - x[1])^2/x[2] - (M-1)/2*Ssq/x[2] + M/2*log((M-1)*Ssq/(M*x[2])) + M/2)
             num.error.size <- 0.01
-            pvalout <- pmllr1(teststats, M, 1, precision=num.error.size)
+            pvalout <- pmllr1(teststats, M, 1, num_error_size=num.error.size)
             if (length(pvalout)==0) { # execution of pmllr1 stopped by user input
                 stop("Hypothesis tests stopped by user input", call. = FALSE)
             }
             pval <- pvalout$probs
-            num.error.size <- pvalout$precision
+            num.error.size <- pvalout$numerical_error_size
             if (any(pval < .01)) {
                 num.error.size <- 0.001
-                pvalout <- pmllr1(teststats, M, 1, precision=num.error.size)
+                pvalout <- pmllr1(teststats, M, 1, num_error_size=num.error.size)
                 if (length(pvalout)==0) { # execution of pmllr1 stopped by user input
                     stop("Hypothesis tests stopped by user input", call. = FALSE)
                 }
                 pval <- pvalout$probs
-                prec <- pvalout$precision
+                prec <- pvalout$numerical_error_size
             }
             precdigits <- max(-floor(log10(num.error.size)), 1)
             dfout <- data.frame(
@@ -239,7 +285,7 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, param.at=NULL, w
                 sigma_sq_null=sapply(null.value, function(x) x[2]),
                 pvalue=round(pval, digits=precdigits)
             )
-            out <- list(meta_model_MLE=c(mu=muhat, sigma_sq=(M-1)/M*Ssq),
+            out <- list(meta_model_MLE_for_moments=c(mu=muhat, sigma_sq=(M-1)/M*Ssq),
                 Hypothesis_Tests=dfout,
                 pvalue_numerical_error_size=num.error.size
             )
@@ -251,30 +297,33 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, param.at=NULL, w
                 null.value <- list(null.value)
             }
             sigmaxsq <- sapply(null.value, function(x) 2*(sqrt( (muhat-x)^2 + (M-1)/M*Ssq + 1 ) - 1)) # the value of sigma0^2 that maximizes the MLLR statistic
+            sigmaxsq_vals <- 5*1:20
+            teststats_vals <- sapply(sigmaxsq_vals, function(x) -.5*M*(muhat-null.value[[1]]+x/2)^2/x - (M-1)/2*Ssq/x + M/2*log((M-1)*Ssq/(M*x)) + M/2)
+            teststats <- sapply(1:length(null.value), function(i) -.5*M*(muhat-null.value[[i]]+sigmaxsq[i]/2)^2/sigmaxsq[i] - (M-1)/2*Ssq/sigmaxsq[i] + M/2*log((M-1)*Ssq/(M*sigmaxsq[i])) + M/2)
             teststats <- sapply(1:length(null.value), function(i) -.5*M*(muhat-null.value[[i]]+sigmaxsq[i]/2)^2/sigmaxsq[i] - (M-1)/2*Ssq/sigmaxsq[i] + M/2*log((M-1)*Ssq/(M*sigmaxsq[i])) + M/2)
             sighat <- sqrt((M-1)/M*Ssq)
             num.error.size <- 0.01
-            pvalout <- pmllr2(teststats, M, 1, 1/M, sighat, precision=num.error.size)
+            pvalout <- pmllr2(teststats, M, 1, 1/M, sighat, num_error_size=num.error.size)
             if (length(pvalout)==0) { # execution of pmllr2 stopped by user input
                 stop("Hypothesis tests stopped by user input", call. = FALSE)
             }
             pval <- pvalout$probs
-            num.error.size <- pvalout$precision
+            num.error.size <- pvalout$numerical_error_size
             if (any(pval < .01)) {
                 num.error.size <- 0.001
-                pvalout <- pmllr2(teststats, M, 1, 1/M, sighat, precision=num.error.size)
+                pvalout <- pmllr2(teststats, M, 1, 1/M, sighat, num_error_size=num.error.size)
                 if (length(pvalout)==0) { # execution of pmllr2 stopped by user input
                     stop("Hypothesis tests stopped by user input", call. = FALSE)
                 }
                 pval <- pvalout$probs
-                num.error.size <- pvalout$precision
+                num.error.size <- pvalout$numerical_error_size
             }
             precdigits <- max(-floor(log10(num.error.size)), 1)
             dfout <- data.frame(
                 log_lik_null=unlist(null.value),
                 pvalue=round(pval, digits=precdigits)
             )
-            out <- list(meta_model_MLE=c(log_lik=muhat+(M-1)/(2*M)*Ssq),
+            out <- list(meta_model_MLE_for_log_lik=c(log_lik=muhat+(M-1)/(2*M)*Ssq),
                 Hypothesis_Tests=dfout,
                 pvalue_numerical_error_size=num.error.size
             )
@@ -346,7 +395,7 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, param.at=NULL, w
         theta012 <- cbind(1, theta, theta^2)
         Ahat <- c(solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%llest))
         resids <- llest - c(theta012%*%Ahat)
-        sig2hat <- c(resids%*%W%*%resids) / M
+        sigsqhat <- c(resids%*%W%*%resids) / M
         ## test about moments
         if (test=="moments") {
             if (!is.list(null.value)) {
@@ -360,23 +409,23 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, param.at=NULL, w
             teststats <- sapply(null.value,
                 function(x) {
                     err <- llest - c(theta012%*%x[1:3])
-                    .5*M*log(sig2hat/x[4]) - .5*c(err%*%W%*%err)/x[4] + M/2
+                    .5*M*log(sigsqhat/x[4]) - .5*c(err%*%W%*%err)/x[4] + M/2
                 })
             num.error.size <- 0.01
-            pvalout <- pmllr1(teststats, M, 3, precision=num.error.size)
+            pvalout <- pmllr1(teststats, M, 3, num_error_size=num.error.size)
             if (length(pvalout)==0) { # execution of pmllr1 stopped by user input
                 stop("Hypothesis tests stopped by user input", call. = FALSE)
             }
             pval <- pvalout$probs
-            num.error.size <- pvalout$precision
+            num.error.size <- pvalout$numerical_error_size
             if (any(pval < .01)) {
                 prec <- 0.001
-                pvalout <- pmllr1(teststats, M, 3, precision=num.error.size)
+                pvalout <- pmllr1(teststats, M, 3, num_error_size=num.error.size)
                 if (length(pvalout)==0) { # execution of pmllr1 stopped by user input
                     stop("Hypothesis tests stopped by user input", call. = FALSE)
                 }
                 pval <- pvalout$probs
-                num.error.size <- pvalout$precision
+                num.error.size <- pvalout$numerical_error_size
             }
             precdigits <- max(-floor(log10(num.error.size)), 1)
             dfout <- data.frame(
@@ -386,7 +435,7 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, param.at=NULL, w
                 sigma_sq_null=sapply(null.value, function(x) x[4]),
                 pvalue=round(pval, digits=precdigits)
             )
-            out <- list(meta_model_MLE=c(a=Ahat[1], b=Ahat[2], c=Ahat[3], sigma_sq=sig2hat),
+            out <- list(meta_model_MLE_for_moments=c(a=Ahat[1], b=Ahat[2], c=Ahat[3], sigma_sq=sigsqhat),
                 Hypothesis_Tests=dfout,
                 pvalue_numerical_error_size=num.error.size
             )
@@ -403,30 +452,30 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, param.at=NULL, w
             }
             tau <- c(c(1, param.at, param.at^2)%*%solve(t(theta012)%*%W%*%theta012, c(1, param.at, param.at^2)))
             mu.param.at <- sum(c(1,param.at,param.at^2)*Ahat) # estimated mean of SIBLLE at param.at
-            sigmaxsq <- sapply(null.value, function(x) 2*weight.param.at^2*tau*M*(sqrt( 1/weight.param.at^2/tau/M^2 * (1/tau*(x-mu.param.at)^2+M*sig2hat) + 1) - 1)) # the value of sigma0^2 that maximizes the LLR statistics
-            teststats <- sapply(1:length(null.value), function(i) M/2*log(sig2hat/sigmaxsq[i]) - M*sig2hat/(2*sigmaxsq[i]) - (null.value[[i]]-sigmaxsq[i]/2/weight.param.at-mu.param.at)^2/(2*tau*sigmaxsq[i]) + M/2)
+            sigmaxsq <- sapply(null.value, function(x) 2*weight.param.at^2*tau*M*(sqrt( 1/weight.param.at^2/tau/M^2 * (1/tau*(x-mu.param.at)^2+M*sigsqhat) + 1) - 1)) # the value of sigma0^2 that maximizes the LLR statistics
+            teststats <- sapply(1:length(null.value), function(i) M/2*log(sigsqhat/sigmaxsq[i]) - M*sigsqhat/(2*sigmaxsq[i]) - (null.value[[i]]-sigmaxsq[i]/2/weight.param.at-mu.param.at)^2/(2*tau*sigmaxsq[i]) + M/2)
             num.error.size <- 0.01
-            pvalout <- pmllr2(teststats, M, 3, weight.param.at^2*tau, sqrt(sig2hat), precision=num.error.size)
+            pvalout <- pmllr2(teststats, M, 3, weight.param.at^2*tau, sqrt(sigsqhat), num_error_size=num.error.size)
             if (length(pvalout)==0) { # execution of pmllr2 stopped by user input
                 stop("Hypothesis tests stopped by user input", call. = FALSE)
             }
             pval <- pvalout$probs
-            num.error.size <- pvalout$precision
+            num.error.size <- pvalout$numerical_error_size
             if (any(pval < .01)) {
                 num.error.size <- 0.001
-                pvalout <- pmllr2(teststats, M, 3, weight.param.at^2*tau, sqrt(sig2hat), precision=num.error.size)
+                pvalout <- pmllr2(teststats, M, 3, weight.param.at^2*tau, sqrt(sigsqhat), num_error_size=num.error.size)
                 if (length(pvalout)==0) { # execution of pmllr2 stopped by user input
                     stop("Hypothesis tests stopped by user input", call. = FALSE)
                 }
                 pval <- pvalout$probs
-                num.error.size <- pvalout$precision
+                num.error.size <- pvalout$numerical_error_size
             }
             precdigits <- max(-floor(log10(num.error.size)), 1)
             dfout <- data.frame(
                 log_lik_null=unlist(null.value),
                 pvalue=round(pval, digits=precdigits)
             )
-            out <- list(meta_model_MLE=c(log_lik=unname(mu.param.at+sig2hat/2)),
+            out <- list(meta_model_MLE_for_log_lik=c(log_lik=unname(mu.param.at+sigsqhat/2)),
                 Hypothesis_Tests=dfout,
                 pvalue_numerical_error_size=num.error.size
             )
@@ -447,16 +496,15 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, param.at=NULL, w
             v22 <- sum(w)*(mtheta4 - mtheta2^2)
             teststats <- sapply(null.value,
                 function(x) {
-                    (M-3)*(Ahat[2]+2*x*Ahat[3])^2*(v11*v22-v12^2)/(v22-4*v12*x+4*v11*x*x)/(M*sig2hat)
+                    (M-3)*(Ahat[2]+2*x*Ahat[3])^2*(v11*v22-v12^2)/(v22-4*v12*x+4*v11*x*x)/(M*sigsqhat)
                 })
             pval <- pf(teststats, 1, M-3, lower.tail=FALSE)
             dfout <- data.frame(
                 MLE_null=unlist(null.value),
                 pvalue=round(pval, digits=3)
             )
-            out <- list(meta_model_MLE=c(MLE=unname(-Ahat[2]/(2*Ahat[3]))),
-                Hypothesis_Tests=dfout,
-                pvalue_numerical_error_size=0
+            out <- list(meta_model_MLE_for_MLE=c(MLE=unname(-Ahat[2]/(2*Ahat[3]))),
+                Hypothesis_Tests=dfout
             )
             print(out, row.names=FALSE)
             invisible(out)
@@ -468,15 +516,14 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, param.at=NULL, w
             }
             U <- t(theta012)%*%W%*%theta012
             u3gv12 <- U[3,3] - c(U[3,1:2]%*%solve(U[1:2,1:2], U[1:2,3])) # u_{3|12}
-            teststats <- sapply(null.value, function(x) (M-3)*u3gv12*(Ahat[3]+x/2)^2/(M*sig2hat))
+            teststats <- sapply(null.value, function(x) (M-3)*u3gv12*(Ahat[3]+x/2)^2/(M*sigsqhat))
             pval <- pf(teststats, 1, M-3, lower.tail=FALSE)
             dfout <- data.frame(
                 information_null=unlist(null.value),
                 pvalue=round(pval, digits=3)
             )
-            out <- list(meta_model_MLE=c(Fisher_information=unname(-2*Ahat[3])),
+            out <- list(meta_model_MLE_for_Fisher_information=c(Fisher_information=unname(-2*Ahat[3])),
                 Hypothesis_Tests=dfout,
-                pvalue_numerical_error_size=0
             )
             print(out, row.names=FALSE)
             invisible(out)
@@ -485,55 +532,42 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, param.at=NULL, w
         ## TODO: start revising from here
         if (type=="LAN" && test=="parameter") {
             W  <- diag(w)
+            Winv <- diag(1/w)
             theta <- attr(siblle, "param")
             llest <- c(unclass(siblle))
             M <- length(llest)
             theta012 <- cbind(1, theta, theta^2)
             Ahat <- c(solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%llest))
+            K_1 <- -2*Ahat[3] # first stage estimate of K
             resids_1 <- llest - c(theta012%*%Ahat) # first stage estimates for residuals
-            sig2hat_1 <- sum(resids_fs*resids_fs) / M # the first stage estimate of sigma^2
+            sigsq_1 <- c(resids_1%*%W%*%resids_1) / M # the first stage estimate of sigma^2
             if (!is.list(null.value)) {
                 null.value <- list(null.value)
             }
-            theta_chk <- theta - mean(theta)
-            thetasq_chk <- theta^2 - mean(theta^2)
-            llest_chk <- llest - mean(llest)
-            G1 <- diag(rep(1,M)) - outer(theta_chk, theta_chk)/(sum(theta_chk*theta_chk)-sig2hat_fs/(2*Ahat[3])) # G_{(1)} in the paper
-            est_ss <- solve(t(cbind(theta_chk, thetasq_chk))%*%G1%*%cbind(theta_chk, thetasq_chk), t(cbind(theta_chk, thetasq_chk))) %*% G1 %*% llest_chk # second-stage estimates vector, to be used in the next two lines
-            K_ss <- unname(-2*est_ss[2,1])
-            theta_ss <- unname(est_ss[1,1]/K_ss)
-            resids_ss <- unname(llest_chk - cbind(theta_chk, thetasq_chk)%*%est_ss)
-            sig2hat_ss <- 1/(M-1)*c(t(resids_ss)%*%G1%*%resids_ss)
+            C <- cbind(-1, diag(rep(1,M-1)))
+            Ctheta <- c(C%*%theta)
+            Cthetasq <- c(C%*%theta^2)
+            Q_1 <- solve(C%*%Winv%*%t(C) + K_1/sigsq_1^2*outer(Ctheta,Ctheta))
+            svdQ_1 <- svd(Q_1)
+            sqrtQ_1 <- svdQ_1$u %*% diag(sqrt(svdQ_1$d)) %*% t(svdQ_1$v)
+            R_1 <- sqrtQ_1%*%cbind(Ctheta, Cthetasq)
+            u <- c(sqrtQ_1 %*% C %*% Winv %*% rep(1,M))
+            estEq_2 <- c(solve(t(R_1)%*%R_1, t(R_1)%*%(sqrtQ_1%*%C%*%llest + sigsq_1/2*u))) # estimating equation for the second stage estimate Khat and thetahat: Khat(thetahat // -1/2) = (R_1^T R_1)^{-1} R_1^T (Q_1^{1/2} C lhat + 1/2*sigma^2_1*u)
+            Khat <- -2*estEq_2[2] # second stage estimate of K
+            thetahat <- estEq_2[1]/Khat # maximum meta model likelihood estimate for theta
+            sigsqhat <- 1/(M-1)*sum((sqrtQ_1%*%C%*%llest - Khat*R_1%*%c(thetahat, -1/2) + sigsq_1/2*u)^2)
             teststats <- sapply(null.value,
                 function(x) {
-                    thdsq <- cbind(theta_chk, thetasq_chk)%*%c(x, -.5) # an intermediate step in computation
-                    iota <- c(llest_chk%*%G1%*%llest_chk - (t(llest_chk)%*%G1%*%thdsq)^2/(t(thdsq)%*%G1%*%thdsq))
-                    -(M-1)/2 + (M-1)/2*log((M-1)*sig2hat_ss/iota)
+                    v <- c(R_1%*%c(x, -1/2))
+                    (M-3)*(sum(((diag(rep(1,M-1))-outer(v,v)/sum(v*v))%*%(sqrtQ_1%*%C%*%llest+sigsq_1/2*u))^2)/(M-1)/sigsqhat - 1)
                 })
-            prec <- 0.01
-            pvalout <- pmllr1(teststats, M-1, 2, precision=prec)
-            if (length(pvalout)==0) { # execution of pmllr1 stopped by user input
-                stop("Hypothesis tests stopped by user input", call. = FALSE)
-            }
-            pval <- pvalout$probs
-            prec <- pvalout$precision
-            if (any(pval < .01)) {
-                prec <- 0.001
-                pvalout <- pmllr1(teststats, M-1, 2, precision=prec)
-                if (length(pvalout)==0) { # execution of pmllr1 stopped by user input
-                    stop("Hypothesis tests stopped by user input", call. = FALSE)
-                }
-                pval <- pvalout$probs
-                prec <- pvalout$precision
-            }
-            precdigits <- max(-floor(log10(prec)), 1)
+            pval <- pf(teststats, 1, M-3, lower.tail=FALSE)
             dfout <- data.frame(
                 parameter_null=unlist(null.value),
-                conservative_pvalue=round(pval, digits=precdigits)
+                pvalue=round(pval, digits=3)
             )
-            out <- list(Monte_Carlo_MLE=c(parameter=theta_ss, information=K_ss, error_variance=sig2hat_ss),
-                Hypothesis_Tests=dfout,
-                pvalue_precision=prec
+            out <- list(meta_model_MLE_for_parameter=c(parameter=thetahat, information=Khat, error_variance=sigsqhat),
+                Hypothesis_Tests=dfout
             )
             print(out, row.names=FALSE)
             invisible(out)

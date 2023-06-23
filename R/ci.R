@@ -55,7 +55,7 @@ ci <- function(x, ...) {
 #' \itemize{
 #' \item{simulation based maximum likelihood estimate,}
 #' \item{a data frame of the lower and upper bounds of the confidence intervals and the corresponding (conservative) confidence levels,}
-#' \item{the precision of the quantile values of the distributions used in the construction of confidence levels (0.01 by default).}
+#' \item{the num_error_size of the quantile values of the distributions used in the construction of confidence levels (0.01 by default).}
 #' }
 #'
 #' @references Park, J. (2023). On simulation based inference for implicitly defined models
@@ -171,12 +171,12 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, param.at=NULL, weights=
                 level <- list(level)
             }
             prec <- 0.01
-            qmllr1out <- qmllr1(1-unlist(level), M, 1, precision=prec)
+            qmllr1out <- qmllr1(1-unlist(level), M, 1, num_error_size=prec)
             if (length(qmllr1out)==0) { # execution of qmllr1 stopped by user input
                 stop("Construction of confidence interval stopped by user input", call. = FALSE)
             }
             q <- qmllr1out$quantiles
-            prec <- qmllr1out$precision
+            prec <- qmllr1out$numerical_error_size
             lub <- sapply(1:length(level), function(i) {
                 lvl <- level[[i]]
                 f <- function(gamma) {
@@ -203,7 +203,7 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, param.at=NULL, weights=
             })
             out <- list(Monte_Carlo_MLE=c(log_lik=muhat+(M-1)/(2*M)*Ssq),
                 conservative_confidence_interval=t(lub),
-                confidence_level_precision=prec
+                confidence_level_num_error_size=prec
             )
             print(out, row.names=FALSE)
             invisible(out)
@@ -273,19 +273,19 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, param.at=NULL, weights=
         theta012 <- cbind(1, theta, theta^2)
         Ahat <- c(solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%llest)) # Ahat=(ahat,bhat,chat)
         resids <- llest - c(theta012%*%Ahat)
-        sig2hat <- c(resids%*%W%*%resids) / M
+        sigsqhat <- c(resids%*%W%*%resids) / M
         ## ci for log likelihood
         if (ci=="loglik") {
             if (!is.list(level)) {
                 level <- list(level)
             }
             prec <- 0.01
-            qmllr1out <- qmllr1(1-unlist(level), M, 3, precision=prec)
+            qmllr1out <- qmllr1(1-unlist(level), M, 3, num_error_size=prec)
             if (length(qmllr1out)==0) { # execution of qmllr1 stopped by user input
                 stop("Construction of confidence interval stopped by user input", call. = FALSE)
             }
             q <- qmllr1out$quantiles
-            prec <- qmllr1out$precision
+            prec <- qmllr1out$numerical_error_size
             nu <- c(c(1, param.at, param.at^2)%*%solve(t(theta012)%*%W%*%theta012, c(1, param.at, param.at^2)))
             mu.at <- sum(c(1,param.at,param.at^2)*Ahat) # estimated mean of SIBLLE at param.at
             lub <- sapply(1:length(level), function(i) {
@@ -293,28 +293,28 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, param.at=NULL, weights=
                 f <- function(gamma) {
                     log(gamma) - gamma
                 } # a function that takes its maximum at 1
-                ## the interval (B) defined by {gamma; M*f(gamma) >= 2*MLLR1_{1-alpha}(M,3)} is related to the interval for sigma0_sq such that the radicand in the expression for the confidence interval is non-negative. The relationship is gamma = sig2hat/sigma0_sq
+                ## the interval (B) defined by {gamma; M*f(gamma) >= 2*MLLR1_{1-alpha}(M,3)} is related to the interval for sigma0_sq such that the radicand in the expression for the confidence interval is non-negative. The relationship is gamma = sigsqhat/sigma0_sq
                 fprime <- function(gamma) { # derivative of gamma
                     1/gamma - 1
                 }
                 tol <- .Machine$double.eps^.25 # uniroot's default tolerance level for numerical root finding
                 gamma_min <- uniroot(function(g) {f(g)-2*q[i]/M-tol}, interval=c(exp(2*q[i]/M), 1))$root ## the lower limit of the interval B is between exp(2q/M) and 1
                 gamma_max <- uniroot(function(g) {f(g)-2*q[i]/M-tol}, interval=c(1, 2+(2*q[i]/M-f(2))/fprime(2)))$root ## the upper limit of interval B is between 1 and 2+(2q/M-f(2))/f'(2)
-                sigma0_sq_min <- sig2hat/gamma_max # (numerically) smallest sigma0_sq such that the radicand is nonnegative
-                sigma0_sq_max <- sig2hat/gamma_min # (numerically) largest sigma0_sq such that the radicand is nonnegative
+                sigma0_sq_min <- sigsqhat/gamma_max # (numerically) smallest sigma0_sq such that the radicand is nonnegative
+                sigma0_sq_max <- sigsqhat/gamma_min # (numerically) largest sigma0_sq such that the radicand is nonnegative
                 lm <- function(x) { # lower margin
-                    x/2 - sqrt(x*nu*(M*log(sig2hat/x) - M*sig2hat/x - 2*q[i]))
+                    x/2 - sqrt(x*nu*(M*log(sigsqhat/x) - M*sigsqhat/x - 2*q[i]))
                 }
                 um <- function(x) { # upper margin
-                    x/2 + sqrt(x*nu*(M*log(sig2hat/x) - M*sig2hat/x - 2*q[i]))
+                    x/2 + sqrt(x*nu*(M*log(sigsqhat/x) - M*sigsqhat/x - 2*q[i]))
                 }
                 lb <- mu.at + optimize(lm, c(sigma0_sq_min, sigma0_sq_max), maximum=FALSE)$objective # lower bound
                 ub <- mu.at + optimize(um, c(sigma0_sq_min, sigma0_sq_max), maximum=TRUE)$objective # upper bound
                 return(c(level=lvl, lb=lb, ub=ub))
             })
-            out <- list(Monte_Carlo_MLE=c(log_lik=unname(mu.at+sig2hat/2)),
+            out <- list(Monte_Carlo_MLE=c(log_lik=unname(mu.at+sigsqhat/2)),
                 conservative_confidence_interval=t(lub),
-                quantile_MLLR1_precision=prec
+                quantile_MLLR1_num_error_size=prec
             )
             print(out, row.names=FALSE)
             invisible(out)
@@ -334,21 +334,21 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, param.at=NULL, weights=
             detV <- v11*v22-v12*v12
             Vl <- sum(w*llest^2) - sum(w*llest)^2/sum(w)
             prec <- 0.01
-            qmllr1out <- qmllr1(1-unlist(level), M, 3, precision=prec)
+            qmllr1out <- qmllr1(1-unlist(level), M, 3, num_error_size=prec)
             if (length(qmllr1out)==0) { # execution of qmllr1 stopped by user input
                 stop("Construction of confidence interval stopped by user input", call. = FALSE)
             }
             q <- qmllr1out$quantiles
-            prec <- qmllr1out$precision
+            prec <- qmllr1out$numerical_error_size
             xi <- M*(exp(-1-2*q/M)-1)
-            D <- detV * xi * sig2hat * (Vl - (xi+M)*sig2hat)
+            D <- detV * xi * sigsqhat * (Vl - (xi+M)*sigsqhat)
             lub <- sapply(1:length(level), function(i) {
                 lvl <- level[[i]]
-                if (xi[i]*sig2hat < Ahat[3]^2*detV/v11) { # Case 1
-                    int <- (-(Ahat[2]*Ahat[3]*detV+v12*xi[i]*sig2hat) + c(-1,1)*sqrt(D[i])) /2/(Ahat[3]^2*detV-v11*xi[i]*sig2hat)
+                if (xi[i]*sigsqhat < Ahat[3]^2*detV/v11) { # Case 1
+                    int <- (-(Ahat[2]*Ahat[3]*detV+v12*xi[i]*sigsqhat) + c(-1,1)*sqrt(D[i])) /2/(Ahat[3]^2*detV-v11*xi[i]*sigsqhat)
                     return(c(level=lvl, lb=int[1], ub=int[2], inverted=0))
-                } else if (Ahat[3]^2*detV/v11 <= xi[i]*sig2hat && xi[i]*sig2hat < Vl-M*sig2hat) { # Case 2
-                    int <- (-(Ahat[2]*Ahat[3]*detV+v12*xi[i]*sig2hat) + c(1,-1)*sqrt(D[i])) /2/(Ahat[3]^2*detV-v11*xi[i]*sig2hat)
+                } else if (Ahat[3]^2*detV/v11 <= xi[i]*sigsqhat && xi[i]*sigsqhat < Vl-M*sigsqhat) { # Case 2
+                    int <- (-(Ahat[2]*Ahat[3]*detV+v12*xi[i]*sigsqhat) + c(1,-1)*sqrt(D[i])) /2/(Ahat[3]^2*detV-v11*xi[i]*sigsqhat)
                     return(c(level=lvl, lb=int[1], ub=int[2], inverted=1))
                 } else { # Case 3
                     return(c(level=lvl, lb=-Inf, ub=Inf, inverted=0))
@@ -361,7 +361,7 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, param.at=NULL, weights=
             }
             out <- list(Monte_Carlo_MLE=c(MLE=unname(-Ahat[2]/(2*Ahat[3]))),
                 conservative_confidence_interval=t(lub),
-                quantile_MLLR1_precision=prec
+                quantile_MLLR1_num_error_size=prec
             )
             print(out, row.names=FALSE)
             invisible(out)
@@ -374,21 +374,21 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, param.at=NULL, weights=
             U <- t(theta012)%*%W%*%theta012
             u3gv12 <- U[3,3] - c(U[3,1:2]%*%solve(U[1:2,1:2], U[1:2,3])) # u_{3|12}
             prec <- 0.01
-            qmllr1out <- qmllr1(1-unlist(level), M, 3, precision=prec)
+            qmllr1out <- qmllr1(1-unlist(level), M, 3, num_error_size=prec)
             if (length(qmllr1out)==0) { # execution of qmllr1 stopped by user input
                 stop("Construction of confidence interval stopped by user input", call. = FALSE)
             }
             q <- qmllr1out$quantiles
-            prec <- qmllr1out$precision
+            prec <- qmllr1out$numerical_error_size
             xi <- M*(exp(-1-2*q/M)-1)
             lub <- sapply(1:length(level), function(i) {
                 lvl <- level[[i]]
-                int <- -2*Ahat[3] + c(-1,1)*2*sqrt(xi[i]/u3gv12*sig2hat)
+                int <- -2*Ahat[3] + c(-1,1)*2*sqrt(xi[i]/u3gv12*sigsqhat)
                 return(c(level=lvl, lb=max(0,int[1]), ub=max(0,int[2])))
             })
             out <- list(Monte_Carlo_MLE=c(Fisher_information=unname(-2*Ahat[3])),
                 conservative_confidence_interval=t(lub),
-                quantile_MLLR1_precision=prec
+                quantile_MLLR1_num_error_size=prec
             )
             print(out, row.names=FALSE)
             invisible(out)
@@ -403,27 +403,27 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, param.at=NULL, weights=
         theta012 <- cbind(1, theta, theta^2)
         Ahat <- c(solve(t(theta012)%*%theta012, t(theta012)%*%llest))
         resids_fs <- llest - c(theta012%*%Ahat)
-        sig2hat_fs <- sum(resids_fs*resids_fs) / M # the first stage estimate of sigma^2
+        sigsqhat_fs <- sum(resids_fs*resids_fs) / M # the first stage estimate of sigma^2
         if (!is.list(level)) {
             level <- list(level)
         }
         theta_chk <- theta - mean(theta)
         thetasq_chk <- theta^2 - mean(theta^2)
         llest_chk <- llest - mean(llest)
-        G1 <- diag(rep(1,M)) - outer(theta_chk, theta_chk)/(sum(theta_chk*theta_chk)-sig2hat_fs/(2*Ahat[3])) # G_{(1)} in the paper
+        G1 <- diag(rep(1,M)) - outer(theta_chk, theta_chk)/(sum(theta_chk*theta_chk)-sigsqhat_fs/(2*Ahat[3])) # G_{(1)} in the paper
         est_ss <- solve(t(cbind(theta_chk, thetasq_chk))%*%G1%*%cbind(theta_chk, thetasq_chk), t(cbind(theta_chk, thetasq_chk))) %*% G1 %*% llest_chk # second-stage estimates vector, to be used in the next two lines
         K_ss <- unname(-2*est_ss[2,1])
         theta_ss <- unname(est_ss[1,1]/K_ss)
         resids_ss <- unname(llest_chk - cbind(theta_chk, thetasq_chk)%*%est_ss)
-        sig2hat_ss <- 1/(M-1)*c(t(resids_ss)%*%G1%*%resids_ss)
+        sigsqhat_ss <- 1/(M-1)*c(t(resids_ss)%*%G1%*%resids_ss)
         prec <- 0.01
-        qmllr1out <- qmllr1(1-unlist(level), M-1, 2, precision=prec)
+        qmllr1out <- qmllr1(1-unlist(level), M-1, 2, num_error_size=prec)
         if (length(qmllr1out)==0) { # execution of qmllr1 stopped by user input
             stop("Construction of confidence interval stopped by user input", call. = FALSE)
         }
         q <- qmllr1out$quantiles
-        prec <- qmllr1out$precision
-        xi <- c(llest_chk%*%G1%*%llest_chk) - (M-1)*sig2hat_ss*exp(-1-2*q/(M-1))
+        prec <- qmllr1out$numerical_error_size
+        xi <- c(llest_chk%*%G1%*%llest_chk) - (M-1)*sigsqhat_ss*exp(-1-2*q/(M-1))
         lub <- sapply(1:length(level), function(i) {
             lvl <- level[[i]]
             qco <- c((llest_chk%*%G1%*%theta_chk)^2 - xi[i]*theta_chk%*%G1%*%theta_chk) # quadratic term coefficient for the quadratic polynomial that determines the simulation based CI
@@ -452,7 +452,7 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, param.at=NULL, weights=
         }
         out <- list(Monte_Carlo_MLE=c(parameter=theta_ss),
             conservative_confidence_interval=t(lub),
-            quantile_MLLR1_precision=prec
+            quantile_MLLR1_num_error_size=prec
         )
         print(out, row.names=FALSE)
         invisible(out)

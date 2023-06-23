@@ -27,18 +27,20 @@
 
 \item{param.at}{If 'ci' = "loglik", a confidence interval is constructed for the value of the log likelihood function evaluated at 'param.at' (for the cases 'type' = "regression" or "LAN".)}
 
-\item{weights}{An optional argument for the (non-relative) weights of the simulation based log likelihood estimates for regression. Either a numeric vector of length equal to the 'siblle' object, or a character string equal to "tricube".}
+\item{weights}{An optional argument for the un-normalized weights of the simulation based log likelihood estimates for regression. Either a numeric vector of length equal to the 'siblle' object, or a character string equal to "tricube". The default weights are equal to one for all the points if not specified here or in the siblle object.}
 
 \item{fraction}{An optional argument indicating the fraction of points with nonzero weights for the case where 'weights' is specified as "tricube".}
 
 \item{center}{An optional argument indicating the center of the local regression for the case where 'weights' is specified as "tricube".}
+
+\item{weight.param.at}{The relative inverse variance for the simulation based log likelihood estimator at 'param.at'. Used for the cases 'type' = "regression" or "LAN" and 'test' = "loglik". The default value is 1.}
 }
 \value{
 A list consisting of the followings are returned.
 \itemize{
 \item{simulation based maximum likelihood estimate,}
 \item{a data frame of the lower and upper bounds of the confidence intervals and the corresponding (conservative) confidence levels,}
-\item{the precision of the quantile values of the distributions used in the construction of confidence levels (0.01 by default).}
+\item{the num_error_size of the quantile values of the distributions used in the construction of confidence levels (0.01 by default).}
 }
 }
 \description{

@@ -13,7 +13,7 @@ qmllr2(
   k,
   nu,
   s0,
-  precision = 0.01,
+  num_error_size = 0.01,
   lower = TRUE,
   log_p = FALSE,
   force = FALSE
@@ -25,7 +25,7 @@ pmllr2(
   k,
   nu,
   s0,
-  precision = 0.01,
+  num_error_size = 0.01,
   lower = TRUE,
   log_p = FALSE,
   force = FALSE
@@ -40,20 +40,20 @@ rmllr2(n, M, k, nu, s0)
 
 \item{k}{the second parameter for the MLLR_2 distribution}
 
-\item{precision}{The requested level of precision for the outputs of qmllr2 and pmllr2 functions, in terms of the estimated standard deviation of the output. For example precision of 0.01 will output values with the standard deviation of approximately equal to 0.01.}
+\item{num_error_size}{The requested size of numerical error for the outputs of qmllr2 and pmllr2 functions, in terms of the estimated standard deviation of the output. For example num_error_size of 0.01 will output values with the standard deviation of approximately equal to 0.01.}
 
 \item{lower}{logical; if TRUE, probabilities are P\link{X <= x}, otherwise, P\link{X > x}.}
 
 \item{log_p}{logical; if TRUE, probabilities p are given as log(p).}
 
-\item{force}{logical; if TRUE, the function will run regardless of how long it will take. If FALSE, the function will ask if you want to continue, stop, or give a new precision value whenever the expected run time is longer than 15 seconds.}
+\item{force}{logical; if TRUE, the function will run regardless of how long it will take. If FALSE, the function will ask if you want to continue, stop, or give a new num_error_size value whenever the expected run time is longer than 15 seconds.}
 
 \item{q}{vector of quantiles}
 
 \item{n}{number of draws}
 }
 \value{
-a list consisting of the numeric vector of quantiles and the precision (numeric) used.
+a list consisting of the numeric vector of quantiles and the num_error_size (numeric) used.
 }
 \description{
 Quantile function, distribution function, and random generation for the MLLR_2 distribution family. See Park (2023) for information about the MLLR distributions.
@@ -61,7 +61,7 @@ Quantile function, distribution function, and random generation for the MLLR_2 d
 \examples{
 qmllr2(.99, 5, 2, 1.2, 0.23)
 qmllr2(c(.01, .05, .95, .99), 10, 2.3, 3, 10)
-qmllr2(c(.01, .05, .95, .99), 10, 2.3, 3, 10, precision=0.01, lower=TRUE)
+qmllr2(c(.01, .05, .95, .99), 10, 2.3, 3, 10, num_error_size=0.01, lower=TRUE)
 pmllr2(c(-8.3, -5.9), 8, 1, 3.8, 4.1)
 pmllr2(c(-8.3, -5.9), 8 ,1, 3.8, 4.1, force=TRUE)
 rmllr2(10, 7, 2, 91, 1.1)
