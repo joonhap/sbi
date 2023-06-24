@@ -8,12 +8,12 @@ ht <- function(x, ...) {
 #' `ht` outputs results of hypothesis tests carried out using simulation based log likelihood estimates. See Park (2023) for more information.
 #'
 #' @name ht
-#' @param siblle A class 'siblle' object, containing the simulation based log likelihood estimates and, if relevant, the parameter values for which those estimates were obtained.
-#' @param null.value The null value(s) for the hypothesis test. Either a numeric vector (for running a test for a single null value, which can have one or more components) or a list of numeric vectors (for running tests for multiple null values). 
+#' @param siblle A class 'siblle' object, containing the simulation based log likelihood estimates and, if those estimates were obtained for different parameter values, the parameter values at which the log likelihood estimates were obtained.
+#' @param null.value The null value(s) for the hypothesis test. Either a numeric vector (for running a test for a single null value, which can have one or more components) or a list of numeric vectors (for running tests for multiple null values).
 #' @param type A character string indicating what type of situation is considered. One of "point", "regression", or "LAN". See Details.
 #' @param test A character string indicating the quantity to be tested about. One of "loglik", "moments", "MLE", "information", or "parameter". See Details.
-#' @param param.at For the cases 'type' = "regression" or "LAN" and 'test' = "loglik", the hypothesis test is about the value of the log likelihood function evaluated at 'param.at' 
-#' @param weight.param.at The relative inverse variance for the simulation based log likelihood estimator at 'param.at'. Used for the cases 'type' = "regression" or "LAN" and 'test' = "loglik". The default value is 1.
+#' @param param.at For the cases 'type' = "regression" or "LAN" and 'test' = "loglik", the hypothesis test is about the value of the log likelihood function evaluated at 'param.at'
+#' @param weight.param.at The relative inverse variance for the simulation based log likelihood estimator at parameter value 'param.at'. The weight for regression is proportional to the inverse variance. This argument is used for the cases 'type' = "regression" or "LAN" and 'test' = "loglik". The default value is 1.
 #' @param weights An optional argument. The un-normalized weights of the log likelihood estimates for regression. Either a numeric vector of length equal to the 'siblle' object, or a character string equal to "tricube". The default weights are equal to one for all the points if not specified here or in the siblle object. See Details below.
 #' @param fraction An optional argument used when the 'weights' argument is equal to "tricube". This argument specifies the fraction of points with nonzero weights when the tricube function is used for weight assignment.
 #' @param center An optional argument indicating the center of the local regression for the case where 'weights' is specified as "tricube".
@@ -28,7 +28,7 @@ ht <- function(x, ...) {
 #'
 #' The 'type' argument should be one of "point", "regression", or "LAN".
 #' The case 'type' = "point" means that the 'siblle' object contains simulation based log likelihood estimates for a single, fixed parameter value.
-#' The case 'type' = "regression" means that the 'siblle' object contains simulation based log likelihood estimates obtained at more than one parameter values, specified by the 'param' attribute of the 'siblle' object. A local quadratic regression for the estimated log likelihood values will be used for hypothesis tests, where the x-axis values are given by the 'param' values of the 'siblle' object.
+#' The case 'type' = "regression" means that the 'siblle' object contains simulation based log likelihood estimates obtained at more than one parameter values, specified by the 'param' attribute of the 'siblle' object. A local quadratic regression for the estimated log likelihood values will be used for hypothesis tests, where the x-axis values are given by the 'param' values of the 'siblle' object and the y-axis values are the corresponding log likelihood estimates.
 #' The case 'type' = "LAN" means that inference on the model parameter will be carried out under the local asymptotic normality (Le Cam and Yang, 2000) condition.
 #' If the 'siblle' object has 'param' attribute whose length is equal to the length of the object, then 'type' defaults to "LAN".
 #' If the 'siblle' object does not have 'param' attribute, then 'type' defaults to "point".
@@ -52,13 +52,13 @@ ht <- function(x, ...) {
 #' When 'type' = "LAN", 'test' = "parameter" is assumed by default.
 #'
 #' When quadratic regression is carried out, the weights for the simulation based likelihood estimates can be specified.  The weights can either be given as an attribute 'weights' of the 'siblle' object, or as a function argument 'weights', with the latter being used when both are supplied. In either case, 'weights' should be a numeric vector of length equal to that of 'siblle'. If 'weights' is given as an argument to the "ht" function, it can be specified alternatively as a character string "tricube". In this case, the tricube weight (see Cleveland, 1979) is used, and the specified 'fraction' of the points will have nonzero weights. The 'center' argument determines at which parameter value the tricube weight takes the maximum. If weights are not supplied in either location, all weights are taken to be equal to 1.
-#' It is important to note that the weights are un-normalized. Multiplying all weights by the same constant changes the local regression results. Roughly speaking, the variance of the simulation based log likelihood estimator is assumed to be sigma^2/(the weight for the point). See Park (2023) for more information.
+#' It is important to note that the weights are not supposed to be normalized (i.e., sum to one). Multiplying all weights by the same constant changes the local regression results. Roughly speaking, the variance of the simulation based log likelihood estimator is assumed to be sigma^2/(the weight for the point). See Park (2023) for more information.
 #'
 #' @return A list consisting of the following components are returned.
 #' \itemize{
 #' \item{meta model maximum likelihood estimate,}
 #' \item{a data frame of the null values and the corresponding (approximate) p-values,}
-#' \item{When 'test'="moments" or "loglik", approximate size of error in numerical evaluation of p-values (automatically set to approximately 0.01 or 0.001). For these case, p-values are found using the MLLR_1 or MLLR_2 distributions, whose cumulative distribution functions are numerically evaluated using random number generations. Thus p-values have some stochastic error. The size of the numerical error is automatically set to 0.01, but if p-value found is less than 0.01 for any of the provided null values, more computations are carried out to reduce the numerical error size to approximately 0.001. Note that when 'test'="MLE", "information", or "parameter", the standard F distribution is used, so the size numerical error is not outputted.}
+#' \item{When 'test'="moments" or "loglik", approximate size of error in numerical evaluation of p-values (automatically set to approximately 0.01 or 0.001). For these case, p-values are found using the MLLR_1 or MLLR_2 distributions, whose cumulative distribution functions are numerically evaluated using random number generations. Thus p-values have some stochastic error. The size of the numerical error is automatically set to 0.01, but if p-value found is less than 0.01 for any of the provided null values, more computations are carried out to reduce the numerical error size to approximately 0.001. Note that when 'test'="MLE", "information", or "parameter", the (standard) F distribution is used, so the size numerical error is not outputted.}
 #' }
 #' When 'test' = "moments", exact p-values are shown (here "exact" means that the formula for the p-value is not based on approximation; this does not mean that size of the numerical evaluation is equal to zero.)
 #' In other cases, approximate p-values are shown. See Park, J. (2023) for how approximations are made.

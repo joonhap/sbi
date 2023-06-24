@@ -8,34 +8,31 @@ ci <- function(x, ...) {
 #' `ci` constructs conservative confidence intervals using simulation based log likelihood estimates. See Park and Won (2023) for more information.
 #'
 #' @name ci
-#' @param siblle A class 'siblle' object, containing the simulation based log likelihood estimates and, if relevant, the parameter values for which those estimates were obtained.
-#' @param level The conservative confidence level. Either a numeric (vector of length one) or a list of numerics (for constructing multiple confidence intervals).
+#' @param siblle A class 'siblle' object, containing the simulation based log likelihood estimates and, if those estimates were obtained for different parameter values, the parameter values at which the log likelihood estimates were obtained.
+#' @param level A numeric vector of confidence levels.
 #' @param type A character string indicating what type of situation is considered. One of "point", "regression", or "LAN". See Details.
 #' @param ci A character string indicating the quantity for which a confidence interval is to be constructed. One of "loglik", "MLE", "information", or "parameter". See Details.
-#' @param param.at If 'ci' = "loglik", a confidence interval is constructed for the value of the log likelihood function evaluated at 'param.at' (for the cases 'type' = "regression" or "LAN".)
-#' @param weight.param.at The relative inverse variance for the simulation based log likelihood estimator at 'param.at'. Used for the cases 'type' = "regression" or "LAN" and 'test' = "loglik". The default value is 1.
+#' @param param.at If 'type' = "regression" or "LAN" and 'ci' = "loglik", a confidence interval is constructed for the value of the log likelihood function evaluated at 'param.at'.
+#' @param weight.param.at The relative inverse variance for the simulation based log likelihood estimator at parameter value 'param.at'. The weight for regression is proportional to the inverse variance. This argument is used for the cases 'type' = "regression" or "LAN" and 'test' = "loglik". The default value is 1.
 #' @param weights An optional argument for the un-normalized weights of the simulation based log likelihood estimates for regression. Either a numeric vector of length equal to the 'siblle' object, or a character string equal to "tricube". The default weights are equal to one for all the points if not specified here or in the siblle object.
 #' @param fraction An optional argument indicating the fraction of points with nonzero weights for the case where 'weights' is specified as "tricube".
 #' @param center An optional argument indicating the center of the local regression for the case where 'weights' is specified as "tricube".
 #'
 #' @details
 #' This is a generic function, taking a class 'siblle' object as the first argument.
-#' Confidence intervals are constructed under the assumption that the simulation based likelihood estimator whose values are given in the 'siblle' object is (approximately) normally distributed.
+#' Confidence intervals are constructed under a normal meta model where the simulation based likelihood estimates given in the 'siblle' object are normally distributed.
 #'
-#' When 'level' is a list, a conservative confidence interval is constructed for each level specified in the list.
-#'
-#' The constructed confidence intervals are conservative, in that all points for which there exists a null distribution that is not rejected at the specified confidence level will be included in the constructed interval. This complication arises because a point in the confidence interval does not fully specify a distribution (instead only defines a subspace of the parameter space.) See Park and Won (2023) for more detailed explanation.
+#' When 'level' has length greater than one, a confidence interval is constructed for each value in the vector.
 #'
 #' The 'type' argument should be one of "point", "regression", or "LAN".
 #' The case 'type' = "point" means that the 'siblle' object contains simulation based log likelihood estimates for a single, fixed parameter value.
-#' The case 'type' = "regression" means that the 'siblle' object contains simulation based log likelihood estimates evaluated at a range of parameter values, specified by the 'param' attribute of the 'siblle' object. A local quadratic regression for the estimated log likelihood values will be used for constructing confidence intervals, where the x-axis values are given by the 'param' values of the 'siblle' object.
+#' The case 'type' = "regression" means that the 'siblle' object contains simulation based log likelihood estimates evaluated at more than one parameter values, specified by the 'param' attribute of the 'siblle' object. A local quadratic regression for the estimated log likelihood values is used for constructing confidence intervals, where the x-axis values are given by the 'param' values of the 'siblle' object and the y-axis values are the corresponding log likelihood estimates.
 #' The case 'type' = "LAN" means that inference on the model parameter will be carried out under the local asymptotic normality (Le Cam and Yang, 2000) condition.
 #' If the 'siblle' object has 'param' attribute whose length is equal to the length of the object, then 'type' defaults to "LAN".
 #' If the 'siblle' object does not have 'param' attribute, then 'type' defaults to "point".
 #'
 #' When 'type' = "point", 'ci' can only be "loglik".
-#' In this case a conservative confidence interval for the log likelihood given the observed data is constructed.
-#' When 'type' = "point", 'test' = "loglik" is assumed by default.
+#' In this case a confidence interval for the log likelihood given the observed data is constructed.
 #'
 #' When 'type' = "regression", 'ci' can be "loglik", "MLE", or "information".
 #' If 'ci' = "loglik", confidence intervals are constructed for the value of the log likelihood function evaluated at 'param.at' given the observed data.
@@ -49,13 +46,13 @@ ci <- function(x, ...) {
 #' When 'type' = "LAN", 'ci' = "parameter" is assumed by default.
 #'
 #' When quadratic regression is carried out, the weights for the simulation based likelihood estimates can be supplied.  The weights can either be given as an attribute 'weights' of the 'siblle' object, or as a function argument 'weights', with the latter being used when both are supplied. In either case, 'weights' should be a numeric vector of length equal to that of 'siblle'. If 'weights' is given as a function argument, it can be specified alternatively as a character string "tricube". In this case, the tricube weight (see Cleveland, 1979) is used, and the specified 'fraction' of the points will have nonzero weights. The 'center' argument determines at which parameter value the tricube weight takes the maximum. If weights are not supplied in either location, all weights are taken to be equal to 1.
-#' It is important to note that the weights should NOT be normalized. Multiplying all weights by the same constant changes the local regression results. Roughly speaking, the variance of the error in the simulation based log likelihood estimate is assumed to be sigma^2/(the weight for the point). See Park (2023) for more information.
+#' It is important to note that the weights are not supposed to be normalized (i.e., sum to one). Multiplying all weights by the same constant changes the local regression results. Roughly speaking, the variance of the error in the simulation based log likelihood estimate is assumed to be sigma^2/(the weight for the point). See Park (2023) for more information.
 #'
 #' @return A list consisting of the followings are returned.
 #' \itemize{
 #' \item{simulation based maximum likelihood estimate,}
-#' \item{a data frame of the lower and upper bounds of the confidence intervals and the corresponding (conservative) confidence levels,}
-#' \item{the num_error_size of the quantile values of the distributions used in the construction of confidence levels (0.01 by default).}
+#' \item{a data frame of the lower and upper bounds of the confidence intervals and the corresponding confidence levels,}
+#' \item{When 'ci'="moments" or "loglik", confidence intervals are found using the MLLR_1 or MLLR_2 distributions, whose quantile values  are numerically found using random number generations. Thus these quantile values have some stochastic error. This list component gives the size of the numerical error, which is automatically approximately set to 0.01. Note that when 'ci'="MLE", "information", or "parameter", the (standard) F distribution is used, so the size of the numerical error is not outputted.}
 #' }
 #'
 #' @references Park, J. (2023). On simulation based inference for implicitly defined models
@@ -203,7 +200,7 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, param.at=NULL, weights=
             })
             out <- list(Monte_Carlo_MLE=c(log_lik=muhat+(M-1)/(2*M)*Ssq),
                 conservative_confidence_interval=t(lub),
-                confidence_level_num_error_size=prec
+                quantiles_numerical_error_size=prec
             )
             print(out, row.names=FALSE)
             invisible(out)
@@ -314,7 +311,7 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, param.at=NULL, weights=
             })
             out <- list(Monte_Carlo_MLE=c(log_lik=unname(mu.at+sigsqhat/2)),
                 conservative_confidence_interval=t(lub),
-                quantile_MLLR1_num_error_size=prec
+                MLLR1_quantiles_numerical_error_size=prec
             )
             print(out, row.names=FALSE)
             invisible(out)
@@ -361,7 +358,6 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, param.at=NULL, weights=
             }
             out <- list(Monte_Carlo_MLE=c(MLE=unname(-Ahat[2]/(2*Ahat[3]))),
                 conservative_confidence_interval=t(lub),
-                quantile_MLLR1_num_error_size=prec
             )
             print(out, row.names=FALSE)
             invisible(out)
@@ -387,8 +383,7 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, param.at=NULL, weights=
                 return(c(level=lvl, lb=max(0,int[1]), ub=max(0,int[2])))
             })
             out <- list(Monte_Carlo_MLE=c(Fisher_information=unname(-2*Ahat[3])),
-                conservative_confidence_interval=t(lub),
-                quantile_MLLR1_num_error_size=prec
+                conservative_confidence_interval=t(lub)
             )
             print(out, row.names=FALSE)
             invisible(out)
@@ -451,8 +446,7 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, param.at=NULL, weights=
             lub <- lub[-4,]
         }
         out <- list(Monte_Carlo_MLE=c(parameter=theta_ss),
-            conservative_confidence_interval=t(lub),
-            quantile_MLLR1_num_error_size=prec
+            conservative_confidence_interval=t(lub)
         )
         print(out, row.names=FALSE)
         invisible(out)
