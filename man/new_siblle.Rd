@@ -2,20 +2,10 @@
 % Please edit documentation in R/siblle.R
 \name{new_siblle}
 \alias{new_siblle}
-\title{Simulation based log likelihood estimator (SIBLLE) class}
+\title{Constructor for a class 'siblle' object}
 \usage{
-new_siblle(llest, param = NULL)
-}
-\arguments{
-\item{llest}{A numeric vector of log likelihood estimates}
-
-\item{param}{A numeric vector of one-dimensional parameter values (optional).}
-}
-\value{
-A class 'siblle' object
-
-Constructor for a class 'siblle' object
+new_siblle(llest, params = NULL)
 }
 \description{
-Simulation based log likelihood estimator (SIBLLE) class
+Constructs a new class 'siblle' object. Note that the 'siblle' function uses the 'new_siblle' function to construct an object and use an interval validator function to check the correctness of the object specification.
 }

@@ -12,8 +12,8 @@ ht <- function(x, ...) {
 #' @param null.value The null value(s) for the hypothesis test. Either a numeric vector (for running a test for a single null value, which can have one or more components) or a list of numeric vectors (for running tests for multiple null values).
 #' @param type A character string indicating what type of situation is considered. One of "point", "regression", or "LAN". See Details.
 #' @param test A character string indicating the quantity to be tested about. One of "loglik", "moments", "MLE", "information", or "parameter". See Details.
-#' @param param.at For the cases 'type' = "regression" or "LAN" and 'test' = "loglik", the hypothesis test is about the value of the log likelihood function evaluated at 'param.at'
-#' @param weight.param.at The relative inverse variance for the simulation based log likelihood estimator at parameter value 'param.at'. The weight for regression is proportional to the inverse variance. This argument is used for the cases 'type' = "regression" or "LAN" and 'test' = "loglik". The default value is 1.
+#' @param at.param For the cases 'type' = "regression" or "LAN" and 'test' = "loglik", the hypothesis test is about the value of the log likelihood function evaluated at 'at.param'
+#' @param weight.at.param The relative inverse variance for the simulation based log likelihood estimator at parameter value 'at.param'. The weight for regression is proportional to the inverse variance. This argument is used for the cases 'type' = "regression" or "LAN" and 'test' = "loglik". The default value is 1.
 #' @param weights An optional argument. The un-normalized weights of the log likelihood estimates for regression. Either a numeric vector of length equal to the 'siblle' object, or a character string equal to "tricube". The default weights are equal to one for all the points if not specified here or in the siblle object. See Details below.
 #' @param fraction An optional argument used when the 'weights' argument is equal to "tricube". This argument specifies the fraction of points with nonzero weights when the tricube function is used for weight assignment.
 #' @param center An optional argument indicating the center of the local regression for the case where 'weights' is specified as "tricube".
@@ -28,10 +28,10 @@ ht <- function(x, ...) {
 #'
 #' The 'type' argument should be one of "point", "regression", or "LAN".
 #' The case 'type' = "point" means that the 'siblle' object contains simulation based log likelihood estimates for a single, fixed parameter value.
-#' The case 'type' = "regression" means that the 'siblle' object contains simulation based log likelihood estimates obtained at more than one parameter values, specified by the 'param' attribute of the 'siblle' object. A local quadratic regression for the estimated log likelihood values will be used for hypothesis tests, where the x-axis values are given by the 'param' values of the 'siblle' object and the y-axis values are the corresponding log likelihood estimates.
+#' The case 'type' = "regression" means that the 'siblle' object contains simulation based log likelihood estimates obtained at more than one parameter values, specified by the 'params' attribute of the 'siblle' object. A local quadratic regression for the estimated log likelihood values will be used for hypothesis tests, where the x-axis values are given by the 'params' values of the 'siblle' object and the y-axis values are the corresponding log likelihood estimates.
 #' The case 'type' = "LAN" means that inference on the model parameter will be carried out under the local asymptotic normality (Le Cam and Yang, 2000) condition.
-#' If the 'siblle' object has 'param' attribute whose length is equal to the length of the object, then 'type' defaults to "LAN".
-#' If the 'siblle' object does not have 'param' attribute, then 'type' defaults to "point".
+#' If the 'siblle' object has 'params' attribute whose length is equal to the length of the object, then 'type' defaults to "LAN".
+#' If the 'siblle' object does not have 'params' attribute, then 'type' defaults to "point".
 #'
 #' When 'type' = "point", 'test' can only be "loglik" or "moments".
 #' In this case 'test' = "loglik" means the hypothesis test \eqn{H_0: l = null.value} versus \eqn{H_1: l != null.value} will be performed where l is the log likelihood given the observed data.
@@ -40,7 +40,7 @@ ht <- function(x, ...) {
 #' When 'type' = "point", 'test' = "loglik" is assumed by default, unless the 'test' argument is supplied.
 #'
 #' When 'type' = "regression", 'test' can be "loglik", "moments", "MLE", or "information".
-#' If 'test' = "loglik", the test is about the value of the log likelihood function evaluated at 'param.at'.
+#' If 'test' = "loglik", the test is about the value of the log likelihood function evaluated at 'at.param'.
 #' If 'test' = "moments", the test is about the quadruple \eqn{a, b, c, sigma^2} where \eqn{a, b, c} are coefficients of the polynomial describing the mean of the simulation based likelihood estimator (i.e., \eqn{l(\theta) = a + b \theta + c \theta^2}) and \eqn{\sigma^2} is the variance of the SIBLLE.
 #' If 'test' = "MLE", the test is about the location of the maximum likelihood estimate.
 #' If 'test' = "information", the test is about the Fisher information, which is (-2) times the value of \eqn{c}, the quadratic coefficient of the mean function of the SIBLLE.
@@ -56,9 +56,9 @@ ht <- function(x, ...) {
 #'
 #' @return A list consisting of the following components are returned.
 #' \itemize{
-#' \item{meta model maximum likelihood estimate,}
-#' \item{a data frame of the null values and the corresponding (approximate) p-values,}
-#' \item{When 'test'="moments" or "loglik", approximate size of error in numerical evaluation of p-values (automatically set to approximately 0.01 or 0.001). For these case, p-values are found using the MLLR_1 or MLLR_2 distributions, whose cumulative distribution functions are numerically evaluated using random number generations. Thus p-values have some stochastic error. The size of the numerical error is automatically set to 0.01, but if p-value found is less than 0.01 for any of the provided null values, more computations are carried out to reduce the numerical error size to approximately 0.001. Note that when 'test'="MLE", "information", or "parameter", the (standard) F distribution is used, so the size numerical error is not outputted.}
+#' \item{meta_model_MLE_for_*: simulation based maximum likelihood estimate under an appropriate meta model,}
+#' \item{Hypothesis_Tests: a data frame of the null values and the corresponding (approximate) p-values,}
+#' \item{pvalue_numerical_error_size: When 'test'="moments" or "loglik", approximate size of error in numerical evaluation of p-values (automatically set to approximately 0.01 or 0.001). For these case, p-values are found using the MLLR_1 or MLLR_2 distributions, whose cumulative distribution functions are numerically evaluated using random number generations. Thus p-values have some stochastic error. The size of the numerical error is automatically set to approximately 0.01, but if p-value found is less than 0.01 for any of the provided null values, more computations are carried out to reduce the numerical error size to approximately 0.001. Note that when 'test'="MLE", "information", or "parameter", the (standard) F distribution is used, so this list component is omitted.}
 #' }
 #' When 'test' = "moments", exact p-values are shown (here "exact" means that the formula for the p-value is not based on approximation; this does not mean that size of the numerical evaluation is equal to zero.)
 #' In other cases, approximate p-values are shown. See Park, J. (2023) for how approximations are made.
@@ -67,15 +67,15 @@ ht <- function(x, ...) {
 #' @references Cleveland, W. S. (1979). Robust locally weighted regression and smoothing scatterplots. Journal of the American statistical association, 74(368), 829-836.
 #' @references Le Cam, L. and Yang, G. L. (2000). Asymptotics in statistics: some basic concepts. Springer-Verlag, New York.
 #' @export
-ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, param.at=NULL, weight.param.at=NULL, weights=NULL, fraction=NULL, center=NULL) {
+ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, at.param=NULL, weight.at.param=NULL, weights=NULL, fraction=NULL, center=NULL) {
     validate_siblle(siblle)
     if (!is.null(type)) {
         match.arg(type, c("point", "regression", "LAN"))
     }
-    if (is.null(type) && is.null(attr(siblle, "param"))) {
+    if (is.null(type) && is.null(attr(siblle, "params"))) {
         type <- "point"
     }
-    if (is.null(type) && !is.null(attr(siblle, "param")) && length(siblle) == length(attr(siblle, "param"))) {
+    if (is.null(type) && !is.null(attr(siblle, "params")) && length(siblle) == length(attr(siblle, "params"))) {
         type <- "LAN"
     }
 
@@ -189,30 +189,30 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, param.at=NULL, w
             )
         }
     }
-    if (!is.null(param.at)) {
-        if (!is.numeric(param.at)) {
+    if (!is.null(at.param)) {
+        if (!is.numeric(at.param)) {
             stop(
-                "'param.at' should be a numeric value (or NULL).",
+                "'at.param' should be a numeric value (or NULL).",
                 call. = FALSE
             )
         }
-        if (length(param.at)!=1) {
+        if (length(at.param)!=1) {
             stop(
-                "'param.at' should be a single numeric value (or NULL).",
+                "'at.param' should be a single numeric value (or NULL).",
                 call. = FALSE
             )
         }
     }
-    if (!is.null(weight.param.at)) {
-        if (!is.numeric(weight.param.at)) {
+    if (!is.null(weight.at.param)) {
+        if (!is.numeric(weight.at.param)) {
             stop(
-                "'weight.param.at' should be a numeric value (or NULL).",
+                "'weight.at.param' should be a numeric value (or NULL).",
                 call. = FALSE
             )
         }
-        if (length(param.at)!=1) {
+        if (length(weight.at.param)!=1) {
             stop(
-                "'weight.param.at' should be a single numeric value (or NULL).",
+                "'weight.at.param' should be a single numeric value (or NULL).",
                 call. = FALSE
             )
         }
@@ -235,9 +235,9 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, param.at=NULL, w
             call. = FALSE
         )
     }
-    if (type %in% c("regression", "LAN") && test=="loglik" && is.null(param.at)) {
+    if (type %in% c("regression", "LAN") && test=="loglik" && is.null(at.param)) {
         stop(
-            "If 'type' is 'regression' or 'LAN' and 'test' = 'loglik', then the point at which the log likelihood is to be estimated should be specified by 'param.at'.",
+            "If 'type' is 'regression' or 'LAN' and 'test' = 'loglik', then the point at which the log likelihood is to be estimated should be specified by 'at.param'.",
             call. = FALSE
         )
     }
@@ -359,7 +359,7 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, param.at=NULL, w
                         call. = FALSE
                     )
                 }
-                distance <- abs(attr(siblle, "param") - center)
+                distance <- abs(attr(siblle, "params") - center)
                 span <- distance[order(distance)[ceiling(fraction*length(siblle))]]
                 tricube <- function(x) { pmax((1-abs(x)^3)^3, 0) }
                 w <- tricube(distance / span)
@@ -389,7 +389,7 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, param.at=NULL, w
         }
         ## weighted quadratic regression
         W  <- diag(w)
-        theta <- attr(siblle, "param")
+        theta <- attr(siblle, "params")
         llest <- c(unclass(siblle))
         M <- length(llest)
         theta012 <- cbind(1, theta, theta^2)
@@ -444,18 +444,18 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, param.at=NULL, w
         }
         ## test about log likelihood
         if (test=="loglik") {
-            if (is.null(weight.param.at)) {
-                weight.param.at <- 1 # default value for w(param.at)
+            if (is.null(weight.at.param)) {
+                weight.at.param <- 1 # default value for w(at.param)
             }
             if (!is.list(null.value)) {
                 null.value <- list(null.value)
             }
-            tau <- c(c(1, param.at, param.at^2)%*%solve(t(theta012)%*%W%*%theta012, c(1, param.at, param.at^2)))
-            mu.param.at <- sum(c(1,param.at,param.at^2)*Ahat) # estimated mean of SIBLLE at param.at
-            sigmaxsq <- sapply(null.value, function(x) 2*weight.param.at^2*tau*M*(sqrt( 1/weight.param.at^2/tau/M^2 * (1/tau*(x-mu.param.at)^2+M*sigsqhat) + 1) - 1)) # the value of sigma0^2 that maximizes the LLR statistics
-            teststats <- sapply(1:length(null.value), function(i) M/2*log(sigsqhat/sigmaxsq[i]) - M*sigsqhat/(2*sigmaxsq[i]) - (null.value[[i]]-sigmaxsq[i]/2/weight.param.at-mu.param.at)^2/(2*tau*sigmaxsq[i]) + M/2)
+            tau <- c(c(1, at.param, at.param^2)%*%solve(t(theta012)%*%W%*%theta012, c(1, at.param, at.param^2)))
+            mu.at.param <- sum(c(1,at.param,at.param^2)*Ahat) # estimated mean of SIBLLE at at.param
+            sigmaxsq <- sapply(null.value, function(x) 2*weight.at.param^2*tau*M*(sqrt( 1/weight.at.param^2/tau/M^2 * (1/tau*(x-mu.at.param)^2+M*sigsqhat) + 1) - 1)) # the value of sigma0^2 that maximizes the LLR statistics
+            teststats <- sapply(1:length(null.value), function(i) M/2*log(sigsqhat/sigmaxsq[i]) - M*sigsqhat/(2*sigmaxsq[i]) - (null.value[[i]]-sigmaxsq[i]/2/weight.at.param-mu.at.param)^2/(2*tau*sigmaxsq[i]) + M/2)
             num.error.size <- 0.01
-            pvalout <- pmllr2(teststats, M, 3, weight.param.at^2*tau, sqrt(sigsqhat), num_error_size=num.error.size)
+            pvalout <- pmllr2(teststats, M, 3, weight.at.param^2*tau, sqrt(sigsqhat), num_error_size=num.error.size)
             if (length(pvalout)==0) { # execution of pmllr2 stopped by user input
                 stop("Hypothesis tests stopped by user input", call. = FALSE)
             }
@@ -463,7 +463,7 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, param.at=NULL, w
             num.error.size <- pvalout$numerical_error_size
             if (any(pval < .01)) {
                 num.error.size <- 0.001
-                pvalout <- pmllr2(teststats, M, 3, weight.param.at^2*tau, sqrt(sigsqhat), num_error_size=num.error.size)
+                pvalout <- pmllr2(teststats, M, 3, weight.at.param^2*tau, sqrt(sigsqhat), num_error_size=num.error.size)
                 if (length(pvalout)==0) { # execution of pmllr2 stopped by user input
                     stop("Hypothesis tests stopped by user input", call. = FALSE)
                 }
@@ -475,7 +475,7 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, param.at=NULL, w
                 log_lik_null=unlist(null.value),
                 pvalue=round(pval, digits=precdigits)
             )
-            out <- list(meta_model_MLE_for_log_lik=c(log_lik=unname(mu.param.at+sigsqhat/2)),
+            out <- list(meta_model_MLE_for_log_lik=c(log_lik=unname(mu.at.param+sigsqhat/2)),
                 Hypothesis_Tests=dfout,
                 pvalue_numerical_error_size=num.error.size
             )
@@ -529,15 +529,8 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, param.at=NULL, w
             invisible(out)
         }
         ## test about the model parameter under LAN
-        ## TODO: start revising from here
         if (type=="LAN" && test=="parameter") {
-            W  <- diag(w)
             Winv <- diag(1/w)
-            theta <- attr(siblle, "param")
-            llest <- c(unclass(siblle))
-            M <- length(llest)
-            theta012 <- cbind(1, theta, theta^2)
-            Ahat <- c(solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%llest))
             K_1 <- -2*Ahat[3] # first stage estimate of K
             resids_1 <- llest - c(theta012%*%Ahat) # first stage estimates for residuals
             sigsq_1 <- c(resids_1%*%W%*%resids_1) / M # the first stage estimate of sigma^2
