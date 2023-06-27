@@ -289,8 +289,7 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, at.param=NULL, w
                 Hypothesis_Tests=dfout,
                 pvalue_numerical_error_size=num.error.size
             )
-            print(out, row.names=FALSE)
-            invisible(out)
+            return(out)
         }
         if (test=="loglik") {
             if (!is.list(null.value)) {
@@ -327,8 +326,7 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, at.param=NULL, w
                 Hypothesis_Tests=dfout,
                 pvalue_numerical_error_size=num.error.size
             )
-            print(out, row.names=FALSE)
-            invisible(out)
+            return(out)
         }
     }
     if (type %in% c("regression", "LAN")) {
@@ -439,8 +437,7 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, at.param=NULL, w
                 Hypothesis_Tests=dfout,
                 pvalue_numerical_error_size=num.error.size
             )
-            print(out, row.names=FALSE)
-            invisible(out)
+            return(out)
         }
         ## test about log likelihood
         if (test=="loglik") {
@@ -479,8 +476,7 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, at.param=NULL, w
                 Hypothesis_Tests=dfout,
                 pvalue_numerical_error_size=num.error.size
             )
-            print(out, row.names=FALSE)
-            invisible(out)
+            return(out)
         }
         ## test about MLE
         if (test=="MLE") {
@@ -506,8 +502,7 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, at.param=NULL, w
             out <- list(meta_model_MLE_for_MLE=c(MLE=unname(-Ahat[2]/(2*Ahat[3]))),
                 Hypothesis_Tests=dfout
             )
-            print(out, row.names=FALSE)
-            invisible(out)
+            return(out)
         }
         ## test about Fisher information
         if (test=="information") {
@@ -523,10 +518,9 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, at.param=NULL, w
                 pvalue=round(pval, digits=3)
             )
             out <- list(meta_model_MLE_for_Fisher_information=c(Fisher_information=unname(-2*Ahat[3])),
-                Hypothesis_Tests=dfout,
+                Hypothesis_Tests=dfout
             )
-            print(out, row.names=FALSE)
-            invisible(out)
+            return(out)
         }
         ## test about the model parameter under LAN
         if (type=="LAN" && test=="parameter") {
@@ -562,8 +556,7 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, at.param=NULL, w
             out <- list(meta_model_MLE_for_parameter=c(parameter=thetahat, information=Khat, error_variance=sigsqhat),
                 Hypothesis_Tests=dfout
             )
-            print(out, row.names=FALSE)
-            invisible(out)
+            print(out)
         }
     }
 }

@@ -193,8 +193,7 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, at.param=NULL, weight.a
                 confidence_interval=t(lub),
                 quantiles_numerical_error_size=num.error.size
             )
-            print(out, row.names=FALSE)
-            invisible(out)
+            return(out)
         }
     }
     if (type %in% c("regression", "LAN")) {
@@ -304,8 +303,7 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, at.param=NULL, weight.a
                 confidence_interval=t(lub),
                 MLLR2_quantiles_numerical_error_size=num.error.size
             )
-            print(out, row.names=FALSE)
-            invisible(out)
+            return(out)
         }
         ## ci for MLE
         if (ci=="MLE") {
@@ -340,10 +338,9 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, at.param=NULL, weight.a
                 lub <- lub[-4,]
             }
             out <- list(meta_model_MLE_for_MLE=c(MLE=unname(-Ahat[2]/(2*Ahat[3]))),
-                confidence_interval=t(lub),
+                confidence_interval=t(lub)
             )
-            print(out, row.names=FALSE)
-            invisible(out)
+            return(out)
         }
         ## ci for Fisher information
         if (ci=="information") {
@@ -358,8 +355,7 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, at.param=NULL, weight.a
             out <- list(meta_model_MLE_for_Fisher_information=c(Fisher_information=unname(-2*Ahat[3])),
                 confidence_interval=t(lub)
             )
-            print(out, row.names=FALSE)
-            invisible(out)
+            return(out)
         }
         ## ci for the model parameter under LAN
         if (type=="LAN" && ci=="parameter") {
@@ -412,8 +408,7 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, at.param=NULL, weight.a
             out <- list(meta_model_MLE_for_parameter=c(parameter=thetahat, information=Khat, error_variance=sigsqhat),
                 confidence_interval=t(lub)
             )
-            print(out, row.names=FALSE)
-            invisible(out)
+            return(out)
         }
     }
 }
