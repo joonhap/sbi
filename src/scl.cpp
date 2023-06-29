@@ -2,31 +2,31 @@
 #include <iostream>
 #include <chrono>
 
-//' The MLLR_1 distribution
+//' The SCL distribution
 //'
-//' Quantile function, distribution function, and random generation for the MLLR_1 distribution family. See Park (2023) for information about the MLLR distributions.
+//' Quantile function, distribution function, and random generation for the SCL distribution family. See Park (2023) for information about the SCL distributions.
 //'
-//' @name MLLR1
+//' @name SCL
 //' @param p vector of probabilities
 //' @param q vector of quantiles
 //' @param n number of draws
-//' @param M the first parameter for the MLLR_1 distributions
-//' @param k the second parameter for the MLLR_1 distribution
-//' @param num_error_size The requested size of numerical error for the outputs of qmllr1 and pmllr1 functions, in terms of the estimated standard deviation of the output. For example num_error_size of 0.01 will output values with the standard deviation of approximately equal to 0.01.
+//' @param M the first parameter for the SCL distributions
+//' @param k the second parameter for the SCL distribution
+//' @param num_error_size The requested size of numerical error for the outputs of qscl and pscl functions, in terms of the estimated standard deviation of the output. For example num_error_size of 0.01 will output values with the standard deviation of approximately equal to 0.01.
 //' @param lower logical; if TRUE, probabilities are P[X <= x], otherwise, P[X > x].
 //' @param log_p logical; if TRUE, probabilities p are given as log(p).
 //' @param force logical; if TRUE, the function will run regardless of how long it will take. If FALSE, the function will ask if you want to continue, stop, or give a new num_error_size value whenever the expected run time is longer than 15 seconds. 
 //' @return a list consisting of the numeric vector of quantiles and the num_error_size (numeric) used.
 //' @examples
-//' qmllr1(.99, 5, 2)
-//' qmllr1(c(.01, .05, .95, .99), 10, 2.3)
-//' qmllr1(c(.01, .05, .95, .99), 10, 2.3, num_error_size=0.01, lower=TRUE)
-//' pmllr1(c(-8.3, -5.9), 8, 1)
-//' pmllr1(c(-8.3, -5.9), 8 ,1, force=TRUE)
-//' rmllr1(10, 7, 2)
+//' qscl(.99, 5, 2)
+//' qscl(c(.01, .05, .95, .99), 10, 2.3)
+//' qscl(c(.01, .05, .95, .99), 10, 2.3, num_error_size=0.01, lower=TRUE)
+//' pscl(c(-8.3, -5.9), 8, 1)
+//' pscl(c(-8.3, -5.9), 8 ,1, force=TRUE)
+//' rscl(10, 7, 2)
 //' @export
 // [[Rcpp::export]]
-Rcpp::List qmllr1(Rcpp::NumericVector p, const double M, const double k, double num_error_size = 0.01, const bool lower = true, const bool log_p = false, const bool force = false) {
+Rcpp::List qscl(Rcpp::NumericVector p, const double M, const double k, double num_error_size = 0.01, const bool lower = true, const bool log_p = false, const bool force = false) {
   if (k <= 0) { 
     std::cout << "k should be positive." << std::endl;
     exit(1);
@@ -48,21 +48,21 @@ Rcpp::List qmllr1(Rcpp::NumericVector p, const double M, const double k, double 
     }
   }
 
-  // draw from the MLLR_1 distribution in blocks, compute the quantile for each block, and check the standard deviation of the quantiles.
+  // draw from the SCL distribution in blocks, compute the quantile for each block, and check the standard deviation of the quantiles.
   const int nbloc = 50; // number of blocks
   int bsize = 200; // default block size
-  std::vector<double> vec_mllr1(nbloc*bsize); // vector of MLLR_1 variates
+  std::vector<double> vec_scl(nbloc*bsize); // vector of SCL variates
 
   auto start = std::chrono::high_resolution_clock::now(); // start measuring time
   
-  for (auto it = vec_mllr1.begin(); it != vec_mllr1.end(); it++) { // fill the random vector
+  for (auto it = vec_scl.begin(); it != vec_scl.end(); it++) { // fill the random vector
     double x1 = R::rchisq(k);
     double x2 = R::rchisq(M-k);
     *it = .5*(-x1 - x2 + M*log(x2/M) + M);
   }
 
   for (int i = 0; i < nbloc; i++) { // sort each block
-    auto it = vec_mllr1.begin();
+    auto it = vec_scl.begin();
     std::sort(it, it + bsize);
     it += bsize;
   }
@@ -77,7 +77,7 @@ Rcpp::List qmllr1(Rcpp::NumericVector p, const double M, const double k, double 
     double ss = 0.0; // sum of squared quantiles
     int r = round(p[i]*bsize) - 1;
     for (int j = 0; j < nbloc; j++) { // 100*p% quantiles for each block
-      double q = vec_mllr1[j*bsize + r]; // quantile for the j-th block
+      double q = vec_scl[j*bsize + r]; // quantile for the j-th block
       s += q;
       ss += q*q;
     }
@@ -90,9 +90,9 @@ Rcpp::List qmllr1(Rcpp::NumericVector p, const double M, const double k, double 
   int newbsize; // extended block size (if necessary)
 
   if (max_sumsq / (nbloc * (nbloc - 1))  < num_error_size * num_error_size) { // if the sample variance is sufficiently small, do ...
-    std::sort(vec_mllr1.begin(), vec_mllr1.end()); // sort the entire vector
+    std::sort(vec_scl.begin(), vec_scl.end()); // sort the entire vector
     for (int i = 0; i < plen; i++) {
-      quantiles[i] = vec_mllr1[round(p[i]*bsize*nbloc) - 1];
+      quantiles[i] = vec_scl[round(p[i]*bsize*nbloc) - 1];
     }
     return Rcpp::List::create(Rcpp::Named("quantiles") = quantiles, Rcpp::Named("numerical_error_size") = num_error_size);
   } else { // else, increase the simulation length
@@ -101,7 +101,7 @@ Rcpp::List qmllr1(Rcpp::NumericVector p, const double M, const double k, double 
 
     if (req_time > 15.0 && (!force)) {
       do {
-	std::cout << "Computing quantile values for the MLLR_1 distribution (" << M << "," << k << ") with approximate size of numerical error " << num_error_size << ".\n";
+	std::cout << "Computing quantile values for the SCL distribution (" << M << "," << k << ") with approximate size of numerical error " << num_error_size << ".\n";
 	std::cout << "This will take approximately " << round(duration.count() / 1000.0 * factor) << " seconds.\n";
 	std::cout << "Do you want to continue? (If so, type 'y'.)\nIf not, you can enter a new approximate numerical error size (e.g., 0.03) or type 'n' to stop.\n";
 	std::string response;
@@ -120,17 +120,17 @@ Rcpp::List qmllr1(Rcpp::NumericVector p, const double M, const double k, double 
     }
   }
   newbsize = round(factor * bsize);
-  vec_mllr1.resize(nbloc*newbsize);
+  vec_scl.resize(nbloc*newbsize);
 
   for (int i = nbloc*bsize; i < nbloc*newbsize; i++) { // fill the extended block
     double x1 = R::rchisq(k);
     double x2 = R::rchisq(M-k);
-    vec_mllr1[i] = .5*(-x1 - x2 + M*log(x2/M) + M);
+    vec_scl[i] = .5*(-x1 - x2 + M*log(x2/M) + M);
   }
 
-  std::sort(vec_mllr1.begin(), vec_mllr1.end()); 
+  std::sort(vec_scl.begin(), vec_scl.end()); 
   for (int i = 0; i < plen; i++) {
-    quantiles[i] = vec_mllr1[round(p[i]*newbsize*nbloc) - 1];
+    quantiles[i] = vec_scl[round(p[i]*newbsize*nbloc) - 1];
   }
 
   return Rcpp::List::create(Rcpp::Named("quantiles") = quantiles, Rcpp::Named("numerical_error_size") = num_error_size);
@@ -139,9 +139,9 @@ Rcpp::List qmllr1(Rcpp::NumericVector p, const double M, const double k, double 
 
 
 
-//' @rdname MLLR1
+//' @rdname SCL
 // [[Rcpp::export]]
-Rcpp::List pmllr1(Rcpp::NumericVector q, const double M, const double k, double num_error_size = 0.01, const bool lower = true, const bool log_p = false, const bool force = false) {
+Rcpp::List pscl(Rcpp::NumericVector q, const double M, const double k, double num_error_size = 0.01, const bool lower = true, const bool log_p = false, const bool force = false) {
   if (k <= 0) { 
     std::cout << "k should be positive." << std::endl;
     exit(1);
@@ -158,7 +158,7 @@ Rcpp::List pmllr1(Rcpp::NumericVector q, const double M, const double k, double 
   
   auto start = std::chrono::high_resolution_clock::now(); // start measuring time
   
-  for (int i = 0; i < vsize; i++) { // generate MLLR_1 random variates
+  for (int i = 0; i < vsize; i++) { // generate SCL random variates
     double x1 = R::rchisq(k);
     double x2 = R::rchisq(M-k);
     double draw = .5*(-x1 - x2 + M*log(x2/M) + M);
@@ -193,7 +193,7 @@ Rcpp::List pmllr1(Rcpp::NumericVector q, const double M, const double k, double 
 
     if (req_time > 15.0 && (!force)) {
       do {
-	std::cout << "Computing the cdf for the MLLR_1 distribution (" << M << "," << k << ") with approximate size of numerical error " << num_error_size << ".\n";
+	std::cout << "Computing the cdf for the SCL distribution (" << M << "," << k << ") with approximate size of numerical error " << num_error_size << ".\n";
 	std::cout << "This will take approximately " << round(duration.count() / 1000.0 * factor) << " seconds.\n";
 	std::cout << "Do you want to continue? (If so, type 'y'.)\nIf not, you can enter a new approximate numerical error size (e.g., 0.03) or type 'n' to stop.\n";
 	std::string response;
@@ -233,9 +233,9 @@ Rcpp::List pmllr1(Rcpp::NumericVector q, const double M, const double k, double 
 
 
 
-//' @rdname MLLR1
+//' @rdname SCL
 // [[Rcpp::export]]
-Rcpp::NumericVector rmllr1(const int n, const double M, const double k) {
+Rcpp::NumericVector rscl(const int n, const double M, const double k) {
   if (k <= 0) { 
     std::cout << "k should be positive." << std::endl;
     exit(1);

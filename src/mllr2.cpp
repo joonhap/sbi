@@ -2,30 +2,30 @@
 #include <iostream>
 #include <chrono>
 
-//' The MLLR_2 distribution
-//' 
-//' Quantile function, distribution function, and random generation for the MLLR_2 distribution family. See Park (2023) for information about the MLLR distributions.
-//'
-//' @name MLLR2
-//' @param p vector of probabilities
-//' @param q vector of quantiles
-//' @param n number of draws
-//' @param M the first parameter for the MLLR_2 distribution
-//' @param k the second parameter for the MLLR_2 distribution
-//' @param num_error_size The requested size of numerical error for the outputs of qmllr2 and pmllr2 functions, in terms of the estimated standard deviation of the output. For example num_error_size of 0.01 will output values with the standard deviation of approximately equal to 0.01.
-//' @param lower logical; if TRUE, probabilities are P[X <= x], otherwise, P[X > x].
-//' @param log_p logical; if TRUE, probabilities p are given as log(p).
-//' @param force logical; if TRUE, the function will run regardless of how long it will take. If FALSE, the function will ask if you want to continue, stop, or give a new num_error_size value whenever the expected run time is longer than 15 seconds. 
-//' @return a list consisting of the numeric vector of quantiles and the num_error_size (numeric) used.
-//' @examples
-//' qmllr2(.99, 5, 2, 1.2, 0.23)
-//' qmllr2(c(.01, .05, .95, .99), 10, 2.3, 3, 10)
-//' qmllr2(c(.01, .05, .95, .99), 10, 2.3, 3, 10, num_error_size=0.01, lower=TRUE)
-//' pmllr2(c(-8.3, -5.9), 8, 1, 3.8, 4.1)
-//' pmllr2(c(-8.3, -5.9), 8 ,1, 3.8, 4.1, force=TRUE)
-//' rmllr2(10, 7, 2, 91, 1.1)
-//' @export
-// [[Rcpp::export]]
+////' The MLLR_2 distribution
+////' 
+////' Quantile function, distribution function, and random generation for the MLLR_2 distribution family. See Park (2023) for information about the MLLR distributions.
+////'
+////' @name MLLR2
+////' @param p vector of probabilities
+////' @param q vector of quantiles
+////' @param n number of draws
+////' @param M the first parameter for the MLLR_2 distribution
+////' @param k the second parameter for the MLLR_2 distribution
+////' @param num_error_size The requested size of numerical error for the outputs of qmllr2 and pmllr2 functions, in terms of the estimated standard deviation of the output. For example num_error_size of 0.01 will output values with the standard deviation of approximately equal to 0.01.
+////' @param lower logical; if TRUE, probabilities are P[X <= x], otherwise, P[X > x].
+////' @param log_p logical; if TRUE, probabilities p are given as log(p).
+////' @param force logical; if TRUE, the function will run regardless of how long it will take. If FALSE, the function will ask if you want to continue, stop, or give a new num_error_size value whenever the expected run time is longer than 15 seconds. 
+////' @return a list consisting of the numeric vector of quantiles and the num_error_size (numeric) used.
+////' @examples
+////' qmllr2(.99, 5, 2, 1.2, 0.23)
+////' qmllr2(c(.01, .05, .95, .99), 10, 2.3, 3, 10)
+////' qmllr2(c(.01, .05, .95, .99), 10, 2.3, 3, 10, num_error_size=0.01, lower=TRUE)
+////' pmllr2(c(-8.3, -5.9), 8, 1, 3.8, 4.1)
+////' pmllr2(c(-8.3, -5.9), 8 ,1, 3.8, 4.1, force=TRUE)
+////' rmllr2(10, 7, 2, 91, 1.1)
+////' @export # This function is obsolete, and no longer used.
+//// [[Rcpp::export]]
 Rcpp::List qmllr2(Rcpp::NumericVector p, const double M, const double k, const double nu, const double s0, double num_error_size = 0.01, const bool lower = true, const bool log_p = false, const bool force = false) {
   if (k <= 0) { 
     std::cout << "k should be positive." << std::endl;
@@ -153,8 +153,8 @@ Rcpp::List qmllr2(Rcpp::NumericVector p, const double M, const double k, const d
 
 
 
-//' @rdname MLLR2
-// [[Rcpp::export]]
+////' @rdname MLLR2
+//// [[Rcpp::export]]
 Rcpp::List pmllr2(Rcpp::NumericVector q, const double M, const double k, const double nu, const double s0, double num_error_size = 0.01, const bool lower = true, const bool log_p = false, const bool force = false) {
   if (k <= 0) { 
     std::cout << "k should be positive." << std::endl;
@@ -258,8 +258,8 @@ Rcpp::List pmllr2(Rcpp::NumericVector q, const double M, const double k, const d
 
 
 
-//' @rdname MLLR2
-// [[Rcpp::export]]
+////' @rdname MLLR2
+//// [[Rcpp::export]]
 Rcpp::NumericVector rmllr2(const int n, const double M, const double k, const double nu, const double s0) {
   if (k <= 0) { 
     std::cout << "k should be positive." << std::endl;

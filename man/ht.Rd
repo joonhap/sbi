@@ -10,25 +10,19 @@
   null.value,
   type = NULL,
   test = NULL,
-  at.param = NULL,
-  weight.at.param = NULL,
   weights = NULL,
   fraction = NULL,
   center = NULL
 )
 }
 \arguments{
-\item{siblle}{A class 'siblle' object, containing the simulation based log likelihood estimates and, if those estimates were obtained for different parameter values, the parameter values at which the log likelihood estimates were obtained.}
+\item{siblle}{A class 'siblle' object, containing the simulation based log likelihood estimates and, if those estimates were obtained for different parameter values, the parameter values at which the log likelihood estimates were obtained. See help(siblle).}
 
 \item{null.value}{The null value(s) for the hypothesis test. Either a numeric vector (for running a test for a single null value, which can have one or more components) or a list of numeric vectors (for running tests for multiple null values).}
 
 \item{type}{A character string indicating what type of situation is considered. One of "point", "regression", or "LAN". See Details.}
 
-\item{test}{A character string indicating the quantity to be tested about. One of "loglik", "moments", "MLE", "information", or "parameter". See Details.}
-
-\item{at.param}{For the cases 'type' = "regression" or "LAN" and 'test' = "loglik", the hypothesis test is about the value of the log likelihood function evaluated at 'at.param'}
-
-\item{weight.at.param}{The relative inverse variance for the simulation based log likelihood estimator at parameter value 'at.param'. The weight for regression is proportional to the inverse variance. This argument is used for the cases 'type' = "regression" or "LAN" and 'test' = "loglik". The default value is 1.}
+\item{test}{A character string indicating the quantity to be tested about. One of "moments", "MLE", "information", or "parameter". See Details.}
 
 \item{weights}{An optional argument. The un-normalized weights of the log likelihood estimates for regression. Either a numeric vector of length equal to the 'siblle' object, or a character string equal to "tricube". The default weights are equal to one for all the points if not specified here or in the siblle object. See Details below.}
 
@@ -41,7 +35,7 @@ A list consisting of the following components are returned.
 \itemize{
 \item{meta_model_MLE_for_*: simulation based maximum likelihood estimate under an appropriate meta model,}
 \item{Hypothesis_Tests: a data frame of the null values and the corresponding (approximate) p-values,}
-\item{pvalue_numerical_error_size: When 'test'="moments" or "loglik", approximate size of error in numerical evaluation of p-values (automatically set to approximately 0.01 or 0.001). For these case, p-values are found using the MLLR_1 or MLLR_2 distributions, whose cumulative distribution functions are numerically evaluated using random number generations. Thus p-values have some stochastic error. The size of the numerical error is automatically set to approximately 0.01, but if p-value found is less than 0.01 for any of the provided null values, more computations are carried out to reduce the numerical error size to approximately 0.001. Note that when 'test'="MLE", "information", or "parameter", the (standard) F distribution is used, so this list component is omitted.}
+\item{pvalue_numerical_error_size: When 'test'="moments", approximate size of error in numerical evaluation of p-values (automatically set to approximately 0.01 or 0.001). For these case, p-values are found using the SCL distributions, whose cumulative distribution functions are numerically evaluated using random number generations. Thus p-values have some stochastic error. The size of the numerical error is automatically set to approximately 0.01, but if p-value found is less than 0.01 for any of the provided null values, more computations are carried out to reduce the numerical error size to approximately 0.001. Note that when 'test'="MLE", "information", or "parameter", the (standard) F distribution is used, so this list component is omitted.}
 }
 When 'test' = "moments", exact p-values are shown (here "exact" means that the formula for the p-value is not based on approximation; this does not mean that size of the numerical evaluation is equal to zero.)
 In other cases, approximate p-values are shown. See Park, J. (2023) for how approximations are made.
@@ -64,21 +58,19 @@ The case 'type' = "LAN" means that inference on the model parameter will be carr
 If the 'siblle' object has 'params' attribute whose length is equal to the length of the object, then 'type' defaults to "LAN".
 If the 'siblle' object does not have 'params' attribute, then 'type' defaults to "point".
 
-When 'type' = "point", 'test' can only be "loglik" or "moments".
-In this case 'test' = "loglik" means the hypothesis test \eqn{H_0: l = null.value} versus \eqn{H_1: l != null.value} will be performed where l is the log likelihood given the observed data.
+When 'type' = "point", 'test' can only be "moments".
 If 'test' = "moments", a test about the mean and the variance of the simulation based log likelihood estimator is conducted.
 The 'null.value' should be a numeric vector of length two (the first component being the mean and the second being the variance), or a list of numeric vectors of length two.
-When 'type' = "point", 'test' = "loglik" is assumed by default, unless the 'test' argument is supplied.
+When 'type' = "point", 'test' = "moments" is assumed by default.
 
-When 'type' = "regression", 'test' can be "loglik", "moments", "MLE", or "information".
-If 'test' = "loglik", the test is about the value of the log likelihood function evaluated at 'at.param'.
+When 'type' = "regression", 'test' can be "moments", "MLE", or "information".
 If 'test' = "moments", the test is about the quadruple \eqn{a, b, c, sigma^2} where \eqn{a, b, c} are coefficients of the polynomial describing the mean of the simulation based likelihood estimator (i.e., \eqn{l(\theta) = a + b \theta + c \theta^2}) and \eqn{\sigma^2} is the variance of the SIBLLE.
 If 'test' = "MLE", the test is about the location of the maximum likelihood estimate.
 If 'test' = "information", the test is about the Fisher information, which is (-2) times the value of \eqn{c}, the quadratic coefficient of the mean function of the SIBLLE.
 When 'type' = "regression", 'test' = "MLE" is assumed by default.
 
-When 'type' = "LAN", 'test' can be "loglik", "moments", "MLE", "information", or "parameter".
-If 'test' is "loglik", "moments", "MLE", or "information", the output is the same as in the case where 'type' = "regression".
+When 'type' = "LAN", 'test' can be "moments", "MLE", "information", or "parameter".
+If 'test' is "moments", "MLE", or "information", the output is the same as in the case where 'type' = "regression".
 If 'test' is "parameter", a test about the value of the model parameter is conducted under the local asymptotic normality assumption.
 When 'type' = "LAN", 'test' = "parameter" is assumed by default.
 
