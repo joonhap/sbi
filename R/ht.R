@@ -229,7 +229,7 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, weights=NULL, fr
                 pval <- pvalout$probs
                 prec <- pvalout$numerical_error_size
             }
-            precdigits <- max(-floor(log10(num.error.size)), 1)
+            precdigits <- max(-floor(log10(num.error.size)), 1) + 1
             dfout <- data.frame(
                 mu_null=sapply(null.value, function(x) x[1]),
                 sigma_sq_null=sapply(null.value, function(x) x[2]),
