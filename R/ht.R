@@ -64,6 +64,9 @@ ht <- function(x, ...) {
 #' @references Le Cam, L. and Yang, G. L. (2000). Asymptotics in statistics: some basic concepts. Springer-Verlag, New York.
 #' @export
 ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, weights=NULL, fraction=NULL, center=NULL) {
+    # TODO: combine ht and ci
+    # TODO: remove a section on observed Fisher information and do the same for ci
+    # TODO: remove the tricube weight and the same for ci
     validate_siblle(siblle)
     if (!is.null(type)) {
         match.arg(type, c("point", "regression", "LAN"))
@@ -307,6 +310,11 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, weights=NULL, fr
         Ahat <- c(solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%llest))
         resids <- llest - c(theta012%*%Ahat)
         sigsqhat <- c(resids%*%W%*%resids) / M
+        theta0123 <- cbind(1, theta, theta^2, theta^3) # cubic regression to test whether the cubic coefficient = 0
+        Ahat_cubic <- c(solve(t(theta0123)%*%W%*%theta0123, t(theta0123)%*%W%*%llest))
+        resids_cubic <- llest - c(theta0123%*%Ahat_cubic)
+        sigsqhat_cubic <- c(resids_cubic%*%W%*%resids_cubic) / M
+        pval_cubic <- pf((sigsqhat-sigsqhat_cubic)/sigsqhat_cubic*(sum(w>0)-4), 1, sum(w>0)-4, lower.tail=FALSE)
         ## test about moments
         if (test=="moments") {
             if (!is.list(null.value)) {
@@ -348,7 +356,8 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, weights=NULL, fr
             )
             out <- list(meta_model_MLE_for_moments=c(a=Ahat[1], b=Ahat[2], c=Ahat[3], sigma_sq=sigsqhat),
                 Hypothesis_Tests=dfout,
-                pvalue_numerical_error_size=num.error.size
+                pvalue_numerical_error_size=num.error.size,
+                pval_cubic=pval_cubic
             )
             return(out)
         }
@@ -374,7 +383,8 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, weights=NULL, fr
                 pvalue=round(pval, digits=3)
             )
             out <- list(meta_model_MLE_for_MLE=c(MLE=unname(-Ahat[2]/(2*Ahat[3]))),
-                Hypothesis_Tests=dfout
+                Hypothesis_Tests=dfout,
+                pval_cubic=pval_cubic
             )
             return(out)
         }
@@ -391,8 +401,9 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, weights=NULL, fr
                 information_null=unlist(null.value),
                 pvalue=round(pval, digits=3)
             )
-            out <- list(meta_model_MLE_for_Fisher_information=c(Fisher_information=unname(-2*Ahat[3])),
-                Hypothesis_Tests=dfout
+            out <- list(meta_model_MLE_for_observed_Fisher_information=c(observed_Fisher_information=unname(-2*Ahat[3])),
+                Hypothesis_Tests=dfout,
+                pval_cubic=pval_cubic
             )
             return(out)
         }
@@ -428,9 +439,10 @@ ht.siblle <- function(siblle, null.value, type=NULL, test=NULL, weights=NULL, fr
                 pvalue=round(pval, digits=3)
             )
             out <- list(meta_model_MLE_for_parameter=c(parameter=thetahat, information=Khat, error_variance=sigsqhat),
-                Hypothesis_Tests=dfout
+                Hypothesis_Tests=dfout,
+                pval_cubic=pval_cubic
             )
-            print(out)
+            return(out)
         }
     }
 }

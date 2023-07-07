@@ -185,12 +185,12 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, weights=NULL, fraction=
                 coef1 <- 4*(M-3)*Ahat[2]*Ahat[3]*detV + 4*M*sigsqhat*q*v12
                 coef0 <- (M-3)*Ahat[2]^2*detV - M*sigsqhat*q*v22
                 Disc <- coef1^2 - 4*coef2*coef0 # Discriminant
-                if (Disc >= 0 && coef2 < 0) { # Case 1
+                if (Disc >= 0 && coef2 > 0) { # Case 1
                     int <- -1/(2*coef2)*(coef1+c(1,-1)*sqrt(Disc))
                     return(c(level=lvl, lb=int[1], ub=int[2], inverted=0))
-                } else if (Disc >= 0 && coef2 >= 0) { # Case 2
-                    int <- -1/(2*coef2)*(coef1+c(1,-1)*sqrt(Disc))
-                    return(c(level=lvl, lb=int[1], ub=int[2], inverted=0))
+                } else if (Disc >= 0 && coef2 <= 0) { # Case 2
+                    int <- -1/(2*coef2)*(coef1+c(-1,1)*sqrt(Disc))
+                    return(c(level=lvl, lb=int[1], ub=int[2], inverted=1))
                 } else { # Case 3
                     return(c(level=lvl, lb=-Inf, ub=Inf, inverted=0))
                 }
@@ -253,12 +253,12 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, weights=NULL, fraction=
                 coef1 <- zeta1*zeta2 - zeta0*rho12
                 coef0 <- 1/4*(rho22*zeta0 - zeta2^2)
                 Disc <- coef1^2 - 4*coef2*coef0 # Discriminant
-                if (Disc >= 0 && coef2 < 0) { # Case 1
+                if (Disc >= 0 && coef2 > 0) { # Case 1
                     int <- -1/(2*coef2)*(coef1+c(1,-1)*sqrt(Disc))
                     return(c(level=lvl, lb=int[1], ub=int[2], inverted=0))
-                } else if (Disc >= 0 && coef2 >= 0) { # Case 2
-                    int <- -1/(2*coef2)*(coef1+c(1,-1)*sqrt(Disc))
-                    return(c(level=lvl, lb=int[1], ub=int[2], inverted=0))
+                } else if (Disc >= 0 && coef2 <= 0) { # Case 2
+                    int <- -1/(2*coef2)*(coef1+c(-1,1)*sqrt(Disc))
+                    return(c(level=lvl, lb=int[1], ub=int[2], inverted=1))
                 } else { # Case 3
                     return(c(level=lvl, lb=-Inf, ub=Inf, inverted=0))
                 }
