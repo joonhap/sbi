@@ -12,7 +12,7 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 
 // qscl
 Rcpp::List qscl(Rcpp::NumericVector p, const double M, const double k, double num_error_size, const bool lower, const bool log_p, const bool force);
-RcppExport SEXP _siblle_qscl(SEXP pSEXP, SEXP MSEXP, SEXP kSEXP, SEXP num_error_sizeSEXP, SEXP lowerSEXP, SEXP log_pSEXP, SEXP forceSEXP) {
+RcppExport SEXP _sbi_qscl(SEXP pSEXP, SEXP MSEXP, SEXP kSEXP, SEXP num_error_sizeSEXP, SEXP lowerSEXP, SEXP log_pSEXP, SEXP forceSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -29,7 +29,7 @@ END_RCPP
 }
 // pscl
 Rcpp::List pscl(Rcpp::NumericVector q, const double M, const double k, double num_error_size, const bool lower, const bool log_p, const bool force);
-RcppExport SEXP _siblle_pscl(SEXP qSEXP, SEXP MSEXP, SEXP kSEXP, SEXP num_error_sizeSEXP, SEXP lowerSEXP, SEXP log_pSEXP, SEXP forceSEXP) {
+RcppExport SEXP _sbi_pscl(SEXP qSEXP, SEXP MSEXP, SEXP kSEXP, SEXP num_error_sizeSEXP, SEXP lowerSEXP, SEXP log_pSEXP, SEXP forceSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -46,7 +46,7 @@ END_RCPP
 }
 // rscl
 Rcpp::NumericVector rscl(const int n, const double M, const double k);
-RcppExport SEXP _siblle_rscl(SEXP nSEXP, SEXP MSEXP, SEXP kSEXP) {
+RcppExport SEXP _sbi_rscl(SEXP nSEXP, SEXP MSEXP, SEXP kSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -59,13 +59,13 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_siblle_qscl", (DL_FUNC) &_siblle_qscl, 7},
-    {"_siblle_pscl", (DL_FUNC) &_siblle_pscl, 7},
-    {"_siblle_rscl", (DL_FUNC) &_siblle_rscl, 3},
+    {"_sbi_qscl", (DL_FUNC) &_sbi_qscl, 7},
+    {"_sbi_pscl", (DL_FUNC) &_sbi_pscl, 7},
+    {"_sbi_rscl", (DL_FUNC) &_sbi_rscl, 3},
     {NULL, NULL, 0}
 };
 
-RcppExport void R_init_siblle(DllInfo *dll) {
+RcppExport void R_init_sbi(DllInfo *dll) {
     R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
     R_useDynamicSymbols(dll, FALSE);
 }

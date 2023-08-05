@@ -25,16 +25,16 @@
 #' rscl(10, 7, 2)
 #' @export
 qscl <- function(p, M, k, num_error_size = 0.01, lower = TRUE, log_p = FALSE, force = FALSE) {
-    .Call(`_siblle_qscl`, p, M, k, num_error_size, lower, log_p, force)
+    .Call(`_sbi_qscl`, p, M, k, num_error_size, lower, log_p, force)
 }
 
 #' @rdname SCL
 pscl <- function(q, M, k, num_error_size = 0.01, lower = TRUE, log_p = FALSE, force = FALSE) {
-    .Call(`_siblle_pscl`, q, M, k, num_error_size, lower, log_p, force)
+    .Call(`_sbi_pscl`, q, M, k, num_error_size, lower, log_p, force)
 }
 
 #' @rdname SCL
 rscl <- function(n, M, k) {
-    .Call(`_siblle_rscl`, n, M, k)
+    .Call(`_sbi_rscl`, n, M, k)
 }
 

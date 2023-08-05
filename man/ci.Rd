@@ -2,10 +2,10 @@
 % Please edit documentation in R/ci.R
 \name{ci}
 \alias{ci}
-\alias{ci.siblle}
-\title{Confidence intervals constructed using log likelihood estimates in simulation-based inference}
+\alias{ci.simll}
+\title{Confidence intervals constructed using simulation log likelihoods}
 \usage{
-\method{ci}{siblle}(
+\method{ci}{simll}(
   siblle,
   level,
   type = NULL,
@@ -16,19 +16,15 @@
 )
 }
 \arguments{
-\item{siblle}{A class 'siblle' object, containing the simulation based log likelihood estimates obtained at more than one parameter values. See help(siblle).}
-
 \item{level}{A numeric vector of confidence levels.}
 
 \item{type}{A character string indicating what type of situation is considered. The value should be "regression" or "LAN". See Details.}
 
-\item{ci}{A character string indicating the quantity for which a confidence interval is to be constructed. One of "MLE", "information", or "parameter". See Details.}
+\item{ci}{A character string indicating the quantity for which a confidence interval is to be constructed. One of "MESLE", "information", or "parameter". See Details.}
 
-\item{weights}{An optional argument for the un-normalized weights of the simulation based log likelihood estimates for regression. Either a numeric vector of length equal to the 'siblle' object, or a character string equal to "tricube". The default weights are equal to one for all the points if not specified here or in the siblle object.}
+\item{weights}{An optional argument. The un-normalized weights of the log likelihood estimates for regression. Either a numeric vector of length equal to the 'params' attribute of the 'simll' object. The default weights are equal to the 'nsims' attribute of the 'simll' object. See Details below.}
 
-\item{fraction}{An optional argument indicating the fraction of points with nonzero weights for the case where 'weights' is specified as "tricube".}
-
-\item{center}{An optional argument indicating the center of the local regression for the case where 'weights' is specified as "tricube".}
+\item{simll}{A class 'simll' object, containing simulation log likelihoods, the parameter values at which simulations are made, and the number of simulations made at each parameter value. See help(simll).}
 }
 \value{
 A list consisting of the followings are returned.
@@ -38,7 +34,7 @@ A list consisting of the followings are returned.
 }
 }
 \description{
-\code{ci} constructs conservative confidence intervals using simulation based log likelihood estimates. See Park and Won (2023) for more information.
+\code{ci} constructs confidence intervals using simulation log likelihoods. See Park (2023) for more information.
 }
 \details{
 This is a generic function, taking a class 'siblle' object as the first argument.
@@ -53,13 +49,13 @@ If the 'siblle' object has 'params' attribute whose length is equal to the lengt
 
 In this case a confidence interval for the log likelihood given the observed data is constructed.
 
-When 'type' = "regression", 'ci' can be "MLE" or "information".
-If 'ci' = "MLE", confidence intervals are constructed for the location of the maximum likelihood estimate given the observed data.
+When 'type' = "regression", 'ci' can be "MESLE" or "information".
+If 'ci' = "MESLE", confidence intervals are constructed for the location of the maximum likelihood estimate given the observed data.
 If 'ci' = "information", confidence intervals are constructed for the Fisher information, which is assumed to be equal to (-2) times the value of the quadratic coefficient of the regression polynomial describing the mean of the SIBLLE.
-When 'type' = "regression", 'ci' = "MLE" is assumed by default.
+When 'type' = "regression", 'ci' = "MESLE" is assumed by default.
 
-When 'type' = "LAN", 'ci' can be "MLE", "information", or "parameter".
-If 'ci' is "MLE", or "information", the output is the same as in the case where 'type' = "regression".
+When 'type' = "LAN", 'ci' can be "MESLE", "information", or "parameter".
+If 'ci' is "MESLE", or "information", the output is the same as in the case where 'type' = "regression".
 If 'ci' is "parameter", confidence intervals for the value of the model parameter are constructed under the local asymptotic normality assumption.
 When 'type' = "LAN", 'ci' = "parameter" is assumed by default.
 

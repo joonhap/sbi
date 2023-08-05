@@ -3,18 +3,16 @@ ci <- function(x, ...) {
     UseMethod("ci")
 }
 
-#' Confidence intervals constructed using log likelihood estimates in simulation-based inference
+#' Confidence intervals constructed using simulation log likelihoods
 #'
-#' `ci` constructs conservative confidence intervals using simulation based log likelihood estimates. See Park and Won (2023) for more information.
+#' `ci` constructs confidence intervals using simulation log likelihoods. See Park (2023) for more information.
 #'
 #' @name ci
-#' @param siblle A class 'siblle' object, containing the simulation based log likelihood estimates obtained at more than one parameter values. See help(siblle).
+#' @param simll A class 'simll' object, containing simulation log likelihoods, the parameter values at which simulations are made, and the number of simulations made at each parameter value. See help(simll).
 #' @param level A numeric vector of confidence levels.
 #' @param type A character string indicating what type of situation is considered. The value should be "regression" or "LAN". See Details.
-#' @param ci A character string indicating the quantity for which a confidence interval is to be constructed. One of "MLE", "information", or "parameter". See Details.
-#' @param weights An optional argument for the un-normalized weights of the simulation based log likelihood estimates for regression. Either a numeric vector of length equal to the 'siblle' object, or a character string equal to "tricube". The default weights are equal to one for all the points if not specified here or in the siblle object.
-#' @param fraction An optional argument indicating the fraction of points with nonzero weights for the case where 'weights' is specified as "tricube".
-#' @param center An optional argument indicating the center of the local regression for the case where 'weights' is specified as "tricube".
+#' @param ci A character string indicating the quantity for which a confidence interval is to be constructed. One of "MESLE", "information", or "parameter". See Details.
+#' @param weights An optional argument. The un-normalized weights of the log likelihood estimates for regression. Either a numeric vector of length equal to the 'params' attribute of the 'simll' object. The default weights are equal to the 'nsims' attribute of the 'simll' object. See Details below.
 #'
 #' @details
 #' This is a generic function, taking a class 'siblle' object as the first argument.
@@ -30,13 +28,13 @@ ci <- function(x, ...) {
 
 #' In this case a confidence interval for the log likelihood given the observed data is constructed.
 #'
-#' When 'type' = "regression", 'ci' can be "MLE" or "information".
-#' If 'ci' = "MLE", confidence intervals are constructed for the location of the maximum likelihood estimate given the observed data.
+#' When 'type' = "regression", 'ci' can be "MESLE" or "information".
+#' If 'ci' = "MESLE", confidence intervals are constructed for the location of the maximum likelihood estimate given the observed data.
 #' If 'ci' = "information", confidence intervals are constructed for the Fisher information, which is assumed to be equal to (-2) times the value of the quadratic coefficient of the regression polynomial describing the mean of the SIBLLE.
-#' When 'type' = "regression", 'ci' = "MLE" is assumed by default.
+#' When 'type' = "regression", 'ci' = "MESLE" is assumed by default.
 #'
-#' When 'type' = "LAN", 'ci' can be "MLE", "information", or "parameter".
-#' If 'ci' is "MLE", or "information", the output is the same as in the case where 'type' = "regression".
+#' When 'type' = "LAN", 'ci' can be "MESLE", "information", or "parameter".
+#' If 'ci' is "MESLE", or "information", the output is the same as in the case where 'type' = "regression".
 #' If 'ci' is "parameter", confidence intervals for the value of the model parameter are constructed under the local asymptotic normality assumption.
 #' When 'type' = "LAN", 'ci' = "parameter" is assumed by default.
 #'
@@ -53,7 +51,7 @@ ci <- function(x, ...) {
 #' @references Cleveland, W. S. (1979). Robust locally weighted regression and smoothing scatterplots. Journal of the American statistical association, 74(368), 829-836.
 #' @references Le Cam, L. and Yang, G. L. (2000). Asymptotics in statistics: some basic concepts. Springer-Verlag, New York.
 #' @export
-ci.siblle <- function(siblle, level, type=NULL, ci=NULL, weights=NULL, fraction=NULL, center=NULL) {
+ci.simll <- function(siblle, level, type=NULL, ci=NULL, weights=NULL, fraction=NULL, center=NULL) {
     validate_siblle(siblle)
     if (!is.null(type)) {
         match.arg(type, c("regression", "LAN"))
@@ -67,11 +65,11 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, weights=NULL, fraction=
     }
 
     if (!is.null(ci)) {
-        match.arg(ci, c("MLE", "information", "parameter"))
+        match.arg(ci, c("MESLE", "information", "parameter"))
     }
     if (is.null(ci)) {
         if (type=="regression") {
-            ci <- "MLE"
+            ci <- "MESLE"
         }
         if (type=="LAN") {
             ci <- "parameter"
@@ -84,15 +82,15 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, weights=NULL, fraction=
             call. = FALSE
         )
     }
-    if (type=="regression" && !ci %in% c("MLE", "information")) {
+    if (type=="regression" && !ci %in% c("MESLE", "information")) {
         stop(
-            "When 'type' = 'regression', 'ci' should be one eiher 'MLE' (default) or 'information'.",
+            "When 'type' = 'regression', 'ci' should be one eiher 'MESLE' (default) or 'information'.",
             call. = FALSE
         )
     }
-    if (type=="LAN" && !ci %in% c("MLE", "information", "parameter")) {
+    if (type=="LAN" && !ci %in% c("MESLE", "information", "parameter")) {
         stop(
-            "When 'type' = 'LAN', 'ci' should be one of 'MLE', 'information', or 'parameter' (default).",
+            "When 'type' = 'LAN', 'ci' should be one of 'MESLE', 'information', or 'parameter' (default).",
             call. = FALSE
         )
     }
@@ -168,8 +166,8 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, weights=NULL, fraction=
         Ahat <- c(solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%llest)) # Ahat=(ahat,bhat,chat)
         resids <- llest - c(theta012%*%Ahat)
         sigsqhat <- c(resids%*%W%*%resids) / M
-        ## ci for MLE
-        if (ci=="MLE") {
+        ## ci for MESLE
+        if (ci=="MESLE") {
             mtheta1 <- sum(w*theta)/sum(w)
             mtheta2 <- sum(w*theta*theta)/sum(w)
             mtheta3 <- sum(w*theta*theta*theta)/sum(w)
@@ -200,7 +198,7 @@ ci.siblle <- function(siblle, level, type=NULL, ci=NULL, weights=NULL, fraction=
             } else { # otherwise, remove the "inverted" column
                 lub <- lub[-4,]
             }
-            out <- list(meta_model_MLE_for_MLE=c(MLE=unname(-Ahat[2]/(2*Ahat[3]))),
+            out <- list(meta_model_MLE_for_MESLE=c(MESLE=unname(-Ahat[2]/(2*Ahat[3]))),
                 confidence_interval=t(lub)
             )
             return(out)

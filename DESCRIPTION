@@ -1,5 +1,5 @@
-Package: siblle
-Title: Simulation Based Inference Using Log Likelihood Estimates
+Package: sbi
+Title: Simulation Based Inference
 Version: 0.0.0.9000
 Authors@R: 
     person("Joonha", "Park", , "j.park@ku.edu", role = c("aut", "cre"),
