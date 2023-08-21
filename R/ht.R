@@ -48,7 +48,7 @@ ht <- function(x, ...) {
 #'
 #' @references Park, J. (2023). On simulation based inference for implicitly defined models
 #' @export
-ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL, ncores=1) {
+ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL, ncores=1, y=NULL) {
     validate_simll(simll)
     if (is.null(test)) {
         test <- "parameter"
@@ -311,17 +311,24 @@ ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL, ncor
         if (test=="parameter") {
             Winv <- diag(1/w)
             nobs <- dim(llmat)[1] # number of observations
+            slope_at <- seq(min(theta), max(theta), length.out=50) # the parameter values at which the slope of the estimated quadratic polynomial will be computed in order to estimate its variance
             if (ncores>1) {
                 require(parallel)
+                slopes <- simplify2array(mclapply(1:nobs, function(i) {
+                    ## quadratic regression for each observation piece (each row of simll)
+                    ll_i <- llmat[i,]
+                    Ahat_i <- c(solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%ll_i))
+                    return(Ahat_i[2]+2*Ahat_i[3]*slope_at) # estimated slopes at uniquetheta
+                }, mc.cores=ncores)
+                ) # matrix of dimension length(uniquetheta) times nobs
+            } else {
+                slopes <- sapply(1:nobs, function(i) {
+                    ## quadratic regression for each observation piece (each row of simll)
+                    ll_i <- llmat[i,]
+                    Ahat_i <- c(solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%ll_i))
+                    return(Ahat_i[2]+2*Ahat_i[3]*slope_at) # estimated slopes at uniquetheta
+                } ) # matrix of dimension length(uniquetheta) times nobs
             }
-            slope_at <- seq(min(theta), max(theta), length.out=50) # the parameter values at which the slope of the estimated quadratic polynomial will be computed in order to estimate its variance
-            slopes <- simplify2array(mclapply(1:nobs, function(i) {
-                # quadratic regression for each observation piece (each row of simll)
-                ll_i <- llmat[i,]
-                Ahat_i <- c(solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%ll_i))
-                return(Ahat_i[2]+2*Ahat_i[3]*slope_at) # estimated slopes at uniquetheta
-            }, mc.cores=ncores)
-            )# matrix of dimension length(uniquetheta) times nobs
             var_slope_vec <- apply(slopes, 1, var) # estimate of the variance of the slope of the fitted quadratic
             errorvars <- apply(llmat, 1, function(ll_i) {
                 Ahat_i <- c(solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%ll_i))
@@ -334,8 +341,9 @@ ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL, ncor
             }) * mean(errorvars) # estimate of the expected value of the conditional variance of the estimated slope given Y (expectation with respect to Y)
             K1hat <- median(var_slope_vec - E_condVar_slopes)
             if (K1hat <= 0) {
-                warning("The estimate of K1 is nonpositive. The results should not be reliable.")
+                stop("The estimate of K1 is nonpositive. Hypothesis test stopped.")
             }
+            K1hat <- 2 ### USE true K1.  This is to test if variability in K1hat affects inference significantly. TODO:::: REMOVE THIS LINE!!!
             resids_1 <- ll - c(theta012%*%Ahat) # first stage estimates for residuals
             sigsq_1 <- c(resids_1%*%W%*%resids_1) / M # the first stage estimate of sigma^2
             if (!is.list(null.value)) {
@@ -344,9 +352,7 @@ ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL, ncor
             C <- cbind(-1, diag(rep(1,M-1)))
             Ctheta <- c(C%*%theta)
             Cthetasq <- c(C%*%theta^2)
-            Q_1 <- solve(C%*%Winv%*%t(C) + K1hat/sigsq_1^2*outer(Ctheta,Ctheta))
-            Q_1_part1 <- C%*%Winv%*%t(C)
-            Q_1_part2 <- K1hat/sigsq_1^2*outer(Ctheta,Ctheta)
+            Q_1 <- solve(C%*%Winv%*%t(C) + K1hat/sigsq_1*outer(Ctheta,Ctheta))
             svdQ_1 <- svd(Q_1)
             sqrtQ_1 <- svdQ_1$u %*% diag(sqrt(svdQ_1$d)) %*% t(svdQ_1$v)
             R_1 <- sqrtQ_1%*%cbind(Ctheta, Cthetasq)
@@ -354,6 +360,11 @@ ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL, ncor
             K2hat <- -2*estEq_2[2]/nobs # second stage estimate of K
             thetastarhat <- -estEq_2[1]/estEq_2[2]/2 # maximum meta model likelihood estimate for theta_star (simulation based surrogate)
             sigsqhat <- 1/(M-1)*sum((sqrtQ_1%*%C%*%ll - nobs*K2hat*R_1%*%c(thetastarhat, -1/2))^2)
+            varGamma <- 1; varLogGamma <- 1.645; covGammaLogGamma <- 1; # variance and covariance of Gamma(1,1) and log(Gamma(1,1)) ## TODO: remove this line
+            theta_true <- 1 ## TODO: remove this line
+            sigsq_true <- theta_true^(-2)*varGamma + sum(y^2)*varLogGamma - 2/theta_true*sum(y)*covGammaLogGamma ## true sigma^2, for this gamma-Poisson model. TODO: remove this line
+            K2_true <- 1 # true K2 for this model.  TODO: remove this line
+            Z <- sqrtQ_1%*%C%*%ll - R_1%*%
             teststats <- sapply(null.value,
                 function(x) {
                     v <- c(R_1%*%c(x, -1/2))
@@ -364,11 +375,10 @@ ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL, ncor
                 parameter_null=unlist(null.value),
                 pvalue=round(pval, digits=3)
             )
-            out <- list(meta_model_MLE_for_parameter=c(parameter=thetastarhat, K1=K1hat, K2=K2hat, error_variance=sigsqhat),
-                var_slope_vec=var_slope_vec,
-                E_condVar_slopes=E_condVar_slopes,
-                Q_1_part1 = Q_1_part1,
-                Q_1_part2 = Q_1_part2,
+            out <- list(
+                meta_model_MLE_for_parameter=c(parameter=thetastarhat, K1=K1hat, K2=K2hat, error_variance=sigsqhat),
+                teststats=teststats,
+                Q_1=Q_1,
                 Hypothesis_Tests=dfout,
                 pval_cubic=pval_cubic
             )
