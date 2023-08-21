@@ -8,11 +8,12 @@ ht <- function(x, ...) {
 #' `ht` outputs results of hypothesis tests carried out using simulation log likelihoods. See Park (2023) for more information.
 #'
 #' @name ht
-#' @param simll A class 'simll' object, containing simulation log likelihoods, the parameter values at which simulations are made, and the number of simulations made at each parameter value. See help(simll).
+#' @param simll A class 'simll' object, containing simulation log likelihoods, the parameter values at which simulations are made (optional), and the weights for those simulations for regression (optional). See help(simll).
 #' @param null.value The null value(s) for the hypothesis test. Either a numeric vector (for running a test for a single null value, which can have one or more components) or a list of numeric vectors (for running tests for multiple null values).
 #' @param test A character string indicating the quantity to be tested about. One of "moments", "MESLE", or "parameter". See Details.
 #' @param type When 'test' is "moments", the 'type' argument needs to be specified. 'type' = "point" means that the test about the mean and the variance of simulation log likelihoods at a given parameter point is considered. 'type' = "regression" means that the test about the mean function and the variance of simulation log likelihoods at various parameter values is considered. See Details.
-#' @param weights An optional argument. The un-normalized weights of the log likelihood estimates for regression. Either a numeric vector of length equal to the 'params' attribute of the 'simll' object. See Details below.
+#' @param weights An optional argument. The un-normalized weights of the simulation log likelihoods for regression. A numeric vector of length equal to the 'params' attribute of the 'simll' object. See Details below.
+#' @param ncores An optional argument indicating the number of CPU cores to use for computation. Used only when 'test'="parameter". The 'mclapply' function in the 'parallel' package is used. The 'parallel' package needs to be installed unless 'ncores'=1. In Windows, 'ncores' greater than 1 is not supported (see ?mclapply for more information.)
 #'
 #' @details
 #' This is a generic function, taking a class 'simll' object as the first argument.
@@ -31,22 +32,23 @@ ht <- function(x, ...) {
 #'
 #' If 'test' = "MESLE", the test is about the location of the maximum expected simulation log likelihood estimate.
 #'
-#' If 'test' = "parameter", inference on the model parameter will be carried out under the local asymptotic normality for simulation log likelihood (see Park (2023) for more information.)
+#' If 'test' = "parameter", inference on the simulation based surrogate will be carried out under the local asymptotic normality for simulation log likelihood (see Park (2023) for more information.)
 #'
 #' The default value for 'test' is "parameter".
 #'
-#' When quadratic regression is carried out, the weights for the simulation based likelihood estimates can be specified. The length of 'weights' should be equal to that of the 'params' attribute of the 'simll' and the number of rows in the simulation log likelihood matrix in the 'simll' object. It is important to note that the weights are not supposed to be normalized (i.e., sum to one). Multiplying all weights by the same constant changes the estimation outputs.
+#' When quadratic regression is carried out, the weights for the simulation based likelihood estimates can be specified. The length of 'weights' should be equal to that of the 'params' attribute of the 'simll', which is equal to the number of rows in the simulation log likelihood matrix in the 'simll' object. It is important to note that the weights are not supposed to be normalized (i.e., sum to one). Multiplying all weights by the same constant changes the estimation outputs. If not supplied, the 'weights' attribute of the 'simll' object is used. If neither is supplied, 'weights' defaults to the vector of all ones.
 #'
 #' @return A list consisting of the following components are returned.
 #' \itemize{
 #' \item{meta_model_MLE_for_*: point estimate for the tested quantity under a normal meta model,}
 #' \item{Hypothesis_Tests: a data frame of the null values and the corresponding p-values,}
 #' \item{pvalue_numerical_error_size: When 'test'="moments", approximate size of error in numerical evaluation of p-values (automatically set to approximately 0.01 or 0.001). For these case, p-values are found using the SCL distributions, whose cumulative distribution functions are numerically evaluated using random number generations. Thus p-values have some stochastic error. The size of the numerical error is automatically set to approximately 0.01, but if p-value found is less than 0.01 for any of the provided null values, more computations are carried out to reduce the numerical error size to approximately 0.001. Note that when 'test'="MESLE", "information", or "parameter", the (standard) F distribution is used, so this list component is omitted.}
+#' \item{pval_cubic: The p-value of the test about whether the cubic term in the cubic polynomial regression is significant. If so, the result of the ht function may be biased.}
 #' }
 #'
 #' @references Park, J. (2023). On simulation based inference for implicitly defined models
 #' @export
-ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL) {
+ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL, ncores=1) {
     validate_simll(simll)
     if (is.null(test)) {
         test <- "parameter"
@@ -85,13 +87,13 @@ ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL) {
         if (test=="moments") {
             if (type=="point" && length(null.value)!=2) {
                 stop(
-                    "If 'test' is 'moments', 'type' is 'point', and 'null.value' is not a list, the length of 'null.value' should be 2 (mean and variance of 'siblle').",
+                    "If 'test' is 'moments', 'type' is 'point', and 'null.value' is not a list, the length of 'null.value' should be 2 (mean and variance of the simulation log likelihoods).",
                     call. = FALSE
                 )
             }
             if (type=="regression" && length(null.value)!=4) {
                 stop(
-                    "If 'test' is 'moments', 'type' is 'regression', and 'null.value' is not a list, the length of 'null.value' should be 4 (the three coefficients of a quadratic polynomial for the mean function, and the variance of the SIBLLE).",
+                    "If 'test' is 'moments', 'type' is 'regression', and 'null.value' is not a list, the length of 'null.value' should be 4 (the three coefficients of a quadratic polynomial for the mean function, and the variance of the simulation log likelihood).",
                     call. = FALSE
                 )
             }
@@ -113,13 +115,13 @@ ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL) {
         if (test=="moments") {
             if (type=="point" && !all(sapply(null.value, length)==2)) {
                 stop(
-                    "If 'null.value' is a list, 'test' is 'moments', and 'type' is 'point', all components of 'null.value' should be a numeric vector of length 2 (mean and variance of SIBLLE).",
+                    "If 'null.value' is a list, 'test' is 'moments', and 'type' is 'point', all components of 'null.value' should be a numeric vector of length 2 (mean and variance of simulation log likelihoods).",
                     call. = FALSE
                 )
             }
             if (type=="regression" && !all(sapply(null.value, length)==4)) {
                 stop(
-                    "If 'null.value' is a list, 'test' is 'moments', and 'type' is 'regression' or 'LAN', all components of 'null.value' should be a numeric vector of length 4 (the three coefficients of a quadratic polynomial for the mean function, and the variance of the SIBLLE).",
+                    "If 'null.value' is a list, 'test' is 'moments', and 'type' is 'regression', all components of 'null.value' should be a numeric vector of length 4 (the three coefficients of a quadratic polynomial for the mean function, and the variance of the simulation log likelihoods).",
                     call. = FALSE
                 )
             }
@@ -140,10 +142,10 @@ ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL) {
 
     if (test=="moments" && type=="point") {
         llmat <- unclass(simll)
-        ll <- apply(llmat, 1, sum) # simulation log likelihood for y_{1:n}
+        ll <- apply(llmat, 2, sum) # simulation log likelihood for y_{1:n}
         muhat <- mean(ll)
         Ssq <- var(ll)
-        M <- dim(ll)[1]
+        M <- length(ll)
         if (!is.list(null.value)) {
             null.value <- list(null.value)
         }
@@ -190,7 +192,7 @@ ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL) {
                     call. = FALSE
                 )
             }
-            if (length(weights) != dim(simll)[1]) {
+            if (length(weights) != dim(simll)[2]) {
                 stop(
                     "When 'type' = 'regression' and the 'weights' argument is given, the length of 'weights' should be equal to the number of rows in the simulation log likelihood matrix in 'simll'.",
                     call. = FALSE
@@ -202,26 +204,26 @@ ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL) {
             if (!is.null(attr(simll, "weights"))) {
                 if (!is.numeric(attr(simll, "weights"))) {
                     stop(
-                        "When 'type' = 'regression' and the 'simll' object has 'weights' attribute, it has to be a numeric vector.",
+                        "When the 'simll' object has 'weights' attribute, it has to be a numeric vector.",
                         call. = FALSE
                     )
                 }
-                if (dim(simll)[1] != length(attr(simll, "weights"))) {
+                if (dim(simll)[2] != length(attr(simll, "weights"))) {
                     stop(
-                        "When 'type' = 'regression' and the 'simll' object has 'weights' attribute, the length of 'weights' should be the same as the number of rows in the simulation log likelihood matrix in 'simll'.",
+                        "When the 'simll' object has 'weights' attribute, the length of 'weights' should be the same as the number of rows in the simulation log likelihood matrix in 'simll'.",
                         call. = FALSE
                     )
                 }
                 w <- attr(simll, "weights")
             } else {
-                w <- rep(1, dim(simll)[1])
+                w <- rep(1, dim(simll)[2])
             }
         }
         ## weighted quadratic regression
         W  <- diag(w)
         theta <- attr(simll, "params")
         llmat <- unclass(simll)
-        ll <- apply(llmat, 1, sum)
+        ll <- apply(llmat, 2, sum)
         M <- length(ll)
         theta012 <- cbind(1, theta, theta^2)
         Ahat <- c(solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%ll))
@@ -308,16 +310,32 @@ ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL) {
         ## test about the model parameter under LAN
         if (test=="parameter") {
             Winv <- diag(1/w)
-            uniquetheta <- unique(theta)
-            uniquetheta012 <- cbind(1, uniquetheta, uniquetheta^2)
-            nobs <- dim(llmat)[2] # number of observations
-            slopes <- apply(llmat, 2, function(ll_i) {
-                # quadratic regression for each observation piece (each column of simll)
+            nobs <- dim(llmat)[1] # number of observations
+            if (ncores>1) {
+                require(parallel)
+            }
+            slope_at <- seq(min(theta), max(theta), length.out=50) # the parameter values at which the slope of the estimated quadratic polynomial will be computed in order to estimate its variance
+            slopes <- simplify2array(mclapply(1:nobs, function(i) {
+                # quadratic regression for each observation piece (each row of simll)
+                ll_i <- llmat[i,]
                 Ahat_i <- c(solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%ll_i))
-                return(c(uniquetheta012%*%Ahat_i))
-            }) # length(uniquetheta) times nobs
-            K1_vec <- apply(slopes, 1, var)
-            K1hat <- median(K1_vec)
+                return(Ahat_i[2]+2*Ahat_i[3]*slope_at) # estimated slopes at uniquetheta
+            }, mc.cores=ncores)
+            )# matrix of dimension length(uniquetheta) times nobs
+            var_slope_vec <- apply(slopes, 1, var) # estimate of the variance of the slope of the fitted quadratic
+            errorvars <- apply(llmat, 1, function(ll_i) {
+                Ahat_i <- c(solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%ll_i))
+                resids_i <- ll_i - c(theta012%*%Ahat_i)
+                sigsqhat_i <- c(resids_i%*%W%*%resids_i) / (M-3)
+                return(sigsqhat_i) # return estimated error variance for the i-th observation
+            }) # vector of length nobs
+            E_condVar_slopes <- sapply(slope_at, function(theta_slope) {
+                c(c(0,1,2*theta_slope)%*%solve(t(theta012)%*%W%*%theta012, c(0,1,2*theta_slope)))
+            }) * mean(errorvars) # estimate of the expected value of the conditional variance of the estimated slope given Y (expectation with respect to Y)
+            K1hat <- median(var_slope_vec - E_condVar_slopes)
+            if (K1hat <= 0) {
+                warning("The estimate of K1 is nonpositive. The results should not be reliable.")
+            }
             resids_1 <- ll - c(theta012%*%Ahat) # first stage estimates for residuals
             sigsq_1 <- c(resids_1%*%W%*%resids_1) / M # the first stage estimate of sigma^2
             if (!is.list(null.value)) {
@@ -327,6 +345,8 @@ ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL) {
             Ctheta <- c(C%*%theta)
             Cthetasq <- c(C%*%theta^2)
             Q_1 <- solve(C%*%Winv%*%t(C) + K1hat/sigsq_1^2*outer(Ctheta,Ctheta))
+            Q_1_part1 <- C%*%Winv%*%t(C)
+            Q_1_part2 <- K1hat/sigsq_1^2*outer(Ctheta,Ctheta)
             svdQ_1 <- svd(Q_1)
             sqrtQ_1 <- svdQ_1$u %*% diag(sqrt(svdQ_1$d)) %*% t(svdQ_1$v)
             R_1 <- sqrtQ_1%*%cbind(Ctheta, Cthetasq)
@@ -344,7 +364,11 @@ ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL) {
                 parameter_null=unlist(null.value),
                 pvalue=round(pval, digits=3)
             )
-            out <- list(meta_model_MLE_for_parameter=c(parameter=thetastarhat, error_variance=sigsqhat),
+            out <- list(meta_model_MLE_for_parameter=c(parameter=thetastarhat, K1=K1hat, K2=K2hat, error_variance=sigsqhat),
+                var_slope_vec=var_slope_vec,
+                E_condVar_slopes=E_condVar_slopes,
+                Q_1_part1 = Q_1_part1,
+                Q_1_part2 = Q_1_part2,
                 Hypothesis_Tests=dfout,
                 pval_cubic=pval_cubic
             )
@@ -352,4 +376,6 @@ ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL) {
         }
     }
 }
-# TODO: debugging required.
+# TODO: for test="parameter", 'type' should be 'iid' or 'stationary'.
+# The stationary case should be implemented.  A test of stationarity can be carried out, and a warning should be given when the test is positive.
+# TODO: use mclapply for regression for each observation piece.

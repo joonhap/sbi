@@ -8,7 +8,7 @@
 \method{ht}{simll}(simll, null.value, test = NULL, type = NULL, weights = NULL)
 }
 \arguments{
-\item{simll}{A class 'simll' object, containing simulation log likelihoods, the parameter values at which simulations are made, and the number of simulations made at each parameter value. See help(simll).}
+\item{simll}{A class 'simll' object, containing simulation log likelihoods, the parameter values at which simulations are made (optional), and the weights for those simulations for regression (optional). See help(simll).}
 
 \item{null.value}{The null value(s) for the hypothesis test. Either a numeric vector (for running a test for a single null value, which can have one or more components) or a list of numeric vectors (for running tests for multiple null values).}
 
@@ -16,7 +16,7 @@
 
 \item{type}{When 'test' is "moments", the 'type' argument needs to be specified. 'type' = "point" means that the test about the mean and the variance of simulation log likelihoods at a given parameter point is considered. 'type' = "regression" means that the test about the mean function and the variance of simulation log likelihoods at various parameter values is considered. See Details.}
 
-\item{weights}{An optional argument. The un-normalized weights of the log likelihood estimates for regression. Either a numeric vector of length equal to the 'params' attribute of the 'simll' object. See Details below.}
+\item{weights}{An optional argument. The un-normalized weights of the simulation log likelihoods for regression. A numeric vector of length equal to the 'params' attribute of the 'simll' object. See Details below.}
 }
 \value{
 A list consisting of the following components are returned.
@@ -24,6 +24,7 @@ A list consisting of the following components are returned.
 \item{meta_model_MLE_for_*: point estimate for the tested quantity under a normal meta model,}
 \item{Hypothesis_Tests: a data frame of the null values and the corresponding p-values,}
 \item{pvalue_numerical_error_size: When 'test'="moments", approximate size of error in numerical evaluation of p-values (automatically set to approximately 0.01 or 0.001). For these case, p-values are found using the SCL distributions, whose cumulative distribution functions are numerically evaluated using random number generations. Thus p-values have some stochastic error. The size of the numerical error is automatically set to approximately 0.01, but if p-value found is less than 0.01 for any of the provided null values, more computations are carried out to reduce the numerical error size to approximately 0.001. Note that when 'test'="MESLE", "information", or "parameter", the (standard) F distribution is used, so this list component is omitted.}
+\item{pval_cubic: The p-value of the test about whether the cubic term in the cubic polynomial regression is significant. If so, the result of the ht function may be biased.}
 }
 }
 \description{
@@ -46,11 +47,11 @@ When 'test' = "MESLE" or "parameter", the 'simll' object should have the 'params
 
 If 'test' = "MESLE", the test is about the location of the maximum expected simulation log likelihood estimate.
 
-If 'test' = "parameter", inference on the model parameter will be carried out under the local asymptotic normality for simulation log likelihood (see Park (2023) for more information.)
+If 'test' = "parameter", inference on the simulation based surrogate will be carried out under the local asymptotic normality for simulation log likelihood (see Park (2023) for more information.)
 
 The default value for 'test' is "parameter".
 
-When quadratic regression is carried out, the weights for the simulation based likelihood estimates can be specified. The length of 'weights' should be equal to that of the 'params' attribute of the 'simll' and the number of rows in the simulation log likelihood matrix in the 'simll' object. It is important to note that the weights are not supposed to be normalized (i.e., sum to one). Multiplying all weights by the same constant changes the estimation outputs.
+When quadratic regression is carried out, the weights for the simulation based likelihood estimates can be specified. The length of 'weights' should be equal to that of the 'params' attribute of the 'simll', which is equal to the number of rows in the simulation log likelihood matrix in the 'simll' object. It is important to note that the weights are not supposed to be normalized (i.e., sum to one). Multiplying all weights by the same constant changes the estimation outputs. If not supplied, the 'weights' attribute of the 'simll' object is used. If neither is supplied, 'weights' defaults to the vector of all ones.
 }
 \references{
 Park, J. (2023). On simulation based inference for implicitly defined models

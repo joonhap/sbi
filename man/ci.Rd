@@ -5,67 +5,42 @@
 \alias{ci.simll}
 \title{Confidence intervals constructed using simulation log likelihoods}
 \usage{
-\method{ci}{simll}(
-  siblle,
-  level,
-  type = NULL,
-  ci = NULL,
-  weights = NULL,
-  fraction = NULL,
-  center = NULL
-)
+\method{ci}{simll}(simll, level, ci = NULL, weights = NULL)
 }
 \arguments{
+\item{simll}{A class 'simll' object, containing simulation log likelihoods, the parameter values at which simulations are made (optional), and the weights for those simulations for regression (optional). See help(simll).}
+
 \item{level}{A numeric vector of confidence levels.}
 
-\item{type}{A character string indicating what type of situation is considered. The value should be "regression" or "LAN". See Details.}
+\item{ci}{A character string indicating the quantity for which a confidence interval is to be constructed. Either "MESLE" or "parameter". See Details.}
 
-\item{ci}{A character string indicating the quantity for which a confidence interval is to be constructed. One of "MESLE", "information", or "parameter". See Details.}
-
-\item{weights}{An optional argument. The un-normalized weights of the log likelihood estimates for regression. Either a numeric vector of length equal to the 'params' attribute of the 'simll' object. The default weights are equal to the 'nsims' attribute of the 'simll' object. See Details below.}
-
-\item{simll}{A class 'simll' object, containing simulation log likelihoods, the parameter values at which simulations are made, and the number of simulations made at each parameter value. See help(simll).}
+\item{weights}{An optional argument. The un-normalized weights of the simulation log likelihoods for regression. A numeric vector of length equal to the 'params' attribute of the 'simll' object. See Details below.}
 }
 \value{
 A list consisting of the followings are returned.
 \itemize{
-\item{meta_model_MLE_for_*: simulation based maximum likelihood estimate under an appropriate normal meta model,}
-\item{confidence_interval: a data frame of the lower and upper bounds of the confidence intervals and the corresponding confidence levels. Note that in some unfortunate cases (especially if the quadratic coefficient of the estimated quadratic fit of the log likelihood estimates is close to zero or nonnegative), the confidence interval may be inverted, meaning that it is of the form (-infty, bound1) U (bound2, infty). This case can happen if the signal-to-noise ratio in simulation based log likelihood estimates is too small. The inverted confidence interval will be indicated by the additional column "inverted" in the data frame taking values of 0 or 1.}
+\item{meta_model_MLE_for_*: point estimate for the quantity for which confidence intervals are constructed under a normal meta model,}
+\item{confidence_interval: a data frame of the lower and upper bounds of the confidence intervals and the corresponding confidence levels. Note that in some unfortunate cases (especially if the quadratic coefficient of the estimated quadratic fit of the log likelihood estimates is close to zero or nonnegative), the confidence interval may be inverted, meaning that it is of the form (-infty, bound1) U (bound2, infty). This case can happen if the signal-to-noise ratio in simulation log likelihoods is too small. The inverted confidence interval will be indicated by the additional column "inverted" in the data frame taking values of 0 or 1.}
+\item{pval_cubic: The p-value of the test about whether the cubic term in the cubic polynomial regression is significant. If so, the constructed confidence interval may be biased.}
 }
 }
 \description{
 \code{ci} constructs confidence intervals using simulation log likelihoods. See Park (2023) for more information.
 }
 \details{
-This is a generic function, taking a class 'siblle' object as the first argument.
-Confidence intervals are constructed under a normal meta model where the simulation based likelihood estimates given in the 'siblle' object are normally distributed.
+This is a generic function, taking a class 'simll' object as the first argument.
+Confidence intervals are constructed under a normal, locally quadratic meta model where the simulation log likelihoods given in the 'simll' object are normally distributed.
 
 When 'level' has length greater than one, a confidence interval is constructed for each value in the vector.
 
-The 'type' argument should be either "regression" or "LAN".
-The case 'type' = "regression" means that the 'siblle' object contains simulation based log likelihood estimates evaluated at more than one parameter values, specified by the 'params' attribute of the 'siblle' object. A local quadratic regression for the estimated log likelihood values is used for constructing confidence intervals, where the x-axis values are given by the 'params' values of the 'siblle' object and the y-axis values are the corresponding log likelihood estimates.
-The case 'type' = "LAN" means that inference on the model parameter will be carried out under the local asymptotic normality (Le Cam and Yang, 2000) condition.
-If the 'siblle' object has 'params' attribute whose length is equal to the length of the object, then 'type' defaults to "LAN".
+Quadratic regression for the simulation log likelihoods is carried out to construct confidence intervals, where the x-axis values are the 'params' values of the 'simll' object and the y-axis values are the corresponding simulation log likelihoods.
+In the case where 'ci' = "parameter", inference on the simulation based surrogate will be carried out under the local asymptotic normality for simulation log likelihoods (see Park (2023) for more information.)
+The default value of 'ci' is "parameter".
 
-In this case a confidence interval for the log likelihood given the observed data is constructed.
+If 'ci' = "MESLE", confidence intervals are constructed for the maximum expected simulation likelihood estimate given the observed data.
 
-When 'type' = "regression", 'ci' can be "MESLE" or "information".
-If 'ci' = "MESLE", confidence intervals are constructed for the location of the maximum likelihood estimate given the observed data.
-If 'ci' = "information", confidence intervals are constructed for the Fisher information, which is assumed to be equal to (-2) times the value of the quadratic coefficient of the regression polynomial describing the mean of the SIBLLE.
-When 'type' = "regression", 'ci' = "MESLE" is assumed by default.
-
-When 'type' = "LAN", 'ci' can be "MESLE", "information", or "parameter".
-If 'ci' is "MESLE", or "information", the output is the same as in the case where 'type' = "regression".
-If 'ci' is "parameter", confidence intervals for the value of the model parameter are constructed under the local asymptotic normality assumption.
-When 'type' = "LAN", 'ci' = "parameter" is assumed by default.
-
-When quadratic regression is carried out, the weights for the simulation based likelihood estimates can be supplied.  The weights can either be given as an attribute 'weights' of the 'siblle' object, or as a function argument 'weights', with the latter being used when both are supplied. In either case, 'weights' should be a numeric vector of length equal to that of 'siblle'. If 'weights' is given as a function argument, it can be specified alternatively as a character string "tricube". In this case, the tricube weight (see Cleveland, 1979) is used, and the specified 'fraction' of the points will have nonzero weights. The 'center' argument determines at which parameter value the tricube weight takes the maximum. If weights are not supplied in either location, all weights are taken to be equal to 1.
-It is important to note that the weights are not supposed to be normalized (i.e., sum to one). Multiplying all weights by the same constant changes the local regression results. Roughly speaking, the variance of the error in the simulation based log likelihood estimate is assumed to be sigma^2/(the weight for the point). See Park (2023) for more information.
+When quadratic regression is carried out, the weights for the simulation based likelihood estimates can be specified. The length of 'weights' should be equal to that of the 'params' attribute of the 'simll', which is equal to the number of rows in the simulation log likelihood matrix in the 'simll' object. It is important to note that the weights are not supposed to be normalized (i.e., sum to one). Multiplying all weights by the same constant changes the estimation outputs. If not supplied, the 'weights' attribute of the 'simll' object is used. If neither is supplied, 'weights' defaults to the vector of all ones.
 }
 \references{
 Park, J. (2023). On simulation based inference for implicitly defined models
-
-Cleveland, W. S. (1979). Robust locally weighted regression and smoothing scatterplots. Journal of the American statistical association, 74(368), 829-836.
-
-Le Cam, L. and Yang, G. L. (2000). Asymptotics in statistics: some basic concepts. Springer-Verlag, New York.
 }

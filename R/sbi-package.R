@@ -4,6 +4,6 @@
 
 ## usethis namespace: start
 #' @importFrom Rcpp sourceCpp
-#' @useDynLib siblle, .registration = TRUE
+#' @useDynLib sbi, .registration = TRUE
 ## usethis namespace: end
 NULL

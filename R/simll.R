@@ -1,7 +1,7 @@
 ## Class simll
 #' Simulation Log Likelihood class
 #'
-#' @param ll A matrix vector of simulation log likelihoods. The (m,i)-th entry is given by the log density of the observation y_i given the simulation X(theta_m).
+#' @param ll A matrix vector of simulation log likelihoods. The (i,m)-th entry is given by the log density of the observation y_i given the simulation X(theta_m).
 #' @param params A numeric vector of one-dimensional parameter values (optional, can be omitted if simulation log likelihoods are obtained at only one parameter value.)
 #' @param weights A numeric vector of weights, inversely proportional to the variance of simulation log likelihoods (optional)
 #' @returns A class 'sll' object
@@ -34,7 +34,7 @@ validate_simll <- function(x) {
     weights <- attr(x, "weights")
 
     if (is.null(dim(ll))) { # if ll is not a matrix
-        ll <- matrix(ll, nrow=1) # coerce into a matrix
+        ll <- matrix(ll, ncol=1) # coerce into a matrix
         message("Simulation log likelihoods were coerced into a matrix form.")
     }
 
@@ -58,9 +58,9 @@ validate_simll <- function(x) {
                 call. = FALSE
             )
         }
-        if (length(params) != 1 && dim(ll)[1] != length(params)) {
+        if (length(params) != 1 && dim(ll)[2] != length(params)) {
             stop(
-                "The length of the 'params' attribute of an simll object should be equal to the number of rows in the matrix of simulation log likelihoods, or 1.",
+                "The length of the 'params' attribute of an simll object should be equal to the number of columns in the matrix of simulation log likelihoods, or 1.",
                 call. = FALSE
             )
         }
@@ -79,9 +79,9 @@ validate_simll <- function(x) {
                 call. = FALSE
             )
         }
-        if (length(weights) != 1 && dim(ll)[1] != length(weights)) {
+        if (length(weights) != 1 && dim(ll)[2] != length(weights)) {
             stop(
-                "The length of the 'weights' attribute of an simll object should be equal to the number of rows in the matrix of simulation log likelihoods, or 1.",
+                "The length of the 'weights' attribute of an simll object should be equal to the number of columns in the matrix of simulation log likelihoods, or 1.",
                 call. = FALSE
             )
         }
