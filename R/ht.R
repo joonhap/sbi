@@ -352,7 +352,7 @@ ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL, ncor
             C <- cbind(-1, diag(rep(1,M-1)))
             Ctheta <- c(C%*%theta)
             Cthetasq <- c(C%*%theta^2)
-            Q_1 <- solve(C%*%Winv%*%t(C) + K1hat/sigsq_1*outer(Ctheta,Ctheta))
+            Q_1 <- solve(C%*%Winv%*%t(C) + nobs*K1hat/sigsq_1*outer(Ctheta,Ctheta))
             svdQ_1 <- svd(Q_1)
             sqrtQ_1 <- svdQ_1$u %*% diag(sqrt(svdQ_1$d)) %*% t(svdQ_1$v)
             R_1 <- sqrtQ_1%*%cbind(Ctheta, Cthetasq)
@@ -364,7 +364,6 @@ ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL, ncor
             theta_true <- 1 ## TODO: remove this line
             sigsq_true <- theta_true^(-2)*varGamma + sum(y^2)*varLogGamma - 2/theta_true*sum(y)*covGammaLogGamma ## true sigma^2, for this gamma-Poisson model. TODO: remove this line
             K2_true <- 1 # true K2 for this model.  TODO: remove this line
-            Z <- sqrtQ_1%*%C%*%ll - R_1%*%
             teststats <- sapply(null.value,
                 function(x) {
                     v <- c(R_1%*%c(x, -1/2))
@@ -378,7 +377,6 @@ ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL, ncor
             out <- list(
                 meta_model_MLE_for_parameter=c(parameter=thetastarhat, K1=K1hat, K2=K2hat, error_variance=sigsqhat),
                 teststats=teststats,
-                Q_1=Q_1,
                 Hypothesis_Tests=dfout,
                 pval_cubic=pval_cubic
             )
