@@ -10,7 +10,8 @@ ht <- function(x, ...) {
 #' @name ht
 #' @param simll A class 'simll' object, containing simulation log likelihoods, the parameter values at which simulations are made (optional), and the weights for those simulations for regression (optional). See help(simll).
 #' @param null.value The null value(s) for the hypothesis test. Either a numeric vector (for running a test for a single null value, which can have one or more components) or a list of numeric vectors (for running tests for multiple null values).
-#' @param test A character string indicating the quantity to be tested about. One of "moments", "MESLE", or "parameter". See Details.
+#' @param test A character string indicating which is to be tested about. One of "moments", "MESLE", or "parameter". See Details.
+#' @param case When 'test' is "parameter", 'case' needs to be either "iid" or "stationary". 'case' = "iid" means that the observations are iid, and 'case' = "stationary" means that the observations form a stationary sequence. The 'case' argument affects how the variance of the slope of the mean function (=K_1 in Park (2023)) is estimated. The default value is "stationary".
 #' @param type When 'test' is "moments", the 'type' argument needs to be specified. 'type' = "point" means that the test about the mean and the variance of simulation log likelihoods at a given parameter point is considered. 'type' = "regression" means that the test about the mean function and the variance of simulation log likelihoods at various parameter values is considered. See Details.
 #' @param weights An optional argument. The un-normalized weights of the simulation log likelihoods for regression. A numeric vector of length equal to the 'params' attribute of the 'simll' object. See Details below.
 #' @param ncores An optional argument indicating the number of CPU cores to use for computation. Used only when 'test'="parameter". The 'mclapply' function in the 'parallel' package is used. The 'parallel' package needs to be installed unless 'ncores'=1. In Windows, 'ncores' greater than 1 is not supported (see ?mclapply for more information.)
@@ -48,7 +49,7 @@ ht <- function(x, ...) {
 #'
 #' @references Park, J. (2023). On simulation based inference for implicitly defined models
 #' @export
-ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL, ncores=1, y=NULL) {
+ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights=NULL, ncores=1, y=NULL) {
     validate_simll(simll)
     if (is.null(test)) {
         test <- "parameter"
@@ -56,6 +57,11 @@ ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL, ncor
     }
     if (!is.null(test)) {
         match.arg(test, c("moments", "MESLE", "parameter"))
+    }
+    if (test=="parameter") {
+        if (is.null(case)) {
+            case <- "stationary"
+        match.arg(case, c("iid", "stationary"))
     }
     if (test=="moments") {
         if (is.null(type)) {
@@ -220,37 +226,87 @@ ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL, ncor
             }
         }
         ## weighted quadratic regression
+        vech <- function(mat) { # half-vectorization
+            if (dim(mat)[1] != dim(mat)[2]) {
+                stop("The argument to vech should be a square matrix.")
+            }
+            d <- dim(mat)[1]
+            l <- 0
+            output <- numeric((d^2+d)/2)
+            for (k in 1:d) {
+                output[(l+1):(l+d+1-k)] <- mat[k:d,k]
+                l <- l+d+1-k
+            }
+            output
+        }
+        unvech <- function(vec) { # undo vech
+            d <- (-1 + sqrt(1+8*length(vec)))/2
+            if (abs(d - round(d)) > 1e-5) {
+                stop("The length of the given vector is not equal to that of vech of a matrix")
+            }
+            l <- 0
+            output <- matrix(0, d, d)
+            for (k in 1:d) {
+                seg <- vec[(l+1):(l+d+1-k)]
+                output[k:d,k] <- seg
+                output[k,k:d] <- seg
+                l <- l+d+1-k
+            }
+        }
+        matricize <- function(theta) {
+            d <- length(theta)
+            out <- matrix(0, d, (d^2+d)/2)
+            n <- 0
+            for (i in 1:d) {
+                l <- d+1-i
+                out[i:d, (n+1):(n+l)] <- theta[i] * diag(l)
+                out[i, (n+1):(n+l)] <- theta[i:d]
+                n <- n+l
+            }
+            out
+        }
+        vec2 <- function(vec) {
+            out <- 2*outer(vec,vec)
+            diag(out) <- vec^2
+            out
+        }
+        vec012 <- function(vec) {
+            c(1, vec, vech(vec2(vec)))
+        }
         W  <- diag(w)
-        theta <- attr(simll, "params")
+        theta <- cbind(attr(simll, "params")) # coerce into a matrix
         llmat <- unclass(simll)
         ll <- apply(llmat, 2, sum)
         M <- length(ll)
-        theta012 <- cbind(1, theta, theta^2)
-        Ahat <- c(solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%ll))
-        resids <- ll - c(theta012%*%Ahat)
+        Theta012 <- apply(theta, 1, vec012)
+        Ahat <- c(solve(t(Theta012)%*%W%*%Theta012, t(Theta012)%*%W%*%ll))
+        ahat <- Ahat[1]
+        bhat <- Ahat[2:(d+1)]
+        vech_chat <- Ahat[(d+2):((d^2+3*d+2)/2)]
+        chat <- unvech(vech_chat)
+        resids <- ll - c(Theta012%*%Ahat)
         sigsqhat <- c(resids%*%W%*%resids) / M
-        theta0123 <- cbind(1, theta, theta^2, theta^3) # cubic regression to test whether the cubic coefficient = 0
-        Ahat_cubic <- c(solve(t(theta0123)%*%W%*%theta0123, t(theta0123)%*%W%*%ll))
-        resids_cubic <- ll - c(theta0123%*%Ahat_cubic)
-        sigsqhat_cubic <- c(resids_cubic%*%W%*%resids_cubic) / M
-        pval_cubic <- pf((sigsqhat-sigsqhat_cubic)/sigsqhat_cubic*(sum(w>0)-4), 1, sum(w>0)-4, lower.tail=FALSE)
+        ## cubic test: not included because it can be cumbersome for d>1.
+        if (FALSE) {
+            Theta0123 <- cbind(1, theta, theta^2, theta^3) # cubic regression to test whether the cubic coefficient = 0
+            Ahat_cubic <- c(solve(t(Theta0123)%*%W%*%Theta0123, t(Theta0123)%*%W%*%ll))
+            resids_cubic <- ll - c(Theta0123%*%Ahat_cubic)
+            sigsqhat_cubic <- c(resids_cubic%*%W%*%resids_cubic) / M
+            pval_cubic <- pf((sigsqhat-sigsqhat_cubic)/sigsqhat_cubic*(sum(w>0)-4), 1, sum(w>0)-4, lower.tail=FALSE)
+        }
         ## test about moments
         if (test=="moments") {
+            ## TODO: check if the moments test are correct
             if (!is.list(null.value)) {
                 null.value <- list(null.value)
             }
-            if (any(sapply(null.value, function(x) x[4]<=0))) {
-                stop("The fourth component of null.value (the variance of simulation based log likelihood estimator) should be positive.",
-                    call. = FALSE
-                )
-            }
             teststats <- sapply(null.value,
                 function(x) {
-                    err <- ll - c(theta012%*%x[1:3])
-                    .5*M*log(sigsqhat/x[4]) - .5*c(err%*%W%*%err)/x[4] + M/2
+                    err <- ll - c(Theta012%*%x[1:((d^2+3*d+2)/2)])
+                    .5*M*log(sigsqhat/x[(d^2+3*d+2)/2+1]) - .5*c(err%*%W%*%err)/x[(d^2+3*d+2)/2+1] + M/2
                 })
             num.error.size <- 0.01
-            pvalout <- pscl(teststats, M, 3, num_error_size=num.error.size)
+            pvalout <- pscl(teststats, M, (d^2+3*d+2)/2, num_error_size=num.error.size)
             if (length(pvalout)==0) { # execution of pscl stopped by user input
                 stop("Hypothesis tests stopped by user input", call. = FALSE)
             }
@@ -258,7 +314,7 @@ ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL, ncor
             num.error.size <- pvalout$numerical_error_size
             if (any(pval < .01)) {
                 prec <- 0.001
-                pvalout <- pscl(teststats, M, 3, num_error_size=num.error.size)
+                pvalout <- pscl(teststats, M, (d^2+3*d+2)/2, num_error_size=num.error.size)
                 if (length(pvalout)==0) { # execution of pscl stopped by user input
                     stop("Hypothesis tests stopped by user input", call. = FALSE)
                 }
@@ -268,15 +324,14 @@ ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL, ncor
             precdigits <- max(-floor(log10(num.error.size)), 1)
             dfout <- data.frame(
                 a_null=sapply(null.value, function(x) x[1]),
-                b_null=sapply(null.value, function(x) x[2]),
-                c_null=sapply(null.value, function(x) x[3]),
-                sigma_sq_null=sapply(null.value, function(x) x[4]),
+                b_null=sapply(null.value, function(x) x[2:(d+1)]),
+                c_null=sapply(null.value, function(x) x[(d+2):((d^2+3*d+2)/2)]),
+                sigma_sq_null=sapply(null.value, function(x) x[(d^2+3*d+2)/2+1]),
                 pvalue=round(pval, digits=precdigits)
             )
-            out <- list(meta_model_MLE_for_moments=c(a=Ahat[1], b=Ahat[2], c=Ahat[3], sigma_sq=sigsqhat),
+            out <- list(meta_model_MLE_for_moments=c(a=Ahat[1], b=Ahat[2:(d+1)], c=Ahat[(d+2):((d^2+3*d+2)/2)], sigma_sq=sigsqhat),
                 Hypothesis_Tests=dfout,
-                pvalue_numerical_error_size=num.error.size,
-                pval_cubic=pval_cubic
+                pvalue_numerical_error_size=num.error.size
             )
             return(out)
         }
@@ -285,29 +340,33 @@ ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL, ncor
             if (!is.list(null.value)) {
                 null.value <- list(null.value)
             }
-            mtheta1 <- sum(w*theta)/sum(w)
-            mtheta2 <- sum(w*theta*theta)/sum(w)
-            mtheta3 <- sum(w*theta*theta*theta)/sum(w)
-            mtheta4 <- sum(w*theta*theta*theta*theta)/sum(w)
-            v11 <- sum(w)*(mtheta2 - mtheta1^2)
-            v12 <- sum(w)*(mtheta3 - mtheta1*mtheta2)
-            v22 <- sum(w)*(mtheta4 - mtheta2^2)
+            U <- t(Theta012)%*%W%*%Theta012
+            V <- U[-1,-1] - U[-1,1,drop=FALSE]%*%U[1,-1,drop=FALSE]/U[1,1]
+            #mtheta1 <- sum(w*theta)/sum(w)
+            #mtheta2 <- sum(w*theta*theta)/sum(w)
+            #mtheta3 <- sum(w*theta*theta*theta)/sum(w)
+            #mtheta4 <- sum(w*theta*theta*theta*theta)/sum(w)
+            #v11 <- sum(w)*(mtheta2 - mtheta1^2)
+            #v12 <- sum(w)*(mtheta3 - mtheta1*mtheta2)
+            #v22 <- sum(w)*(mtheta4 - mtheta2^2)
             teststats <- sapply(null.value,
                 function(x) {
-                    (M-3)*(Ahat[2]+2*x*Ahat[3])^2*(v11*v22-v12^2)/(v22-4*v12*x+4*v11*x*x)/(M*sigsqhat)
+                    theta0mat <- matricize(null.value)
+                    Vq <- solve(cbind(diag(d), 2*theta0mat) %*% solve(V) %*% rbind(diag(d), 2*t(theta0mat)))
+                    xi <- t(bhat + 2*theta0mat %*% vech_chat) %*% Vq %*% (bhat + 2*theta0mat %*% vech_chat)
+                    (M-(d^2+3*d+2)/2)*xi/(M*d*sigsqhat)
                 })
-            pval <- pf(teststats, 1, M-3, lower.tail=FALSE)
+            pval <- pf(teststats, d, M-(d^2+3*d+2)/2, lower.tail=FALSE)
             dfout <- data.frame(
                 MESLE_null=unlist(null.value),
                 pvalue=round(pval, digits=3)
             )
-            out <- list(meta_model_MLE_for_MESLE=c(MESLE=unname(-Ahat[2]/(2*Ahat[3]))),
-                Hypothesis_Tests=dfout,
-                pval_cubic=pval_cubic
+            out <- list(meta_model_MLE_for_MESLE=c(MESLE=unname(-solve(chat,bhat)/2)),
+                Hypothesis_Tests=dfout
             )
             return(out)
         }
-        ## test about the model parameter under LAN
+        ## test on the simulation based surrogate under LAN
         if (test=="parameter") {
             Winv <- diag(1/w)
             nobs <- dim(llmat)[1] # number of observations
@@ -317,7 +376,7 @@ ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL, ncor
                 slopes <- simplify2array(mclapply(1:nobs, function(i) {
                     ## quadratic regression for each observation piece (each row of simll)
                     ll_i <- llmat[i,]
-                    Ahat_i <- c(solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%ll_i))
+                    Ahat_i <- c(solve(t(Theta012)%*%W%*%Theta012, t(Theta012)%*%W%*%ll_i))
                     return(Ahat_i[2]+2*Ahat_i[3]*slope_at) # estimated slopes at uniquetheta
                 }, mc.cores=ncores)
                 ) # matrix of dimension length(uniquetheta) times nobs
@@ -325,26 +384,25 @@ ht.simll <- function(simll, null.value, test=NULL, type=NULL, weights=NULL, ncor
                 slopes <- sapply(1:nobs, function(i) {
                     ## quadratic regression for each observation piece (each row of simll)
                     ll_i <- llmat[i,]
-                    Ahat_i <- c(solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%ll_i))
+                    Ahat_i <- c(solve(t(Theta012)%*%W%*%Theta012, t(Theta012)%*%W%*%ll_i))
                     return(Ahat_i[2]+2*Ahat_i[3]*slope_at) # estimated slopes at uniquetheta
                 } ) # matrix of dimension length(uniquetheta) times nobs
             }
             var_slope_vec <- apply(slopes, 1, var) # estimate of the variance of the slope of the fitted quadratic
             errorvars <- apply(llmat, 1, function(ll_i) {
-                Ahat_i <- c(solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%ll_i))
-                resids_i <- ll_i - c(theta012%*%Ahat_i)
+                Ahat_i <- c(solve(t(Theta012)%*%W%*%Theta012, t(Theta012)%*%W%*%ll_i))
+                resids_i <- ll_i - c(Theta012%*%Ahat_i)
                 sigsqhat_i <- c(resids_i%*%W%*%resids_i) / (M-3)
                 return(sigsqhat_i) # return estimated error variance for the i-th observation
             }) # vector of length nobs
             E_condVar_slopes <- sapply(slope_at, function(theta_slope) {
-                c(c(0,1,2*theta_slope)%*%solve(t(theta012)%*%W%*%theta012, c(0,1,2*theta_slope)))
+                c(c(0,1,2*theta_slope)%*%solve(t(Theta012)%*%W%*%Theta012, c(0,1,2*theta_slope)))
             }) * mean(errorvars) # estimate of the expected value of the conditional variance of the estimated slope given Y (expectation with respect to Y)
             K1hat <- median(var_slope_vec - E_condVar_slopes)
             if (K1hat <= 0) {
                 stop("The estimate of K1 is nonpositive. Hypothesis test stopped.")
             }
-            K1hat <- 2 ### USE true K1.  This is to test if variability in K1hat affects inference significantly. TODO:::: REMOVE THIS LINE!!!
-            resids_1 <- ll - c(theta012%*%Ahat) # first stage estimates for residuals
+            resids_1 <- ll - c(Theta012%*%Ahat) # first stage estimates for residuals
             sigsq_1 <- c(resids_1%*%W%*%resids_1) / M # the first stage estimate of sigma^2
             if (!is.list(null.value)) {
                 null.value <- list(null.value)

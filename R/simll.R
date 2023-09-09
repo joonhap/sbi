@@ -1,8 +1,8 @@
 ## Class simll
 #' Simulation Log Likelihood class
 #'
-#' @param ll A matrix vector of simulation log likelihoods. The (i,m)-th entry is given by the log density of the observation y_i given the simulation X(theta_m).
-#' @param params A numeric vector of one-dimensional parameter values (optional, can be omitted if simulation log likelihoods are obtained at only one parameter value.)
+#' @param ll A matrix of simulation log likelihoods. The (i,m)-th entry is given by the simulation log likelihood for y_i obtained by simulating X at theta_m (e.g., the log density of y_i given X).
+#' @param params A matrix or a vector of parameter values. If a matrix, the m-th row gives the parameter vector theta_m. If theta is one dimensional, 'params' is a vector. 'params' can be omitted if simulation log likelihoods are obtained at a single one parameter value.
 #' @param weights A numeric vector of weights, inversely proportional to the variance of simulation log likelihoods (optional)
 #' @returns A class 'sll' object
 #'
@@ -48,24 +48,26 @@ validate_simll <- function(x) {
     if (!is.null(params)) {
         if (!is.numeric(params)) {
             stop(
-                "The 'params' attribute should be a numeric vector or a NULL.",
+                "The 'params' attribute should be a numeric matrix, a vector or a NULL.",
                 call. = FALSE
             )
         }
         if (!is.null(attr(params, "dim"))) {
-            stop(
-                "The 'params' attribute should be a numeric vector with no dim (dimension) attribute (i.e., not a matrix or an array), or a NULL.",
-                call. = FALSE
-            )
-        }
-        if (length(params) != 1 && dim(ll)[2] != length(params)) {
-            stop(
-                "The length of the 'params' attribute of an simll object should be equal to the number of columns in the matrix of simulation log likelihoods, or 1.",
-                call. = FALSE
-            )
+            if (dim(params)[1] != dim(ll)[2]) {
+                stop(
+                    "The number of rows in the 'params' matrix should be equal to the number of columns in the 'll' matrix.",
+                    call. = FALSE
+                )
+            }
+        } else {
+            if (length(params) != dim(ll)[2]) {
+                stop(
+                    "The length of the 'params' vector should be equal to the number of columns in the 'll' matrix.",
+                    call. = FALSE
+                )
+            }
         }
     }
-
     if (!is.null(weights)) {
         if (!is.numeric(weights)) {
             stop(
