@@ -397,7 +397,7 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
             }) # vector of length nobs
             E_condVar_slopes <- sapply(slope_at, function(theta_slope) {
                 c(c(0,1,2*theta_slope)%*%solve(t(Theta012)%*%W%*%Theta012, c(0,1,2*theta_slope)))
-            }) * mean(errorvars) # estimate of the expected value of the conditional variance of the estimated slope given Y (expectation with respect to Y)
+            }) * sigsqhat / nobs # an estimate of the expected value of the conditional variance of the estimated slope given Y (expectation taken with respect to Y)
             K1hat <- median(var_slope_vec - E_condVar_slopes)
             if (K1hat <= 0) {
                 stop("The estimate of K1 is nonpositive. Hypothesis test stopped.")
@@ -417,7 +417,7 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
             estEq_2 <- c(solve(t(R_1)%*%R_1, t(R_1)%*%(sqrtQ_1%*%C%*%ll))) # estimating equation for K2 and theta_star: Khat(thetastarhat // -1/2) = (R_1^T R_1)^{-1} R_1^T (Q_1^{1/2} C lhat)
             K2hat <- -2*estEq_2[2]/nobs # second stage estimate of K
             thetastarhat <- -estEq_2[1]/estEq_2[2]/2 # maximum meta model likelihood estimate for theta_star (simulation based surrogate)
-            sigsqhat <- 1/(M-1)*sum((sqrtQ_1%*%C%*%ll - nobs*K2hat*R_1%*%c(thetastarhat, -1/2))^2)
+            sigsqhat_lan <- 1/(M-1)*sum((sqrtQ_1%*%C%*%ll - nobs*K2hat*R_1%*%c(thetastarhat, -1/2))^2)
             varGamma <- 1; varLogGamma <- 1.645; covGammaLogGamma <- 1; # variance and covariance of Gamma(1,1) and log(Gamma(1,1)) ## TODO: remove this line
             theta_true <- 1 ## TODO: remove this line
             sigsq_true <- theta_true^(-2)*varGamma + sum(y^2)*varLogGamma - 2/theta_true*sum(y)*covGammaLogGamma ## true sigma^2, for this gamma-Poisson model. TODO: remove this line
@@ -425,7 +425,7 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
             teststats <- sapply(null.value,
                 function(x) {
                     v <- c(R_1%*%c(x, -1/2))
-                    (M-3)*(sum(((diag(rep(1,M-1))-outer(v,v)/sum(v*v))%*%sqrtQ_1%*%C%*%ll)^2)/(M-1)/sigsqhat - 1)
+                    (M-3)*(sum(((diag(rep(1,M-1))-outer(v,v)/sum(v*v))%*%sqrtQ_1%*%C%*%ll)^2)/(M-1)/sigsqhat_lan - 1)
                 })
             pval <- pf(teststats, 1, M-3, lower.tail=FALSE)
             dfout <- data.frame(
@@ -433,7 +433,7 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
                 pvalue=round(pval, digits=3)
             )
             out <- list(
-                meta_model_MLE_for_parameter=c(parameter=thetastarhat, K1=K1hat, K2=K2hat, error_variance=sigsqhat),
+                meta_model_MLE_for_parameter=c(parameter=thetastarhat, K1=K1hat, K2=K2hat, error_variance=sigsqhat_lan, error_variance_non_lan=sigsqhat, meanerrvar=sum(errorvars)),
                 teststats=teststats,
                 Hypothesis_Tests=dfout,
                 pval_cubic=pval_cubic
