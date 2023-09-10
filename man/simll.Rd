@@ -7,9 +7,9 @@
 simll(ll, params = NULL, weights = NULL)
 }
 \arguments{
-\item{ll}{A matrix vector of simulation log likelihoods. The (m,i)-th entry is given by the log density of the observation y_i given the simulation X(theta_m).}
+\item{ll}{A matrix of simulation log likelihoods. The (i,m)-th entry is given by the simulation log likelihood for y_i obtained by simulating X at theta_m (e.g., the log density of y_i given X).}
 
-\item{params}{A numeric vector of one-dimensional parameter values (optional, can be omitted if simulation log likelihoods are obtained at only one parameter value.)}
+\item{params}{A matrix or a vector of parameter values. If a matrix, the m-th row gives the parameter vector theta_m. If theta is one dimensional, 'params' is a vector. 'params' can be omitted if simulation log likelihoods are obtained at a single one parameter value.}
 
 \item{weights}{A numeric vector of weights, inversely proportional to the variance of simulation log likelihoods (optional)}
 }
