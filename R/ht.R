@@ -44,7 +44,7 @@ ht <- function(x, ...) {
 #' \item{meta_model_MLE_for_*: point estimate for the tested quantity under a normal meta model,}
 #' \item{Hypothesis_Tests: a data frame of the null values and the corresponding p-values,}
 #' \item{pvalue_numerical_error_size: When `test`="moments", approximate size of error in numerical evaluation of p-values (automatically set to approximately 0.01 or 0.001). For these case, p-values are found using the SCL distributions, whose cumulative distribution functions are numerically evaluated using random number generations. Thus p-values have some stochastic error. The size of the numerical error is automatically set to approximately 0.01, but if p-value found is less than 0.01 for any of the provided null values, more computations are carried out to reduce the numerical error size to approximately 0.001. Note that when `test`="MESLE", "information", or "parameter", the (standard) F distribution is used, so this list component is omitted.}
-#' \item{pval_cubic: The p-value of the test about whether the cubic term in the cubic polynomial regression is significant. If so, the result of the ht function may be biased.}
+#' \item{pval_cubic: The p-value of the test about whether the cubic term in the cubic polynomial regression is significant. If so, the result of the ht function may be biased. The test on the cubic term is carried out only when the number of simulation log likelihoods is greater than \eqn{(d^3+5d^2+10d+6)/6} where \eqn{d} is the dimension of the parameter vector.
 #' }
 #'
 #' @references Park, J. (2023). On simulation based inference for implicitly defined models
@@ -294,7 +294,7 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
         sigsqhat <- c(resids%*%W%*%resids) / M
         MESLEhat <- unname(-solve(chat,bhat)/2)
         ## cubic test: not included because it can be cumbersome for d>1.
-        if (d==1) {
+        if (d==1) { ## TODO: change this and implement for general d
             Theta0123 <- cbind(1, theta, theta^2, theta^3) # cubic regression to test whether the cubic coefficient = 0
             Ahat_cubic <- c(solve(t(Theta0123)%*%W%*%Theta0123, t(Theta0123)%*%W%*%ll))
             resids_cubic <- ll - c(Theta0123%*%Ahat_cubic)
@@ -358,7 +358,7 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
             #v22 <- sum(w)*(mtheta4 - mtheta2^2)
             teststats <- sapply(null.value,
                 function(x) {
-                    theta0mat <- matricize(null.value)
+                    theta0mat <- matricize(x)
                     Vq <- solve(cbind(diag(d), 2*theta0mat) %*% solve(V) %*% rbind(diag(d), 2*t(theta0mat)))
                     xi <- t(bhat + 2*theta0mat %*% vech_chat) %*% Vq %*% (bhat + 2*theta0mat %*% vech_chat)
                     (M-(d^2+3*d+2)/2)*xi/(M*d*sigsqhat)
@@ -382,7 +382,7 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
                 slope_at <- MESLEhat
             } else {
                 ## otherwise, find the slope at the componentwise mean of the theta matrix
-                slope_at <- apply(MESLEhat, 2, mean)
+                slope_at <- apply(theta, 2, mean)
             }
             if (ncores>1) {
                 require(parallel)
@@ -399,12 +399,24 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
                     ll_i <- llmat[i,]
                     Ahat_i <- c(solve(t(Theta012)%*%W%*%Theta012, t(Theta012)%*%W%*%ll_i))
                     return(Ahat_i[bindex]+2*unvech(Ahat_i[cindex])%*%slope_at) # estimated slope
-                } ) # matrix of dimension d times nobs
+                }, simplify="array") # matrix of dimension d times nobs
             }
             slope <- rbind(slope) # if d = 1, make `slope` into a 1 X nobs matrix
-            var_slope_vec <- var(t(slope)) # estimate of the variance of the slope of the fitted quadratic
+            if (case=="iid") {
+                var_slope_vec <- var(t(slope)) # estimate of the variance of the slope of the fitted quadratic
+            } else if (case=="stationary") {
+                max_lag <- min(10, round(sqrt(nobs))) ## TODO: change this
+                var_slope_vec <- matrix(0, d, d) # estimate of the variance of the slope of the fitted quadratic
+                for (i1 in 1:d) {
+                    for (i2 in 1:d) {
+                        for (lag in max_lag:-max_lag) {
+                            var_slope_vec[i1, i2] <- var_slope_vec[i1, i2] + cov(slope[i1,max(1,1+max_lag):min(nobs,nobs+max_lag)], slope[i2,max(1,1-max_lag):min(nobs,nobs-max_lag)])
+                        }
+                    }
+                }
+            }
             E_condVar_slope <- c(cbind(0,diag(d),2*matricize(slope_at))%*%solve(t(Theta012)%*%W%*%Theta012, t(cbind(0,diag(d),2*matricize(slope_at))))) * sigsqhat / nobs # an estimate of the expected value of the conditional variance of the estimated slope given Y (expectation taken with respect to Y)
-            K1hat <- var_slope_vec - E_condVar_slope # estimate of K1
+            K1hat <- var_slope_vec - E_condVar_slope
             if (any(svd(K1hat)$d <= 0)) {
                 stop("The estimate of K1 is not positive definite. Hypothesis test stopped.")
             }
@@ -425,10 +437,6 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
             K2hat <- unvech(vech_K2hat)
             thetastarhat <- solve(K2hat,estEq_2[1:d])/nobs # maximum meta model likelihood estimate for theta_star (simulation based surrogate)
             sigsqhat_lan <- 1/(M-1)*sum((sqrtQ_1%*%C%*%ll - R_1%*%estEq_2)^2)
-            ##varGamma <- 1; varLogGamma <- 1.645; covGammaLogGamma <- 1; # variance and covariance of Gamma(1,1) and log(Gamma(1,1)) ## TODO: remove this line
-            ##theta_true <- 1 ## TODO: remove this line
-            ##sigsq_true <- theta_true^(-2)*varGamma + sum(y^2)*varLogGamma - 2/theta_true*sum(y)*covGammaLogGamma ## true sigma^2, for this gamma-Poisson model. TODO: remove this line
-            ##K2_true <- 1 # true K2 for this model.  TODO: remove this line
             teststats <- sapply(null.value,
                 function(x) {
                     desgmat <- rbind(-2*matricize(x), diag((d^2+d)/2))
@@ -450,6 +458,5 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
     }
 }
     
-### TODO: for test="parameter", `type` should be `iid` or `stationary`.
-### The stationary case should be implemented.  A test of stationarity can be carried out, and a warning should be given when the test is positive.
-### TODO: use mclapply for regression for each observation piece.
+### TODO: when case='stationary', a test of stationarity can be carried out, and a warning should be given when the test is positive.
+### TODO: implement cubic test

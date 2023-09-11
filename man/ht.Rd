@@ -12,8 +12,7 @@
   case = NULL,
   type = NULL,
   weights = NULL,
-  ncores = 1,
-  y = NULL
+  ncores = 1
 )
 }
 \arguments{
@@ -37,7 +36,7 @@ A list consisting of the following components are returned.
 \item{meta_model_MLE_for_*: point estimate for the tested quantity under a normal meta model,}
 \item{Hypothesis_Tests: a data frame of the null values and the corresponding p-values,}
 \item{pvalue_numerical_error_size: When \code{test}="moments", approximate size of error in numerical evaluation of p-values (automatically set to approximately 0.01 or 0.001). For these case, p-values are found using the SCL distributions, whose cumulative distribution functions are numerically evaluated using random number generations. Thus p-values have some stochastic error. The size of the numerical error is automatically set to approximately 0.01, but if p-value found is less than 0.01 for any of the provided null values, more computations are carried out to reduce the numerical error size to approximately 0.001. Note that when \code{test}="MESLE", "information", or "parameter", the (standard) F distribution is used, so this list component is omitted.}
-\item{pval_cubic: The p-value of the test about whether the cubic term in the cubic polynomial regression is significant. If so, the result of the ht function may be biased.}
+\item{pval_cubic: The p-value of the test about whether the cubic term in the cubic polynomial regression is significant. If so, the result of the ht function may be biased. The test on the cubic term is carried out only when the number of simulation log likelihoods is greater than \eqn{\frac{1}{6}(d^3+5d^2+10d+6)} where \eqn{d} is the dimension of the parameter vector.
 }
 }
 \description{
