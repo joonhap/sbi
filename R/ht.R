@@ -13,8 +13,9 @@ ht <- function(x, ...) {
 #' @param test A character string indicating which is to be tested about. One of "moments", "MESLE", or "parameter". See Details.
 #' @param case When `test` is "parameter", `case` needs to be either "iid" or "stationary". `case` = "iid" means that the observations are iid, and `case` = "stationary" means that the observations form a stationary sequence. The `case` argument affects how the variance of the slope of the mean function (=K_1 in Park (2023)) is estimated. The default value is "stationary".
 #' @param type When `test` is "moments", the `type` argument needs to be specified. `type` = "point" means that the test about the mean and the variance of simulation log likelihoods at a given parameter point is considered. `type` = "regression" means that the test about the mean function and the variance of simulation log likelihoods at various parameter values is considered. See Details.
-#' @param max_lag When `test` is "parameter" and `case` is "stationary", the value of `max_lag` gives the truncation point for lagged autocovariance when estimating K1 as a sum of lagged autocovariances of estimates slopes. If not supplied, the default value is min(10, sqrt(nobs)), where nobs is the number of observations.
 #' @param weights An optional argument. The un-normalized weights of the simulation log likelihoods for regression. A numeric vector of length equal to the `params` attribute of the `simll` object. See Details below.
+#' @param max_lag When `test` is "parameter" and `case` is "stationary", the value of `max_lag` gives the truncation point for lagged autocovariance when estimating K1 as a sum of lagged autocovariances of estimates slopes. If not supplied, default is the maximum lag for which at least one of the entries of the matrix of lagged autocorrelation has absolute value greater than 4/sqrt(nobs), where the lagged autocorrelation is found up to `10*log10(nobs/d)`. Here `nobs` is the number of observations and `d` is the dimension of the parameter space.
+#' @param plot_acf Logical.  When `test` is "parameter" and `case` is "stationary", If `plot_acf` is TRUE, the autocorrelation plot of the estimated slopes of the quadratic fit to the simulation log likelihoods is generated.
 #' @param ncores An optional argument indicating the number of CPU cores to use for computation. Used only when `test`="parameter". The `mclapply` function in the `parallel` package is used. The `parallel` package needs to be installed unless `ncores`=1. In Windows, `ncores` greater than 1 is not supported (see ?mclapply for more information.)
 #'
 #' @details
@@ -46,12 +47,13 @@ ht <- function(x, ...) {
 #' \item{meta_model_MLE_for_*: point estimate for the tested quantity under a normal meta model,}
 #' \item{Hypothesis_Tests: a data frame of the null values and the corresponding p-values,}
 #' \item{pvalue_numerical_error_size: When `test`="moments", approximate size of error in numerical evaluation of p-values (automatically set to approximately 0.01 or 0.001). For these case, p-values are found using the SCL distributions, whose cumulative distribution functions are numerically evaluated using random number generations. Thus p-values have some stochastic error. The size of the numerical error is automatically set to approximately 0.01, but if p-value found is less than 0.01 for any of the provided null values, more computations are carried out to reduce the numerical error size to approximately 0.001. Note that when `test`="MESLE", "information", or "parameter", the (standard) F distribution is used, so this list component is omitted.}
-#' \item{pval_cubic: The p-value of the test about whether the cubic term in the cubic polynomial regression is significant. If so, the result of the ht function may be biased. The test on the cubic term is carried out only when the number of simulation log likelihoods is greater than \eqn{(d^3+5d^2+10d+6)/6} where \eqn{d} is the dimension of the parameter vector.
+#' \item{pval_cubic: The p-value of the test about whether the cubic term in the cubic polynomial regression is significant. If so, the result of the ht function may be biased. The test on the cubic term is carried out only when the number of simulation log likelihoods is greater than \eqn{(d^3+5d^2+10d+6)/6} where \eqn{d} is the dimension of the parameter vector.}
+#' \item{max_lag: if `test`="parameter" and `case`="stationary", the maximum lag for computing the autocovariance in estimating K1 is shown.}
 #' }
 #'
 #' @references Park, J. (2023). On simulation based inference for implicitly defined models
 #' @export
-ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, max_lag=NULL, weights=NULL, ncores=1) {
+ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights=NULL, max_lag=NULL, plot_acf=FALSE, ncores=1) {
     validate_simll(simll)
     if (is.null(test)) {
         test <- "parameter"
@@ -412,21 +414,26 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, max_lag
                 var_slope_vec <- var(t(slope)) # estimate of the variance of the slope of the fitted quadratic
             } else if (case=="stationary") {
                 if (is.null(max_lag)) {
-                    max_lag <- min(10, round(sqrt(nobs)))
+                    sigcorr <- which(apply(acf(t(slope),plot=plot_acf)$acf[-1,,,drop=FALSE], 1, function(x) { any(abs(x) > 4/sqrt(nobs)) })) # lags for which there are significant correlations
+                    if (length(sigcorr)==0) { # if correlations on all lags are insignificant
+                        max_lag <- 0
+                    } else {
+                        max_lag <- max(sigcorr)
+                    }
                 }
                 var_slope_vec <- matrix(0, d, d) # estimate of the variance of the slope of the fitted quadratic
                 for (i1 in 1:d) {
                     for (i2 in 1:d) {
                         for (lag in max_lag:-max_lag) {
-                            var_slope_vec[i1, i2] <- var_slope_vec[i1, i2] + cov(slope[i1,max(1,1+max_lag):min(nobs,nobs+max_lag)], slope[i2,max(1,1-max_lag):min(nobs,nobs-max_lag)])
+                            var_slope_vec[i1, i2] <- var_slope_vec[i1, i2] + cov(slope[i1,max(1,1+lag):min(nobs,nobs+lag)], slope[i2,max(1,1-lag):min(nobs,nobs-lag)])
                         }
                     }
                 }
             }
             E_condVar_slope <- cbind(0,diag(d),2*matricize(slope_at))%*%solve(t(Theta012)%*%W%*%Theta012, t(cbind(0,diag(d),2*matricize(slope_at)))) * sigsqhat / nobs # an estimate of the expected value of the conditional variance of the estimated slope given Y (expectation taken with respect to Y)
             K1hat <- var_slope_vec - E_condVar_slope
-            if (any(svd(K1hat)$d <= 0)) {
-                stop("The estimate of K1 is not positive definite. Hypothesis test stopped.")
+            if (any(eigen(K1hat)$values <= 0)) {
+                warning("The estimate of K1 is not positive definite. The result of the hypothesis test will not be reliable.")
             }
             resids_1 <- ll - c(Theta012%*%Ahat) # first stage estimates for residuals
             sigsq_1 <- c(resids_1%*%W%*%resids_1) / M # the first stage estimate of sigma^2
@@ -462,9 +469,13 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, max_lag
             )
             out <- list(regression_estimates=list(a=Ahat[1], b=bhat, c=chat, sigma_sq=sigsqhat),
                 meta_model_MLE_for_parameter=c(parameter=thetastarhat, K1=K1hat, K2=K2hat, error_variance=sigsqhat_lan),
+                Hypothesis_Tests=dfout,
                 teststats=teststats,
-                Hypothesis_Tests=dfout
+                pval=pval
             )
+            if (case=="stationary") {
+                out <- c(out, max_lag=max_lag)
+            }
             return(out)
         }
     }
