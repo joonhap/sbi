@@ -1,0 +1,37 @@
+vech <- function(mat) { # half-vectorization
+    if (dim(mat)[1] != dim(mat)[2]) {
+        stop("The argument to vech should be a square matrix.")
+    }
+    d <- dim(mat)[1]
+    l <- 0
+    output <- numeric((d^2+d)/2)
+    for (k in 1:d) {
+        output[(l+1):(l+d+1-k)] <- mat[k:d,k]
+        l <- l+d+1-k
+    }
+    output
+}
+vec3 <- function(vec) {
+    d <- length(vec)
+    l <- 0
+    out <- numeric((d^3+3*d^2+2*d)/6)
+    for (k1 in 1:d) {
+        for (k2 in 1:k1) {
+            out[(l+1):(l+k2)] <- vec[k1]*vec[k2]*vec[1:k2]
+            l <- l+k2
+        }
+    }
+    out
+}
+vec2 <- function(vec) {
+    out <- 2*outer(vec,vec)
+    diag(out) <- vec^2
+    out
+}
+vec012 <- function(vec) {
+    c(1, vec, vech(vec2(vec)))
+}
+theta <- rbind(1:2, 11:12)
+Theta012 <- t(apply(theta, 1, vec012))
+Theta0123 <- cbind(Theta012, t(apply(theta, 1, vec3))) # cubic regression to test whether the cubic coefficient = 0
+

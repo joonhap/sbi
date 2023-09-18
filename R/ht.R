@@ -9,7 +9,7 @@ ht <- function(x, ...) {
 #'
 #' @name ht
 #' @param simll A class `simll` object, containing simulation log likelihoods, the parameter values at which simulations are made (optional), and the weights for those simulations for regression (optional). See help(simll).
-#' @param null.value The null value(s) for the hypothesis test. Either a numeric vector (for running a test for a single null value, which can have one or more components) or a list of numeric vectors (for running tests for multiple null values).
+#' @param null.value The null value(s) for the hypothesis test. The expected format depends on which teset will be carried out. See the Details section for more information.
 #' @param test A character string indicating which is to be tested about. One of "moments", "MESLE", or "parameter". See Details.
 #' @param case When `test` is "parameter", `case` needs to be either "iid" or "stationary". `case` = "iid" means that the observations are iid, and `case` = "stationary" means that the observations form a stationary sequence. The `case` argument affects how the variance of the slope of the mean function (=K_1 in Park (2023)) is estimated. The default value is "stationary".
 #' @param type When `test` is "moments", the `type` argument needs to be specified. `type` = "point" means that the test about the mean and the variance of simulation log likelihoods at a given parameter point is considered. `type` = "regression" means that the test about the mean function and the variance of simulation log likelihoods at various parameter values is considered. See Details.
@@ -21,8 +21,6 @@ ht <- function(x, ...) {
 #' @details
 #' This is a generic function, taking a class `simll` object as the first argument.
 #' Hypothesis tests are carried out under a normal meta model--that is, the simulation log likelihoods (whose values are given in the `simll` object) are normally distributed.
-#'
-#' When `null.value` is a list, a hypothesis test is carried out for each null value specified in the list. For example, in order to run tests for more than one null values for a single-component parameter, you can let `null.value=as.list(vector_of_null_values)`. If the null values are given in the form of a matrix (each row gives a vector of null value), you can let `null.values=apply(matrix_of_null_values, 1, identity, simplify=FALSE)`.
 #'
 #' If `test` = "moments", the `type` argument needs to be either "point" or "regression".
 #' If `type` = "point", a test about the mean and the variance of the simulation log likelihood at a single parameter value is conducted.
@@ -41,14 +39,18 @@ ht <- function(x, ...) {
 #'
 #' When quadratic regression is carried out, the weights for the simulation based likelihood estimates can be specified. The length of `weights` should be equal to that of the `params` attribute of the `simll`, which is equal to the number of rows in the simulation log likelihood matrix in the `simll` object. It is important to note that the weights are not supposed to be normalized (i.e., sum to one). Multiplying all weights by the same constant changes the estimation outputs. If not supplied, the `weights` attribute of the `simll` object is used. If neither is supplied, `weights` defaults to the vector of all ones.
 #'
+#' When `test` is "moments" and `type` is "point", `null.value` is either a vector of length two (one entry for the mean and the other for the variance of the simulation log likelihoods) or a list of vectors of length two (each entry of the list gives a null value consisting of the mean and the variance.)
+#' When `test` is "moments" and `type` is "regression", `null.value` can be a list of length four, or a list of lists of length four. The first case corresponds to when a single null hypothesis is tested. The four components are a) the constant term in the quadratic mean function (scalar), b) the linear coefficient term in the mean function (vector of length \eqn{d} where \eqn{d} is the dimension of the parameter vector), c) the quadratic coefficient term in the mean function (symmetric matrix of dimension \eqn{d \times d}), and d) the variance of the simulation log likelihood (scalar). The second case is when more than one null values are tested. In this case each component of the list is a list having four entries as described for the case of a single null value.
+#' When `test` is "MESLE" or "parameter", `null.value` is a vector of length \eqn{d} (a single null value) or a list of vectors of length \eqn{d} (more than one null values).
+#' 
 #' @return A list consisting of the following components are returned.
 #' \itemize{
 #' \item{regression_estimates: point estimates for the meta model parameters, a, b, c, and sigma^2. Given only when test="MESLE" or "parameter",}
 #' \item{meta_model_MLE_for_*: point estimate for the tested quantity under a normal meta model,}
-#' \item{Hypothesis_Tests: a data frame of the null values and the corresponding p-values,}
+#' \item{Hypothesis_Tests: a data frame of the null values and the corresponding p-values. When `test`="moments" and `type`="regression", each null value is given in the form of c(a,b,c,sigma^2) where a, b, c, sigma^2 are first, second, third, and fourth entries of the given null value.}
 #' \item{pvalue_numerical_error_size: When `test`="moments", approximate size of error in numerical evaluation of p-values (automatically set to approximately 0.01 or 0.001). For these case, p-values are found using the SCL distributions, whose cumulative distribution functions are numerically evaluated using random number generations. Thus p-values have some stochastic error. The size of the numerical error is automatically set to approximately 0.01, but if p-value found is less than 0.01 for any of the provided null values, more computations are carried out to reduce the numerical error size to approximately 0.001. Note that when `test`="MESLE", "information", or "parameter", the (standard) F distribution is used, so this list component is omitted.}
-#' \item{pval_cubic: The p-value of the test about whether the cubic term in the cubic polynomial regression is significant. If so, the result of the ht function may be biased. The test on the cubic term is carried out only when the number of simulation log likelihoods is greater than \eqn{(d^3+5d^2+10d+6)/6} where \eqn{d} is the dimension of the parameter vector.}
 #' \item{max_lag: if `test`="parameter" and `case`="stationary", the maximum lag for computing the autocovariance in estimating K1 is shown.}
+#' \item{pval_cubic: The p-value of the test about whether the cubic term in the cubic polynomial regression is significant. If so, the result of the ht function may be biased. The test on the cubic term is carried out only when the number of simulation log likelihoods is greater than \eqn{(d+1)*(d+2)*(d+3)/6} where \eqn{d} is the dimension of the parameter vector.}
 #' }
 #'
 #' @references Park, J. (2023). On simulation based inference for implicitly defined models
@@ -79,76 +81,58 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
         match.arg(type, c("point", "regression"))
     }
 
-    if (!is.numeric(null.value)) {
-        if (!is.list(null.value)) {
-            stop(
-                "`null.value` should be numeric or a list of numeric values",
-                call. = FALSE
-            )
-        }
-        if (is.list(null.value) && !all(sapply(null.value, is.numeric))) {
-            stop(
-                "If `null.value` is a list, all of its components should be numeric.",
-                call. = FALSE
-            )
-        }
-    }
-
-    if (is.numeric(null.value)) {
-        if (test=="moments") {
-            if (type=="point" && length(null.value)!=2) {
+    if (!is.numeric(null.value) && !is.list(null.value)) {
+        stop(
+            "`null.value` should be numeric or a list.",
+            call. = FALSE
+        )
+    }            
+    if (test=="moments") {
+        if (type=="point") {
+            if (is.numeric(null.value) && length(null.value)!=2) {
                 stop(
                     "If `test` is 'moments', `type` is 'point', and `null.value` is not a list, the length of `null.value` should be 2 (mean and variance of the simulation log likelihoods).",
                     call. = FALSE
                 )
             }
-            if (type=="regression") {
-                d <- dim(attr(simll, "params"))[2]
-                ## TODO: change to multiparameter case
-                if (length(null.value)!=(d^2+3*d+2)/2+1) {
-                    stop(
-                        "If `test` is 'moments', `type` is 'regression', and `null.value` is not a list, the length of `null.value` should be (d^2+3d+2)/2 + 1 (1 for the constant term a, d for the linear coefficient b, (d^2+d)/2 for the lower-triangular portion of the quadratic coefficient matrix c, and 1 for the variance of the simulation log likelihood).",
-                        call. = FALSE
-                    )
-                }
-            }
-        }
-        if (test=="MESLE" || test=="parameter") {
-            d <- dim(attr(simll, "params"))[2]
-            if (length(null.value)!=d) {
+            if (is.list(null.value) && !all(sapply(null.value, function(n) { is.numeric(n) && length(n)==2 }))) {
                 stop(
-                    "If `test` is 'MESLE' or 'parameter' and `null.value` is not a list, the length of `null.value` should be equal to d, the dimension of the parameter space.",
+                    "If `null.value` is 'moments', `type` is 'point', and `null.value` is a list, all its entries should be a numeric vector of length 2.",
                     call. = FALSE
                 )
+            }
+        }
+        if (type=="regression") {
+            d <- dim(attr(simll, "params"))[2]
+            if (!is.list(null.value)) {
+                stop(
+                    "If `test` is 'moments' and `type` is 'regression', `null.value` should be a list.",
+                    call. = FALSE
+                )
+            }
+            if (!all(sapply(null.value, function(n) { all(c(is.numeric(n[[1]]), is.numeric(n[[2]]), is.numeric(n[[3]]), is.numeric(n[[4]]), length(n[[1]])==1, length(n[[2]])==d, length(n[[3]])==d^2, length(n[[4]])==1)) }))) {
+                if (length(null.value)!=4 || !all(c(is.numeric(null.value[[1]]), is.numeric(null.value[[2]]), is.numeric(null.value[[3]]), is.numeric(null.value[[4]]), length(null.value[[1]])==1, length(null.value[[2]])^2==length(null.value[[3]]), length(null.value[[4]])==1))) {
+                stop(
+                    "If `test` is 'moments' and `type` is 'regression', `null.value` should be either a list of length four or a list of lists of length four. In the first case, the first entry should be a numeric scalar, the second a numeric vector of length \eqn{d} where \eqn{d} is the dimension of the parameter space, the third a symmetric matrix of dimension \eqn{d\times d}, and the fourth a numeric scalar. In the second case, each entry of the list should be of the same form as described for the first case.",
+                    call. = FALSE
+                )
+                }
             }
         }
     }
-    if (is.list(null.value)) {
-        if (test=="moments") {
-            if (type=="point" && !all(sapply(null.value, length)==2)) {
-                stop(
-                    "If `null.value` is a list, `test` is 'moments', and `type` is 'point', all components of `null.value` should be a numeric vector of length 2 (the mean and variance of simulation log likelihoods).",
-                    call. = FALSE
-                )
-            }
-            if (type=="regression") {
-                d <- dim(attr(simll, "params"))[2]
-                if (!all(sapply(null.value, length)==(d^2+3*d+2)/2+1)) {
-                    stop(
-                        "If `null.value` is a list, `test` is 'moments', and `type` is 'regression', all components of `null.value` should be a numeric vector of length (d^2+3d+2)/2 + 1 (1 for the constant term a, d for the linear coefficient b, (d^2+d)/2 for the lower-triangular portion of the quadratic coefficient matrix c, and 1 for the variance of the simulation log likelihood).",
-                        call. = FALSE
-                    )
-                }
-            }
+    if (test=="MESLE" || test=="parameter") {
+        d <- dim(attr(simll, "params"))[2]
+        if (is.numeric(null.value) && length(null.value)!=d) {
+            stop(
+                "If `test` is 'MESLE' or 'parameter' and `null.value` is not a list, the length of `null.value` should be equal to d, the dimension of the parameter space.",
+                call. = FALSE
+            )
         }
-        if (test=="MESLE" || test=="parameter") {
-            d <- dim(attr(simll, "params"))[2]
-            if (!all(sapply(null.value, length)==d)) {
-                stop(
-                    "If `null.value` is a list and `test` is 'MESLE' or 'parameter', all list components of `null.value` should be a numeric vector of length d.",
-                    call. = FALSE
-                )
-            }
+        if (is.list(null.value) && !all(sapply(null.value, function(n) { is.numeric(n) && length(n)==d) })) {
+            stop(
+                "If `test` is 'MESLE' or 'parameter' and `null.value` is a list, all its entries should be a numeric vector of length d, the dimension of the parameter space".,
+                call. = FALSE
+            )
         }
     }
     if (test=="moments" && type=="point") {
@@ -296,24 +280,41 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
         resids <- ll - c(Theta012%*%Ahat)
         sigsqhat <- c(resids%*%W%*%resids) / M
         MESLEhat <- unname(-solve(chat,bhat)/2)
-        ## cubic test: not included because it can be cumbersome for d>1.
-        if (d==1) { ## TODO: change this and implement for general d
-            Theta0123 <- cbind(1, theta, theta^2, theta^3) # cubic regression to test whether the cubic coefficient = 0
+        ## cubic test
+        if (M > (d+1)*(d+2)*(d+3)/6) { # carry out cubic test if this condition is met
+            cubic_test <- TRUE
+            vec3 <- function(vec) {
+                d <- length(vec)
+                l <- 0
+                out <- numeric((d^3+2*d^2+d)/6)
+                for (k1 in 1:d) {
+                    for (k2 in 1:k1) {
+                        out[(l+1):(l+k2)] <- vec[k1]*vec[k2]*vec[1:k2]
+                        l <- l+k2
+                    }
+                }
+                out
+            }
+            Theta0123 <- cbind(Theta012, t(apply(theta, 1, vec3))) # design matrix for cubic regression to test whether the cubic coefficient = 0
             Ahat_cubic <- c(solve(t(Theta0123)%*%W%*%Theta0123, t(Theta0123)%*%W%*%ll))
             resids_cubic <- ll - c(Theta0123%*%Ahat_cubic)
             sigsqhat_cubic <- c(resids_cubic%*%W%*%resids_cubic) / M
-            pval_cubic <- pf((sigsqhat-sigsqhat_cubic)/sigsqhat_cubic*(sum(w>0)-4), 1, sum(w>0)-4, lower.tail=FALSE)
+            pval_cubic <- pf((sigsqhat-sigsqhat_cubic)/sigsqhat_cubic*(sum(w>0)-(d+1)*(d+2)*(d+3)/6), d*(d+1)*(d+2)/6, sum(w>0)-(d+1)*(d+2)*(d+3)/6, lower.tail=FALSE)
+        } else {
+            cubic_test <- FALSE
         }
         ## test about moments
         if (test=="moments") {
-            ## TODO: check if the moments test are correct
-            if (!is.list(null.value)) {
-                null.value <- list(null.value)
+            if (!is.list(null.value[[1]])) {
+                null.value <- list(null.value) # for a single hypothesis test, change `null.value` to a nested list to be of the same structure as multiple hypotheses testing case.
             }
             teststats <- sapply(null.value,
                 function(x) {
-                    err <- ll - c(Theta012%*%x[1:((d^2+3*d+2)/2)])
-                    .5*M*log(sigsqhat/x[(d^2+3*d+2)/2+1]) - .5*c(err%*%W%*%err)/x[(d^2+3*d+2)/2+1] + M/2
+                    a_null <- x[[1]]
+                    b_null <- x[[2]]
+                    c_null <- x[[3]]
+                    err <- ll - c(Theta012%*%c(a.null, b.null, vech(c.null)))
+                    .5*M*log(sigsqhat/x[[4]]) - .5*c(err%*%W%*%err)/x[[4]] + M/2
                 })
             num.error.size <- 0.01
             pvalout <- pscl(teststats, M, (d^2+3*d+2)/2, num_error_size=num.error.size)
@@ -333,16 +334,19 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
             }
             precdigits <- max(-floor(log10(num.error.size)), 1)
             dfout <- data.frame(
-                a_null=sapply(null.value, function(x) x[1]),
-                b_null=sapply(null.value, function(x) x[2:(d+1)]),
-                c_null=sapply(null.value, function(x) x[(d+2):((d^2+3*d+2)/2)]),
-                sigma_sq_null=sapply(null.value, function(x) x[(d^2+3*d+2)/2+1]),
+                a_null=sapply(null.value, function(x) x[[1]]),
+                b_null=sapply(null.value, function(x) x[[2]]),
+                c_null=sapply(null.value, function(x) x[[3]]),
+                sigma_sq_null=sapply(null.value, function(x) x[[4]]),
                 pvalue=round(pval, digits=precdigits)
             )
             out <- list(meta_model_MLE_for_moments=c(a=Ahat[1], b=Ahat[2:(d+1)], c=Ahat[(d+2):((d^2+3*d+2)/2)], sigma_sq=sigsqhat),
                 Hypothesis_Tests=dfout,
                 pvalue_numerical_error_size=num.error.size
             )
+            if (cubic_test) {
+                out <- c(out, pval_cubic=pval_cubic)
+            }
             return(out)
         }
         ## test about MESLE
@@ -379,7 +383,13 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
                 meta_model_MLE_for_MESLE=c(MESLE=MESLEhat),
                 Hypothesis_Tests=dfout
             )
+            if (cubic_test) {
+                out <- c(out, pval_cubic=pval_cubic)
+            }
             return(out)
+            if (cubic_test) {
+                out <- c(out, pval_cubic=pval_cubic)
+            }
         }
         ## test on the simulation based surrogate under LAN
         if (test=="parameter") {
@@ -469,17 +479,17 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
             )
             out <- list(regression_estimates=list(a=Ahat[1], b=bhat, c=chat, sigma_sq=sigsqhat),
                 meta_model_MLE_for_parameter=c(parameter=thetastarhat, K1=K1hat, K2=K2hat, error_variance=sigsqhat_lan),
-                Hypothesis_Tests=dfout,
-                teststats=teststats,
-                pval=pval
+                Hypothesis_Tests=dfout
             )
             if (case=="stationary") {
                 out <- c(out, max_lag=max_lag)
+            }
+            if (cubic_test) {
+                out <- c(out, pval_cubic=pval_cubic)
             }
             return(out)
         }
     }
 }
-    
 ### TODO: when case='stationary', a test of stationarity can be carried out, and a warning should be given when the test is positive.
-### TODO: implement cubic test (?)
+
