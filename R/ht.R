@@ -14,8 +14,8 @@ ht <- function(x, ...) {
 #' @param case When `test` is "parameter", `case` needs to be either "iid" or "stationary". `case` = "iid" means that the observations are iid, and `case` = "stationary" means that the observations form a stationary sequence. The `case` argument affects how the variance of the slope of the mean function (=K_1 in Park (2023)) is estimated. The default value is "stationary".
 #' @param type When `test` is "moments", the `type` argument needs to be specified. `type` = "point" means that the test about the mean and the variance of simulation log likelihoods at a given parameter point is considered. `type` = "regression" means that the test about the mean function and the variance of simulation log likelihoods at various parameter values is considered. See Details.
 #' @param weights An optional argument. The un-normalized weights of the simulation log likelihoods for regression. A numeric vector of length equal to the `params` attribute of the `simll` object. See Details below.
-#' @param max_lag When `test` is "parameter" and `case` is "stationary", the value of `max_lag` gives the truncation point for lagged autocovariance when estimating K1 as a sum of lagged autocovariances of estimates slopes. If not supplied, default is the maximum lag for which at least one of the entries of the matrix of lagged autocorrelation has absolute value greater than 4/sqrt(nobs), where the lagged autocorrelation is found up to `10*log10(nobs/d)`. Here `nobs` is the number of observations and `d` is the dimension of the parameter space.
-#' @param plot_acf Logical.  When `test` is "parameter" and `case` is "stationary", If `plot_acf` is TRUE, the autocorrelation plot of the estimated slopes of the quadratic fit to the simulation log likelihoods is generated.
+#' @param max_lag When `test` is "parameter" and `case` is "stationary", the value of `max_lag` gives the truncation point for lagged autocovariance when estimating K1 as a sum of lagged autocovariances of estimates slopes. If not supplied, default is the maximum lag for which at least one of the entries of the matrix of lagged autocorrelation has absolute value greater than 4/sqrt(nobs), where the lagged autocorrelation is found up to lag `10*log10(nobs/d)`. Here `nobs` is the number of observations and `d` is the dimension of the parameter space.
+#' @param plot_acf Logical.  When `test` is "parameter" and `case` is "stationary", If `plot_acf` is TRUE, the autocorrelation plot of the estimated slopes of the quadratic fit to the simulation log likelihoods is shown.
 #' @param ncores An optional argument indicating the number of CPU cores to use for computation. Used only when `test`="parameter". The `mclapply` function in the `parallel` package is used. The `parallel` package needs to be installed unless `ncores`=1. In Windows, `ncores` greater than 1 is not supported (see ?mclapply for more information.)
 #'
 #' @details
@@ -45,8 +45,8 @@ ht <- function(x, ...) {
 #' 
 #' @return A list consisting of the following components are returned.
 #' \itemize{
-#' \item{regression_estimates: point estimates for the meta model parameters, a, b, c, and sigma^2. Given only when test="MESLE" or "parameter",}
-#' \item{meta_model_MLE_for_*: point estimate for the tested quantity under a normal meta model,}
+#' \item{regression_estimates: point estimates for the meta model parameters, a, b, c, and sigma^2. Given only when test="MESLE" or "parameter".}
+#' \item{meta_model_MLE_for_*: point estimate for the tested quantity under a normal meta model}
 #' \item{Hypothesis_Tests: a data frame of the null values and the corresponding p-values. When `test`="moments" and `type`="regression", each null value is given in the form of c(a,b,c,sigma^2) where a, b, c, sigma^2 are first, second, third, and fourth entries of the given null value.}
 #' \item{pvalue_numerical_error_size: When `test`="moments", approximate size of error in numerical evaluation of p-values (automatically set to approximately 0.01 or 0.001). For these case, p-values are found using the SCL distributions, whose cumulative distribution functions are numerically evaluated using random number generations. Thus p-values have some stochastic error. The size of the numerical error is automatically set to approximately 0.01, but if p-value found is less than 0.01 for any of the provided null values, more computations are carried out to reduce the numerical error size to approximately 0.001. Note that when `test`="MESLE", "information", or "parameter", the (standard) F distribution is used, so this list component is omitted.}
 #' \item{max_lag: if `test`="parameter" and `case`="stationary", the maximum lag for computing the autocovariance in estimating K1 is shown.}
@@ -103,34 +103,48 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
             }
         }
         if (type=="regression") {
-            d <- dim(attr(simll, "params"))[2]
+            if (is.null(attr(attr(simll, "params"), "dim"))) {
+                d <- 1
+            } else {
+                d <- dim(attr(simll, "params"))[2]
+            }
             if (!is.list(null.value)) {
                 stop(
                     "If `test` is 'moments' and `type` is 'regression', `null.value` should be a list.",
                     call. = FALSE
                 )
             }
-            if (!all(sapply(null.value, function(n) { all(c(is.numeric(n[[1]]), is.numeric(n[[2]]), is.numeric(n[[3]]), is.numeric(n[[4]]), length(n[[1]])==1, length(n[[2]])==d, length(n[[3]])==d^2, length(n[[4]])==1)) }))) {
-                if (length(null.value)!=4 || !all(c(is.numeric(null.value[[1]]), is.numeric(null.value[[2]]), is.numeric(null.value[[3]]), is.numeric(null.value[[4]]), length(null.value[[1]])==1, length(null.value[[2]])^2==length(null.value[[3]]), length(null.value[[4]])==1))) {
+            if (length(null.value)!=4 || !all(c(is.numeric(null.value[[1]]), is.numeric(null.value[[2]]), is.numeric(null.value[[3]]), is.numeric(null.value[[4]]), length(null.value[[1]])==1, length(null.value[[2]])^2==length(null.value[[3]]), length(null.value[[4]])==1))) {
+                if (!all(sapply(null.value, is.list))) {
+                    stop(
+                        "If `test` is 'moments' and `type` is 'regression', `null.value` should be either a list of length four or a list of lists of length four. In the first case, the first entry should be a numeric scalar, the second a numeric vector of length d where d is the dimension of the parameter space, the third a symmetric matrix of dimension d X d, and the fourth a numeric scalar. In the second case, each entry of the list should be of the same form as described for the first case.",
+                        call. = FALSE
+                    )
+                } 
+                if (!all(sapply(null.value, function(n) { all(c(is.numeric(n[[1]]), is.numeric(n[[2]]), is.numeric(n[[3]]), is.numeric(n[[4]]), length(n[[1]])==1, length(n[[2]])==d, length(n[[3]])==d^2, length(n[[4]])==1)) }))) {
                 stop(
-                    "If `test` is 'moments' and `type` is 'regression', `null.value` should be either a list of length four or a list of lists of length four. In the first case, the first entry should be a numeric scalar, the second a numeric vector of length \eqn{d} where \eqn{d} is the dimension of the parameter space, the third a symmetric matrix of dimension \eqn{d\times d}, and the fourth a numeric scalar. In the second case, each entry of the list should be of the same form as described for the first case.",
+                    "If `test` is 'moments' and `type` is 'regression', `null.value` should be either a list of length four or a list of lists of length four. In the first case, the first entry should be a numeric scalar, the second a numeric vector of length d where d is the dimension of the parameter space, the third a symmetric matrix of dimension d X d, and the fourth a numeric scalar. In the second case, each entry of the list should be of the same form as described for the first case.",
                     call. = FALSE
                 )
-                }
+                } 
             }
         }
     }
     if (test=="MESLE" || test=="parameter") {
-        d <- dim(attr(simll, "params"))[2]
+        if (is.null(attr(attr(simll, "params"), "dim"))) {
+            d <- 1
+        } else {
+            d <- dim(attr(simll, "params"))[2]
+        }
         if (is.numeric(null.value) && length(null.value)!=d) {
             stop(
                 "If `test` is 'MESLE' or 'parameter' and `null.value` is not a list, the length of `null.value` should be equal to d, the dimension of the parameter space.",
                 call. = FALSE
             )
         }
-        if (is.list(null.value) && !all(sapply(null.value, function(n) { is.numeric(n) && length(n)==d) })) {
+        if (is.list(null.value) && !all(sapply(null.value, function(n) { is.numeric(n) && length(n)==d }))) {
             stop(
-                "If `test` is 'MESLE' or 'parameter' and `null.value` is a list, all its entries should be a numeric vector of length d, the dimension of the parameter space".,
+                "If `test` is 'MESLE' or 'parameter' and `null.value` is a list, all its entries should be a numeric vector of length d, the dimension of the parameter space.",
                 call. = FALSE
             )
         }
@@ -216,6 +230,9 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
         }
         ## weighted quadratic regression
         vech <- function(mat) { # half-vectorization
+            if (length(mat)==1) {
+                mat <- cbind(mat)
+            }
             if (dim(mat)[1] != dim(mat)[2]) {
                 stop("The argument to vech should be a square matrix.")
             }
@@ -265,10 +282,16 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
         }
         W  <- diag(w)
         theta <- cbind(attr(simll, "params")) # coerce into a matrix
+        theta_mean <- apply(theta, 2, mean)
+        theta_sd <- apply(theta, 2, sd)
+        trans_n <- function(vec) { (vec-theta_mean)/theta_sd } # center and normalize
+        trans_b <- function(vec) { vec*theta_sd + theta_mean } # transform back to the original scale
+        theta_n <- t(apply(theta, 1, trans_n))
+        ## TODO: check if everything is transformed correctly
         llmat <- unclass(simll)
         ll <- apply(llmat, 2, sum)
         M <- length(ll)
-        Theta012 <- t(apply(theta, 1, vec012))
+        Theta012 <- t(apply(theta_n, 1, vec012))
         Ahat <- c(solve(t(Theta012)%*%W%*%Theta012, t(Theta012)%*%W%*%ll))
         ahat <- Ahat[1]
         d <- dim(theta)[2]
@@ -277,6 +300,9 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
         cindex <- (d+2):((d^2+3*d+2)/2) # the positions in A that correspond to vech(c)
         vech_chat <- Ahat[cindex]
         chat <- unvech(vech_chat)
+        ahat_b <- c(Ahat[1] - bhat%*%diag(1/theta_sd)%*%theta_mean + theta_mean%*%diag(1/theta_sd)%*%chat%*%diag(1/theta_sd)%*%theta_mean) # the constant term ahat in the original scale (transformed back)
+        bhat_b <- diag(1/theta_sd)%*%bhat - 2*diag(1/theta_sd)%*%chat%*%diag(1/theta_sd)%*%theta_mean # bhat in the original scale
+        chat_b <- diag(1/theta_sd)%*%chat%*%diag(1/theta_sd) # chat in the original scale
         resids <- ll - c(Theta012%*%Ahat)
         sigsqhat <- c(resids%*%W%*%resids) / M
         MESLEhat <- unname(-solve(chat,bhat)/2)
@@ -295,7 +321,7 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
                 }
                 out
             }
-            Theta0123 <- cbind(Theta012, t(apply(theta, 1, vec3))) # design matrix for cubic regression to test whether the cubic coefficient = 0
+            Theta0123 <- cbind(Theta012, t(rbind(apply(theta_n, 1, vec3)))) # design matrix for cubic regression to test whether the cubic coefficient = 0
             Ahat_cubic <- c(solve(t(Theta0123)%*%W%*%Theta0123, t(Theta0123)%*%W%*%ll))
             resids_cubic <- ll - c(Theta0123%*%Ahat_cubic)
             sigsqhat_cubic <- c(resids_cubic%*%W%*%resids_cubic) / M
@@ -310,10 +336,10 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
             }
             teststats <- sapply(null.value,
                 function(x) {
-                    a_null <- x[[1]]
-                    b_null <- x[[2]]
-                    c_null <- x[[3]]
-                    err <- ll - c(Theta012%*%c(a.null, b.null, vech(c.null)))
+                    a_null <- c(x[[1]] + x[[2]]%*%theta_mean + theta_mean %*% x[[3]] %*% theta_mean) # a in the transformed scale
+                    b_null <- diag(theta_sd)%*%(x[[2]] + 2*x[[3]]%*%theta_mean) # b in the transformed scale
+                    c_null <- diag(theta_sd)%*%x[[3]]%*%diag(theta_sd)
+                    err <- ll - c(Theta012%*%c(a_null, b_null, vech(c_null)))
                     .5*M*log(sigsqhat/x[[4]]) - .5*c(err%*%W%*%err)/x[[4]] + M/2
                 })
             num.error.size <- 0.01
@@ -333,14 +359,16 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
                 num.error.size <- pvalout$numerical_error_size
             }
             precdigits <- max(-floor(log10(num.error.size)), 1)
-            dfout <- data.frame(
-                a_null=sapply(null.value, function(x) x[[1]]),
-                b_null=sapply(null.value, function(x) x[[2]]),
-                c_null=sapply(null.value, function(x) x[[3]]),
-                sigma_sq_null=sapply(null.value, function(x) x[[4]]),
-                pvalue=round(pval, digits=precdigits)
+            dfout <- lapply(1:length(null.value), function(ii) {
+                list(
+                    a_null=null.value[[ii]][[1]],
+                    b_null=null.value[[ii]][[2]],
+                    c_null=null.value[[ii]][[3]],
+                    sigma_sq_null=null.value[[ii]][[4]],
+                    pvalue=round(pval[ii], digits=precdigits)
+                )}
             )
-            out <- list(meta_model_MLE_for_moments=c(a=Ahat[1], b=Ahat[2:(d+1)], c=Ahat[(d+2):((d^2+3*d+2)/2)], sigma_sq=sigsqhat),
+            out <- list(meta_model_MLE_for_moments=list(a=ahat_b, b=bhat_b, c=chat_b, sigma_sq=sigsqhat),
                 Hypothesis_Tests=dfout,
                 pvalue_numerical_error_size=num.error.size
             )
@@ -354,6 +382,7 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
             if (!is.list(null.value)) {
                 null.value <- list(null.value)
             }
+            null.value_n <- lapply(null.value, trans_n) # transform the null values
             U <- t(Theta012)%*%W%*%Theta012
             V <- U[-1,-1] - U[-1,1,drop=FALSE]%*%U[1,-1,drop=FALSE]/U[1,1]
             #mtheta1 <- sum(w*theta)/sum(w)
@@ -363,7 +392,7 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
             #v11 <- sum(w)*(mtheta2 - mtheta1^2)
             #v12 <- sum(w)*(mtheta3 - mtheta1*mtheta2)
             #v22 <- sum(w)*(mtheta4 - mtheta2^2)
-            teststats <- sapply(null.value,
+            teststats <- sapply(null.value_n,
                 function(x) {
                     theta0mat <- matricize(x)
                     Vq <- solve(cbind(diag(d), 2*theta0mat) %*% solve(V) %*% rbind(diag(d), 2*t(theta0mat)))
@@ -379,28 +408,25 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
                 MESLE_null=MESLE_null,
                 pvalue=round(pval, digits=3)
             )
-            out <- list(regression_estimates=list(a=Ahat[1], b=bhat, c=chat, sigma_sq=sigsqhat),
-                meta_model_MLE_for_MESLE=c(MESLE=MESLEhat),
+            out <- list(regression_estimates=list(a=ahat_b, b=bhat_b, c=chat_b, sigma_sq=sigsqhat),
+                meta_model_MLE_for_MESLE=c(MESLE=trans_b(MESLEhat)),
                 Hypothesis_Tests=dfout
             )
             if (cubic_test) {
                 out <- c(out, pval_cubic=pval_cubic)
             }
             return(out)
-            if (cubic_test) {
-                out <- c(out, pval_cubic=pval_cubic)
-            }
         }
         ## test on the simulation based surrogate under LAN
         if (test=="parameter") {
             Winv <- diag(1/w)
             nobs <- dim(llmat)[1] # number of observations
-            if (all(sapply(1:d, function(k) { min(theta[,k]) <= MESLEhat[k] && MESLEhat[k] <= max(theta[,k]) }))) {
+            if (all(sapply(1:d, function(k) { min(theta_n[,k]) <= MESLEhat[k] && MESLEhat[k] <= max(theta_n[,k]) }))) {
                 ## if MESLEhat is within the range of the given theta matrix componentwise, find the slope at MESLEhat
                 slope_at <- MESLEhat
             } else {
                 ## otherwise, find the slope at the componentwise mean of the theta matrix
-                slope_at <- apply(theta, 2, mean)
+                slope_at <- apply(theta_n, 2, mean)
             }
             if (ncores>1) {
                 require(parallel)
@@ -445,15 +471,14 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
             if (any(eigen(K1hat)$values <= 0)) {
                 warning("The estimate of K1 is not positive definite. The result of the hypothesis test will not be reliable.")
             }
-            resids_1 <- ll - c(Theta012%*%Ahat) # first stage estimates for residuals
-            sigsq_1 <- c(resids_1%*%W%*%resids_1) / M # the first stage estimate of sigma^2
             if (!is.list(null.value)) {
                 null.value <- list(null.value)
             }
+            null.value_n <- lapply(null.value, trans_n) # transform the null values
             C <- cbind(-1, diag(rep(1,M-1)))
             Theta12 <- Theta012[,-1]
-            Ctheta <- C%*%theta
-            Q_1 <- solve(C%*%Winv%*%t(C) + nobs/sigsq_1*Ctheta%*%K1hat%*%t(Ctheta)) 
+            Ctheta <- C%*%theta_n
+            Q_1 <- solve(C%*%Winv%*%t(C) + nobs/sigsqhat*Ctheta%*%K1hat%*%t(Ctheta)) 
             svdQ_1 <- svd(Q_1)
             sqrtQ_1 <- svdQ_1$u %*% diag(sqrt(svdQ_1$d)) %*% t(svdQ_1$v)
             R_1 <- sqrtQ_1%*%C%*%Theta12
@@ -462,7 +487,7 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
             K2hat <- unvech(vech_K2hat)
             thetastarhat <- solve(K2hat,estEq_2[1:d])/nobs # maximum meta model likelihood estimate for theta_star (simulation based surrogate)
             sigsqhat_lan <- 1/(M-1)*sum((sqrtQ_1%*%C%*%ll - R_1%*%estEq_2)^2)
-            teststats <- sapply(null.value,
+            teststats <- sapply(null.value_n,
                 function(x) {
                     desgmat <- rbind(-2*matricize(x), diag((d^2+d)/2))
                     G <- R_1%*%desgmat%*%solve(t(desgmat)%*%t(R_1)%*%R_1%*%desgmat, t(desgmat)%*%t(R_1))
@@ -477,8 +502,11 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
                 parameter_null=parameter_null,
                 pvalue=round(pval, digits=3)
             )
-            out <- list(regression_estimates=list(a=Ahat[1], b=bhat, c=chat, sigma_sq=sigsqhat),
-                meta_model_MLE_for_parameter=c(parameter=thetastarhat, K1=K1hat, K2=K2hat, error_variance=sigsqhat_lan),
+            out <- list(regression_estimates=list(a=ahat_b, b=bhat_b, c=chat_b, sigma_sq=sigsqhat),
+                meta_model_MLE_for_parameter=c(parameter=trans_b(thetastarhat)),
+                K1=diag(1/theta_sd)%*%K1hat%*%diag(1/theta_sd),
+                K2=diag(1/theta_sd)%*%K2hat%*%diag(1/theta_sd),
+                error_variance=sigsqhat_lan,
                 Hypothesis_Tests=dfout
             )
             if (case=="stationary") {
@@ -491,5 +519,6 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
         }
     }
 }
+## TODO: check if the inference for the surrogate is exactly the same after linear transformation of the parameter (centering and normalization)
 ### TODO: when case='stationary', a test of stationarity can be carried out, and a warning should be given when the test is positive.
 
