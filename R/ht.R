@@ -469,7 +469,7 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
             E_condVar_slope <- cbind(0,diag(d),2*matricize(slope_at))%*%solve(t(Theta012)%*%W%*%Theta012, t(cbind(0,diag(d),2*matricize(slope_at)))) * sigsqhat / nobs # an estimate of the expected value of the conditional variance of the estimated slope given Y (expectation taken with respect to Y)
             K1hat <- var_slope_vec - E_condVar_slope
             if (any(eigen(K1hat)$values <= 0)) {
-                warning("The estimate of K1 is not positive definite. The result of the hypothesis test will not be reliable.")
+                warning("The estimate of K1 is not positive definite. The result of the hypothesis test may not be reliable.")
             }
             if (!is.list(null.value)) {
                 null.value <- list(null.value)
