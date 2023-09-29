@@ -24,7 +24,6 @@ ht <- function(x, ...) {
 #'
 #' If `test` = "moments", the `type` argument needs to be either "point" or "regression".
 #' If `type` = "point", a test about the mean and the variance of the simulation log likelihood at a single parameter value is conducted.
-#' The `null.value` should be a numeric vector of length two (the first component being the mean and the second being the variance), or a list of numeric vectors of length two.
 #' If `type` = "regression", the `simll` object should contain simulation log likelihoods obtained at more than one parameter values, specified by the `params` attribute of the `simll` object. A (weighted) quadratic regression for the simulation log likelihoods will be used for hypothesis tests, where the x-axis values are given by the `params` values of the `simll` object and the y-axis values are the corresponding simulation log likelihoods.
 #' The test is about the quadruple \eqn{a, b, c, sigma^2} where \eqn{a, b, c} are coefficients of the polynomial describing the mean of the simulation log likelihood (i.e., \eqn{l(\theta) = a + b \theta + c \theta^2}) and \eqn{\sigma^2} is the variance of the simulation log likelihood.
 #' If `test` = "moments" and `type` is not specified, `type` defaults to "point" if the `params` attribute of the `simll` object is not supplied or has length one, and defaults to "regression" otherwise.
@@ -39,9 +38,9 @@ ht <- function(x, ...) {
 #'
 #' When quadratic regression is carried out, the weights for the simulation based likelihood estimates can be specified. The length of `weights` should be equal to that of the `params` attribute of the `simll`, which is equal to the number of rows in the simulation log likelihood matrix in the `simll` object. It is important to note that the weights are not supposed to be normalized (i.e., sum to one). Multiplying all weights by the same constant changes the estimation outputs. If not supplied, the `weights` attribute of the `simll` object is used. If neither is supplied, `weights` defaults to the vector of all ones.
 #'
-#' When `test` is "moments" and `type` is "point", `null.value` is either a vector of length two (one entry for the mean and the other for the variance of the simulation log likelihoods) or a list of vectors of length two (each entry of the list gives a null value consisting of the mean and the variance.)
+#' When `test` is "moments" and `type` is "point", `null.value` is either a vector of length two (one entry for the mean and the other for the variance of the simulation log likelihoods), a matrix of two columns (one for the mean and the other for the variance), or a list of vectors of length two (each entry of the list gives a null value consisting of the mean and the variance.)
 #' When `test` is "moments" and `type` is "regression", `null.value` can be a list of length four, or a list of lists of length four. The first case corresponds to when a single null hypothesis is tested. The four components are a) the constant term in the quadratic mean function (scalar), b) the linear coefficient term in the mean function (vector of length \eqn{d} where \eqn{d} is the dimension of the parameter vector), c) the quadratic coefficient term in the mean function (symmetric matrix of dimension \eqn{d \times d}), and d) the variance of the simulation log likelihood (scalar). The second case is when more than one null values are tested. In this case each component of the list is a list having four entries as described for the case of a single null value.
-#' When `test` is "MESLE" or "parameter", `null.value` is a vector of length \eqn{d} (a single null value) or a list of vectors of length \eqn{d} (more than one null values).
+#' When `test` is "MESLE" or "parameter", `null.value` is a vector of length \eqn{d} (a single null value), a matrix having \eqn{d} columns (each row giving a vector for a null value), or a list of vectors of length \eqn{d} (more than one null values).
 #' 
 #' @return A list consisting of the following components are returned.
 #' \itemize{
@@ -55,15 +54,9 @@ ht <- function(x, ...) {
 #'
 #' @references Park, J. (2023). On simulation based inference for implicitly defined models
 #' @export
-ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights=NULL, max_lag=NULL, plot_acf=FALSE, ncores=1) {
+ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), case=NULL, type=NULL, weights=NULL, max_lag=NULL, plot_acf=FALSE, ncores=1) {
     validate_simll(simll)
-    if (is.null(test)) {
-        test <- "parameter"
-        message("The `test` argument is not supplied. Defaults to `parameter`.")
-    }
-    if (!is.null(test)) {
-        match.arg(test, c("moments", "MESLE", "parameter"))
-    }
+    match.arg(test, c("moments", "MESLE", "parameter"))
     if (test=="parameter") {
         if (is.null(case)) {
             case <- "stationary"
@@ -81,23 +74,42 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
         match.arg(type, c("point", "regression"))
     }
 
-    if (!is.numeric(null.value) && !is.list(null.value)) {
-        stop(
-            "`null.value` should be numeric or a list.",
-            call. = FALSE
-        )
-    }            
     if (test=="moments") {
         if (type=="point") {
-            if (is.numeric(null.value) && length(null.value)!=2) {
+            if (is.numeric(null.value)) {
+                if (is.matrix(null.value)) {
+                    if (ncol(null.value)!=2) {
+                        stop(
+                            "If `test` is 'moments', `type` is 'point', and `null.value` should be a vector of length 2, a matrix having two columns, or a list whose entries are all vector of lengths 2.",
+                            call. = FALSE
+                        )
+                    }
+                    null.value <- apply(null.value, 1, identity, simplify=FALSE) # make null.value into a list
+                } else {
+                    if (!is.null(dim(null.value))) { # if null.value is a 3 or higer dimensional array
+                        stop(
+                            "If `test` is 'moments', `type` is 'point', and `null.value` should be a vector of length 2, a matrix having two columns, or a list whose entries are all vector of lengths 2.",
+                            call. = FALSE
+                        )
+                    }
+                    if (length(null.value)!=2) {
+                        stop(
+                            "If `test` is 'moments', `type` is 'point', and `null.value` should be a vector of length 2, a matrix having two columns, or a list whose entries are all vector of lengths 2.",
+                            call. = FALSE
+                        )
+                    }
+                    null.value <- list(null.value)
+                }
+            } else if (is.list(null.value)) { 
+                if (!all(sapply(null.value, function(n) { is.numeric(n) && length(n)==2 }))) {
+                    stop(
+                        "If `test` is 'moments', `type` is 'point', and `null.value` should be a vector of length 2, a matrix having two columns, or a list whose entries are all vector of lengths 2.",
+                        call. = FALSE
+                    )
+                }
+            } else { # if null.value is not numeric or a list
                 stop(
-                    "If `test` is 'moments', `type` is 'point', and `null.value` is not a list, the length of `null.value` should be 2 (mean and variance of the simulation log likelihoods).",
-                    call. = FALSE
-                )
-            }
-            if (is.list(null.value) && !all(sapply(null.value, function(n) { is.numeric(n) && length(n)==2 }))) {
-                stop(
-                    "If `null.value` is 'moments', `type` is 'point', and `null.value` is a list, all its entries should be a numeric vector of length 2.",
+                    "`null.value` should be a numeric vector, a matrix, or a list.",
                     call. = FALSE
                 )
             }
@@ -136,15 +148,40 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
         } else {
             d <- dim(attr(simll, "params"))[2]
         }
-        if (is.numeric(null.value) && length(null.value)!=d) {
+        if (is.numeric(null.value)) {
+            if (is.matrix(null.value)) {
+                if (ncol(null.value)!=d) {
+                    stop(
+                        "If `test` is 'MESLE' or 'parameter', `null.value` should be a numeric vector of length d, a matrix having d columns, or a list whose entries are vector of length d, where d is the dimension of the parameter space.",
+                        call. = FALSE
+                    )
+                }
+                null.value <- apply(null.value, 1, identity, simplify=FALSE) # make null.value into a list
+            } else {
+                if (!is.null(dim(null.value))) { # if null.value is a 3 or higher dimensional array
+                    stop(
+                        "If `test` is 'MESLE' or 'parameter', `null.value` should be a numeric vector of length d, a matrix having d columns, or a list whose entries are vector of length d, where d is the dimension of the parameter space.",
+                        call. = FALSE
+                    )
+                }
+                if (length(null.value)!=d) {
+                    stop(
+                        "If `test` is 'MESLE' or 'parameter', `null.value` should be a numeric vector of length d, a matrix having d columns, or a list whose entries are vector of length d, where d is the dimension of the parameter space.",
+                        call. = FALSE
+                    )
+                }
+                null.value <- list(null.value)
+            }
+        } else if (is.list(null.value)) {
+            if (!all(sapply(null.value, function(n) { is.numeric(n) && length(n)==d }))) {
+                stop(
+                    "If `test` is 'MESLE' or 'parameter', `null.value` should be a numeric vector of length d, a matrix having d columns, or a list whose entries are vector of length d, where d is the dimension of the parameter space.",
+                    call. = FALSE
+                )
+            }
+        } else { # if null.value is not numeric or a list
             stop(
-                "If `test` is 'MESLE' or 'parameter' and `null.value` is not a list, the length of `null.value` should be equal to d, the dimension of the parameter space.",
-                call. = FALSE
-            )
-        }
-        if (is.list(null.value) && !all(sapply(null.value, function(n) { is.numeric(n) && length(n)==d }))) {
-            stop(
-                "If `test` is 'MESLE' or 'parameter' and `null.value` is a list, all its entries should be a numeric vector of length d, the dimension of the parameter space.",
+                "If `test` is 'MESLE' or 'parameter', `null.value` should be a numeric vector, a matrix, or a list.",
                 call. = FALSE
             )
         }
@@ -155,9 +192,6 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
         muhat <- mean(ll)
         Ssq <- var(ll)
         M <- length(ll)
-        if (!is.list(null.value)) {
-            null.value <- list(null.value)
-        }
         if (any(sapply(null.value, function(x) x[2]<=0))) {
             stop("The second component of null.value (the variance of simulation based log likelihood estimator) should be positive.",
                 call. = FALSE
@@ -331,9 +365,6 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
         }
         ## test about moments
         if (test=="moments") {
-            if (!is.list(null.value[[1]])) {
-                null.value <- list(null.value) # for a single hypothesis test, change `null.value` to a nested list to be of the same structure as multiple hypotheses testing case.
-            }
             teststats <- sapply(null.value,
                 function(x) {
                     a_null <- c(x[[1]] + x[[2]]%*%theta_mean + theta_mean %*% x[[3]] %*% theta_mean) # a in the transformed scale
@@ -379,9 +410,6 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
         }
         ## test about MESLE
         if (test=="MESLE") {
-            if (!is.list(null.value)) {
-                null.value <- list(null.value)
-            }
             null.value_n <- lapply(null.value, trans_n) # transform the null values
             U <- t(Theta012)%*%W%*%Theta012
             V <- U[-1,-1] - U[-1,1,drop=FALSE]%*%U[1,-1,drop=FALSE]/U[1,1]
@@ -470,9 +498,6 @@ ht.simll <- function(simll, null.value, test=NULL, case=NULL, type=NULL, weights
             K1hat <- var_slope_vec - E_condVar_slope
             if (any(eigen(K1hat)$values <= 0)) {
                 warning("The estimate of K1 is not positive definite. The result of the hypothesis test may not be reliable.")
-            }
-            if (!is.list(null.value)) {
-                null.value <- list(null.value)
             }
             null.value_n <- lapply(null.value, trans_n) # transform the null values
             C <- cbind(-1, diag(rep(1,M-1)))
