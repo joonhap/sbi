@@ -314,14 +314,13 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
         vec012 <- function(vec) {
             c(1, vec, vech(vec2(vec)))
         }
-        W  <- diag(w)
+        W  <- diag(w, nrow=length(w))
         theta <- cbind(attr(simll, "params")) # coerce into a matrix
         theta_mean <- apply(theta, 2, mean)
         theta_sd <- apply(theta, 2, sd)
         trans_n <- function(vec) { (vec-theta_mean)/theta_sd } # center and normalize
         trans_b <- function(vec) { vec*theta_sd + theta_mean } # transform back to the original scale
-        theta_n <- t(apply(theta, 1, trans_n))
-        ## TODO: check if everything is transformed correctly
+        theta_n <- apply(theta, 1, trans_n) |> rbind() |> t() # apply trans_n rowwise
         llmat <- unclass(simll)
         ll <- apply(llmat, 2, sum)
         M <- length(ll)
@@ -334,9 +333,9 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
         cindex <- (d+2):((d^2+3*d+2)/2) # the positions in A that correspond to vech(c)
         vech_chat <- Ahat[cindex]
         chat <- unvech(vech_chat)
-        ahat_b <- c(Ahat[1] - bhat%*%diag(1/theta_sd)%*%theta_mean + theta_mean%*%diag(1/theta_sd)%*%chat%*%diag(1/theta_sd)%*%theta_mean) # the constant term ahat in the original scale (transformed back)
-        bhat_b <- diag(1/theta_sd)%*%bhat - 2*diag(1/theta_sd)%*%chat%*%diag(1/theta_sd)%*%theta_mean # bhat in the original scale
-        chat_b <- diag(1/theta_sd)%*%chat%*%diag(1/theta_sd) # chat in the original scale
+        ahat_b <- c(Ahat[1] - bhat%*%diag(1/theta_sd, nrow=length(theta_sd))%*%theta_mean + theta_mean%*%diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd))%*%theta_mean) # the constant term ahat in the original scale (transformed back)
+        bhat_b <- diag(1/theta_sd, nrow=length(theta_sd))%*%bhat - 2*diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd))%*%theta_mean # bhat in the original scale
+        chat_b <- diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd)) # chat in the original scale
         resids <- ll - c(Theta012%*%Ahat)
         sigsqhat <- c(resids%*%W%*%resids) / M
         MESLEhat <- unname(-solve(chat,bhat)/2)
@@ -359,7 +358,7 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
             Ahat_cubic <- c(solve(t(Theta0123)%*%W%*%Theta0123, t(Theta0123)%*%W%*%ll))
             resids_cubic <- ll - c(Theta0123%*%Ahat_cubic)
             sigsqhat_cubic <- c(resids_cubic%*%W%*%resids_cubic) / M
-            pval_cubic <- pf((sigsqhat-sigsqhat_cubic)/sigsqhat_cubic*(sum(w>0)-(d+1)*(d+2)*(d+3)/6), d*(d+1)*(d+2)/6, sum(w>0)-(d+1)*(d+2)*(d+3)/6, lower.tail=FALSE)
+            pval_cubic <- pf((sigsqhat-sigsqhat_cubic)/sigsqhat_cubic*(sum(w>0)-(d+1)*(d+2)*(d+3)/6)/(d*(d+1)*(d+2)/6), d*(d+1)*(d+2)/6, sum(w>0)-(d+1)*(d+2)*(d+3)/6, lower.tail=FALSE)
         } else {
             cubic_test <- FALSE
         }
@@ -368,8 +367,8 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
             teststats <- sapply(null.value,
                 function(x) {
                     a_null <- c(x[[1]] + x[[2]]%*%theta_mean + theta_mean %*% x[[3]] %*% theta_mean) # a in the transformed scale
-                    b_null <- diag(theta_sd)%*%(x[[2]] + 2*x[[3]]%*%theta_mean) # b in the transformed scale
-                    c_null <- diag(theta_sd)%*%x[[3]]%*%diag(theta_sd)
+                    b_null <- diag(theta_sd, nrow=length(theta_sd))%*%(x[[2]] + 2*x[[3]]%*%theta_mean) # b in the transformed scale
+                    c_null <- diag(theta_sd, nrow=length(theta_sd))%*%x[[3]]%*%diag(theta_sd, nrow=length(theta_sd))
                     err <- ll - c(Theta012%*%c(a_null, b_null, vech(c_null)))
                     .5*M*log(sigsqhat/x[[4]]) - .5*c(err%*%W%*%err)/x[[4]] + M/2
                 })
@@ -413,13 +412,6 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
             null.value_n <- lapply(null.value, trans_n) # transform the null values
             U <- t(Theta012)%*%W%*%Theta012
             V <- U[-1,-1] - U[-1,1,drop=FALSE]%*%U[1,-1,drop=FALSE]/U[1,1]
-            #mtheta1 <- sum(w*theta)/sum(w)
-            #mtheta2 <- sum(w*theta*theta)/sum(w)
-            #mtheta3 <- sum(w*theta*theta*theta)/sum(w)
-            #mtheta4 <- sum(w*theta*theta*theta*theta)/sum(w)
-            #v11 <- sum(w)*(mtheta2 - mtheta1^2)
-            #v12 <- sum(w)*(mtheta3 - mtheta1*mtheta2)
-            #v22 <- sum(w)*(mtheta4 - mtheta2^2)
             teststats <- sapply(null.value_n,
                 function(x) {
                     theta0mat <- matricize(x)
@@ -433,11 +425,11 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
                 MESLE_null <- t(MESLE_null) # if MESLE_null is a matrix, transpose it
             }
             dfout <- data.frame(
-                MESLE_null=MESLE_null,
-                pvalue=round(pval, digits=3)
+                MESLE_null,
+                pvalue=pval
             )
             out <- list(regression_estimates=list(a=ahat_b, b=bhat_b, c=chat_b, sigma_sq=sigsqhat),
-                meta_model_MLE_for_MESLE=c(MESLE=trans_b(MESLEhat)),
+                meta_model_MLE_for_MESLE=c(trans_b(MESLEhat)),
                 Hypothesis_Tests=dfout
             )
             if (cubic_test) {
@@ -447,7 +439,7 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
         }
         ## test on the simulation based surrogate under LAN
         if (test=="parameter") {
-            Winv <- diag(1/w)
+            Winv <- diag(1/w, nrow=length(w))
             nobs <- dim(llmat)[1] # number of observations
             if (all(sapply(1:d, function(k) { min(theta_n[,k]) <= MESLEhat[k] && MESLEhat[k] <= max(theta_n[,k]) }))) {
                 ## if MESLEhat is within the range of the given theta matrix componentwise, find the slope at MESLEhat
@@ -505,7 +497,7 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
             Ctheta <- C%*%theta_n
             Q_1 <- solve(C%*%Winv%*%t(C) + nobs/sigsqhat*Ctheta%*%K1hat%*%t(Ctheta)) 
             svdQ_1 <- svd(Q_1)
-            sqrtQ_1 <- svdQ_1$u %*% diag(sqrt(svdQ_1$d)) %*% t(svdQ_1$v)
+            sqrtQ_1 <- svdQ_1$u %*% diag(sqrt(svdQ_1$d), nrow=M-1) %*% t(svdQ_1$v)
             R_1 <- sqrtQ_1%*%C%*%Theta12
             estEq_2 <- c(solve(t(R_1)%*%R_1, t(R_1)%*%(sqrtQ_1%*%C%*%ll))) # estimating equation for K2 and theta_star. (thetastarhat // -I/2) * n * vech(K2hat) = (R_1^T R_1)^{-1} R_1^T (Q_1^{1/2} C lS)
             vech_K2hat <- -2*estEq_2[(d+1):((d^2+3*d)/2)]/nobs # second stage estimate of vech(K2)
@@ -524,13 +516,13 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
                 parameter_null <- t(parameter_null) # if surrogate_null is a matrix, transpose it
             }
             dfout <- data.frame(
-                parameter_null=parameter_null,
-                pvalue=round(pval, digits=3)
+                parameter_null,
+                pvalue=pval
             )
             out <- list(regression_estimates=list(a=ahat_b, b=bhat_b, c=chat_b, sigma_sq=sigsqhat),
-                meta_model_MLE_for_parameter=c(parameter=trans_b(thetastarhat)),
-                K1=diag(1/theta_sd)%*%K1hat%*%diag(1/theta_sd),
-                K2=diag(1/theta_sd)%*%K2hat%*%diag(1/theta_sd),
+                meta_model_MLE_for_parameter=c(trans_b(thetastarhat)),
+                K1=diag(1/theta_sd, nrow=length(theta_sd))%*%K1hat%*%diag(1/theta_sd, nrow=length(theta_sd)),
+                K2=diag(1/theta_sd, nrow=length(theta_sd))%*%K2hat%*%diag(1/theta_sd, nrow=length(theta_sd)),
                 error_variance=sigsqhat_lan,
                 Hypothesis_Tests=dfout
             )
