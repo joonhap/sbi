@@ -441,13 +441,13 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
         if (test=="parameter") {
             Winv <- diag(1/w, nrow=length(w))
             nobs <- dim(llmat)[1] # number of observations
-            if (all(sapply(1:d, function(k) { min(theta_n[,k]) <= MESLEhat[k] && MESLEhat[k] <= max(theta_n[,k]) }))) {
+            ##if (all(sapply(1:d, function(k) { min(theta_n[,k]) <= MESLEhat[k] && MESLEhat[k] <= max(theta_n[,k]) }))) {
                 ## if MESLEhat is within the range of the given theta matrix componentwise, find the slope at MESLEhat
-                slope_at <- MESLEhat
-            } else {
+            ##    slope_at <- MESLEhat
+            ##} else {
                 ## otherwise, find the slope at the componentwise mean of the theta matrix
-                slope_at <- apply(theta_n, 2, mean)
-            }
+            slope_at <- apply(theta_n, 2, mean)
+            ##}
             if (ncores>1) {
                 require(parallel)
                 slope <- simplify2array(mclapply(1:nobs, function(i) {
@@ -508,7 +508,7 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
                 function(x) {
                     desgmat <- rbind(-2*matricize(x), diag((d^2+d)/2))
                     G <- R_1%*%desgmat%*%solve(t(desgmat)%*%t(R_1)%*%R_1%*%desgmat, t(desgmat)%*%t(R_1))
-                    (M-(d^2+3*d+2)/2)/d*(sum(((diag(M-1)-G)%*%sqrtQ_1%*%C%*%ll)^2)/(M-1)/sigsqhat_lan - 1)
+                    (M-(d^2+3*d+2)/2)/d*(sum(((diag(M-1)-G)%*%(sqrtQ_1%*%(C%*%ll)))^2)/(M-1)/sigsqhat_lan - 1)
                 })
             pval <- pf(teststats, d, M-(d^2+3*d+2)/2, lower.tail=FALSE)
             parameter_null <- sapply(null.value, identity)
