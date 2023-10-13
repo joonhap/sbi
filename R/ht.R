@@ -14,8 +14,10 @@ ht <- function(x, ...) {
 #' @param case When `test` is "parameter", `case` needs to be either "iid" or "stationary". `case` = "iid" means that the observations are iid, and `case` = "stationary" means that the observations form a stationary sequence. The `case` argument affects how the variance of the slope of the mean function (=K_1 in Park (2023)) is estimated. The default value is "stationary".
 #' @param type When `test` is "moments", the `type` argument needs to be specified. `type` = "point" means that the test about the mean and the variance of simulation log likelihoods at a given parameter point is considered. `type` = "regression" means that the test about the mean function and the variance of simulation log likelihoods at various parameter values is considered. See Details.
 #' @param weights An optional argument. The un-normalized weights of the simulation log likelihoods for regression. A numeric vector of length equal to the `params` attribute of the `simll` object. See Details below.
+#' @param K1_est_method Either "autocov" or "batch".
+#' @param batch_size Numeric.
 #' @param max_lag When `test` is "parameter" and `case` is "stationary", the value of `max_lag` gives the truncation point for lagged autocovariance when estimating K1 as a sum of lagged autocovariances of estimates slopes. If not supplied, default is the maximum lag for which at least one of the entries of the matrix of lagged autocorrelation has absolute value greater than 4/sqrt(nobs), where the lagged autocorrelation is found up to lag `10*log10(nobs/d)`. Here `nobs` is the number of observations and `d` is the dimension of the parameter space.
-#' @param plot_acf Logical.  When `test` is "parameter" and `case` is "stationary", If `plot_acf` is TRUE, the autocorrelation plot of the estimated slopes of the quadratic fit to the simulation log likelihoods is shown.
+#' @param plot_acf Logical. Should the autocorrelation plot be generated when estimating K1 for the case where `test` is "parameter" and `case` is "stationary"?
 #' @param ncores An optional argument indicating the number of CPU cores to use for computation. Used only when `test`="parameter". The `mclapply` function in the `parallel` package is used. The `parallel` package needs to be installed unless `ncores`=1. In Windows, `ncores` greater than 1 is not supported (see ?mclapply for more information.)
 #'
 #' @details
@@ -54,7 +56,7 @@ ht <- function(x, ...) {
 #'
 #' @references Park, J. (2023). On simulation based inference for implicitly defined models
 #' @export
-ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), case=NULL, type=NULL, weights=NULL, max_lag=NULL, plot_acf=FALSE, ncores=1) {
+ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), case=NULL, type=NULL, weights=NULL, K1_est_method="batch", batch_size=NULL, max_lag=NULL, plot_acf=FALSE, ncores=1) {
     validate_simll(simll)
     match.arg(test, c("moments", "MESLE", "parameter"))
     if (test=="parameter") {
@@ -79,39 +81,24 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
             if (is.numeric(null.value)) {
                 if (is.matrix(null.value)) {
                     if (ncol(null.value)!=2) {
-                        stop(
-                            "If `test` is 'moments', `type` is 'point', and `null.value` should be a vector of length 2, a matrix having two columns, or a list whose entries are all vector of lengths 2.",
-                            call. = FALSE
-                        )
+                        stop("If `test` is 'moments', `type` is 'point', and `null.value` should be a vector of length 2, a matrix having two columns, or a list whose entries are all vector of lengths 2.")
                     }
                     null.value <- apply(null.value, 1, identity, simplify=FALSE) # make null.value into a list
                 } else {
                     if (!is.null(dim(null.value))) { # if null.value is a 3 or higer dimensional array
-                        stop(
-                            "If `test` is 'moments', `type` is 'point', and `null.value` should be a vector of length 2, a matrix having two columns, or a list whose entries are all vector of lengths 2.",
-                            call. = FALSE
-                        )
+                        stop("If `test` is 'moments', `type` is 'point', and `null.value` should be a vector of length 2, a matrix having two columns, or a list whose entries are all vector of lengths 2.")
                     }
                     if (length(null.value)!=2) {
-                        stop(
-                            "If `test` is 'moments', `type` is 'point', and `null.value` should be a vector of length 2, a matrix having two columns, or a list whose entries are all vector of lengths 2.",
-                            call. = FALSE
-                        )
+                        stop("If `test` is 'moments', `type` is 'point', and `null.value` should be a vector of length 2, a matrix having two columns, or a list whose entries are all vector of lengths 2.")
                     }
                     null.value <- list(null.value)
                 }
             } else if (is.list(null.value)) { 
                 if (!all(sapply(null.value, function(n) { is.numeric(n) && length(n)==2 }))) {
-                    stop(
-                        "If `test` is 'moments', `type` is 'point', and `null.value` should be a vector of length 2, a matrix having two columns, or a list whose entries are all vector of lengths 2.",
-                        call. = FALSE
-                    )
+                    stop("If `test` is 'moments', `type` is 'point', and `null.value` should be a vector of length 2, a matrix having two columns, or a list whose entries are all vector of lengths 2.")
                 }
             } else { # if null.value is not numeric or a list
-                stop(
-                    "`null.value` should be a numeric vector, a matrix, or a list.",
-                    call. = FALSE
-                )
+                stop("`null.value` should be a numeric vector, a matrix, or a list.")
             }
         }
         if (type=="regression") {
@@ -121,23 +108,14 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
                 d <- dim(attr(simll, "params"))[2]
             }
             if (!is.list(null.value)) {
-                stop(
-                    "If `test` is 'moments' and `type` is 'regression', `null.value` should be a list.",
-                    call. = FALSE
-                )
+                stop("If `test` is 'moments' and `type` is 'regression', `null.value` should be a list.")
             }
             if (length(null.value)!=4 || !all(c(is.numeric(null.value[[1]]), is.numeric(null.value[[2]]), is.numeric(null.value[[3]]), is.numeric(null.value[[4]]), length(null.value[[1]])==1, length(null.value[[2]])^2==length(null.value[[3]]), length(null.value[[4]])==1))) {
                 if (!all(sapply(null.value, is.list))) {
-                    stop(
-                        "If `test` is 'moments' and `type` is 'regression', `null.value` should be either a list of length four or a list of lists of length four. In the first case, the first entry should be a numeric scalar, the second a numeric vector of length d where d is the dimension of the parameter space, the third a symmetric matrix of dimension d X d, and the fourth a numeric scalar. In the second case, each entry of the list should be of the same form as described for the first case.",
-                        call. = FALSE
-                    )
+                    stop("If `test` is 'moments' and `type` is 'regression', `null.value` should be either a list of length four or a list of lists of length four. In the first case, the first entry should be a numeric scalar, the second a numeric vector of length d where d is the dimension of the parameter space, the third a symmetric matrix of dimension d X d, and the fourth a numeric scalar. In the second case, each entry of the list should be of the same form as described for the first case.")
                 } 
                 if (!all(sapply(null.value, function(n) { all(c(is.numeric(n[[1]]), is.numeric(n[[2]]), is.numeric(n[[3]]), is.numeric(n[[4]]), length(n[[1]])==1, length(n[[2]])==d, length(n[[3]])==d^2, length(n[[4]])==1)) }))) {
-                stop(
-                    "If `test` is 'moments' and `type` is 'regression', `null.value` should be either a list of length four or a list of lists of length four. In the first case, the first entry should be a numeric scalar, the second a numeric vector of length d where d is the dimension of the parameter space, the third a symmetric matrix of dimension d X d, and the fourth a numeric scalar. In the second case, each entry of the list should be of the same form as described for the first case.",
-                    call. = FALSE
-                )
+                stop("If `test` is 'moments' and `type` is 'regression', `null.value` should be either a list of length four or a list of lists of length four. In the first case, the first entry should be a numeric scalar, the second a numeric vector of length d where d is the dimension of the parameter space, the third a symmetric matrix of dimension d X d, and the fourth a numeric scalar. In the second case, each entry of the list should be of the same form as described for the first case.")
                 } 
             }
         }
@@ -151,39 +129,24 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
         if (is.numeric(null.value)) {
             if (is.matrix(null.value)) {
                 if (ncol(null.value)!=d) {
-                    stop(
-                        "If `test` is 'MESLE' or 'parameter', `null.value` should be a numeric vector of length d, a matrix having d columns, or a list whose entries are vector of length d, where d is the dimension of the parameter space.",
-                        call. = FALSE
-                    )
+                    stop("If `test` is 'MESLE' or 'parameter', `null.value` should be a numeric vector of length d, a matrix having d columns, or a list whose entries are vector of length d, where d is the dimension of the parameter space.")
                 }
                 null.value <- apply(null.value, 1, identity, simplify=FALSE) # make null.value into a list
             } else {
                 if (!is.null(dim(null.value))) { # if null.value is a 3 or higher dimensional array
-                    stop(
-                        "If `test` is 'MESLE' or 'parameter', `null.value` should be a numeric vector of length d, a matrix having d columns, or a list whose entries are vector of length d, where d is the dimension of the parameter space.",
-                        call. = FALSE
-                    )
+                    stop("If `test` is 'MESLE' or 'parameter', `null.value` should be a numeric vector of length d, a matrix having d columns, or a list whose entries are vector of length d, where d is the dimension of the parameter space.")
                 }
                 if (length(null.value)!=d) {
-                    stop(
-                        "If `test` is 'MESLE' or 'parameter', `null.value` should be a numeric vector of length d, a matrix having d columns, or a list whose entries are vector of length d, where d is the dimension of the parameter space.",
-                        call. = FALSE
-                    )
+                    stop("If `test` is 'MESLE' or 'parameter', `null.value` should be a numeric vector of length d, a matrix having d columns, or a list whose entries are vector of length d, where d is the dimension of the parameter space.")
                 }
                 null.value <- list(null.value)
             }
         } else if (is.list(null.value)) {
             if (!all(sapply(null.value, function(n) { is.numeric(n) && length(n)==d }))) {
-                stop(
-                    "If `test` is 'MESLE' or 'parameter', `null.value` should be a numeric vector of length d, a matrix having d columns, or a list whose entries are vector of length d, where d is the dimension of the parameter space.",
-                    call. = FALSE
-                )
+                stop("If `test` is 'MESLE' or 'parameter', `null.value` should be a numeric vector of length d, a matrix having d columns, or a list whose entries are vector of length d, where d is the dimension of the parameter space.")
             }
         } else { # if null.value is not numeric or a list
-            stop(
-                "If `test` is 'MESLE' or 'parameter', `null.value` should be a numeric vector, a matrix, or a list.",
-                call. = FALSE
-            )
+            stop("If `test` is 'MESLE' or 'parameter', `null.value` should be a numeric vector, a matrix, or a list.")
         }
     }
     if (test=="moments" && type=="point") {
@@ -193,15 +156,13 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
         Ssq <- var(ll)
         M <- length(ll)
         if (any(sapply(null.value, function(x) x[2]<=0))) {
-            stop("The second component of null.value (the variance of simulation based log likelihood estimator) should be positive.",
-                call. = FALSE
-            )
+            stop("The second component of null.value (the variance of simulation based log likelihood estimator) should be positive.")
         }
         teststats <- sapply(null.value, function(x) -.5*M*(muhat - x[1])^2/x[2] - (M-1)/2*Ssq/x[2] + M/2*log((M-1)*Ssq/(M*x[2])) + M/2)
         num.error.size <- 0.01
         pvalout <- pscl(teststats, M, 1, num_error_size=num.error.size)
         if (length(pvalout)==0) { # execution of pscl stopped by user input
-            stop("Hypothesis tests stopped by user input", call. = FALSE)
+            stop("Hypothesis tests stopped by user input")
         }
         pval <- pvalout$probs
         num.error.size <- pvalout$numerical_error_size
@@ -209,7 +170,7 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
             num.error.size <- 0.001
             pvalout <- pscl(teststats, M, 1, num_error_size=num.error.size)
             if (length(pvalout)==0) { # execution of pscl stopped by user input
-                stop("Hypothesis tests stopped by user input", call. = FALSE)
+                stop("Hypothesis tests stopped by user input")
             }
             pval <- pvalout$probs
             prec <- pvalout$numerical_error_size
@@ -230,32 +191,20 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
         ## set weights (vector w)
         if (!is.null(weights)) {
             if (!is.numeric(weights)) {
-                stop(
-                    "When `type` = 'regression' and the `weights` argument is given, `weights` have to be a numeric vector.",
-                    call. = FALSE
-                )
+                stop("When `type` = 'regression' and the `weights` argument is given, `weights` have to be a numeric vector.")
             }
             if (length(weights) != dim(simll)[2]) {
-                stop(
-                    "When `type` = 'regression' and the `weights` argument is given, the length of `weights` should be equal to the number of rows in the simulation log likelihood matrix in `simll`.",
-                    call. = FALSE
-                )
+                stop("When `type` = 'regression' and the `weights` argument is given, the length of `weights` should be equal to the number of rows in the simulation log likelihood matrix in `simll`.")
             }
             w <- weights
         }
         if (is.null(weights)) {
             if (!is.null(attr(simll, "weights"))) {
                 if (!is.numeric(attr(simll, "weights"))) {
-                    stop(
-                        "When the `simll` object has `weights` attribute, it has to be a numeric vector.",
-                        call. = FALSE
-                    )
+                    stop("When the `simll` object has `weights` attribute, it has to be a numeric vector.")
                 }
                 if (dim(simll)[2] != length(attr(simll, "weights"))) {
-                    stop(
-                        "When the `simll` object has `weights` attribute, the length of `weights` should be the same as the number of rows in the simulation log likelihood matrix in `simll`.",
-                        call. = FALSE
-                    )
+                    stop("When the `simll` object has `weights` attribute, the length of `weights` should be the same as the number of rows in the simulation log likelihood matrix in `simll`.")
                 }
                 w <- attr(simll, "weights")
             } else {
@@ -333,9 +282,9 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
         cindex <- (d+2):((d^2+3*d+2)/2) # the positions in A that correspond to vech(c)
         vech_chat <- Ahat[cindex]
         chat <- unvech(vech_chat)
-        ahat_b <- c(Ahat[1] - bhat%*%diag(1/theta_sd, nrow=length(theta_sd))%*%theta_mean + theta_mean%*%diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd))%*%theta_mean) # the constant term ahat in the original scale (transformed back)
-        bhat_b <- diag(1/theta_sd, nrow=length(theta_sd))%*%bhat - 2*diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd))%*%theta_mean # bhat in the original scale
-        chat_b <- diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd)) # chat in the original scale
+        ahat_b <- c(Ahat[1] - bhat%*%diag(1/theta_sd, nrow=length(theta_sd))%*%theta_mean + theta_mean%*%diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd))%*%theta_mean) # the constant term ahat on the original scale (transformed back)
+        bhat_b <- diag(1/theta_sd, nrow=length(theta_sd))%*%bhat - 2*diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd))%*%theta_mean # bhat on the original scale
+        chat_b <- diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd)) # chat on the original scale
         resids <- ll - c(Theta012%*%Ahat)
         sigsqhat <- c(resids%*%W%*%resids) / M
         MESLEhat <- unname(-solve(chat,bhat)/2)
@@ -375,7 +324,7 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
             num.error.size <- 0.01
             pvalout <- pscl(teststats, M, (d^2+3*d+2)/2, num_error_size=num.error.size)
             if (length(pvalout)==0) { # execution of pscl stopped by user input
-                stop("Hypothesis tests stopped by user input", call. = FALSE)
+                stop("Hypothesis tests stopped by user input")
             }
             pval <- pvalout$probs
             num.error.size <- pvalout$numerical_error_size
@@ -383,7 +332,7 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
                 prec <- 0.001
                 pvalout <- pscl(teststats, M, (d^2+3*d+2)/2, num_error_size=num.error.size)
                 if (length(pvalout)==0) { # execution of pscl stopped by user input
-                    stop("Hypothesis tests stopped by user input", call. = FALSE)
+                    stop("Hypothesis tests stopped by user input")
                 }
                 pval <- pvalout$probs
                 num.error.size <- pvalout$numerical_error_size
@@ -441,34 +390,59 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
         if (test=="parameter") {
             Winv <- diag(1/w, nrow=length(w))
             nobs <- dim(llmat)[1] # number of observations
-            ##if (all(sapply(1:d, function(k) { min(theta_n[,k]) <= MESLEhat[k] && MESLEhat[k] <= max(theta_n[,k]) }))) {
-                ## if MESLEhat is within the range of the given theta matrix componentwise, find the slope at MESLEhat
-            ##    slope_at <- MESLEhat
-            ##} else {
-                ## otherwise, find the slope at the componentwise mean of the theta matrix
             slope_at <- apply(theta_n, 2, mean)
-            ##}
-            if (ncores>1) {
-                require(parallel)
-                slope <- simplify2array(mclapply(1:nobs, function(i) {
-                    ## quadratic regression for each observation piece (each row of simll)
-                    ll_i <- llmat[i,]
-                    Ahat_i <- c(solve(t(Theta012)%*%W%*%Theta012, t(Theta012)%*%W%*%ll_i))
-                    return(c(Ahat_i[bindex]+2*unvech(Ahat_i[cindex])%*%slope_at)) # estimated slope
-                }, mc.cores=ncores)
-                ) # matrix of dimension d times nobs
+            ## estimation of slopes
+            if (case=="iid" || K1_est_method=="autocov") {
+                if (ncores>1) {
+                    require(parallel)
+                    slope <- simplify2array(mclapply(1:nobs, function(i) {
+                        ## quadratic regression for each observation piece (each row of simll)
+                        ll_i <- llmat[i,]
+                        Ahat_i <- c(solve(t(Theta012)%*%W%*%Theta012, t(Theta012)%*%W%*%ll_i))
+                        return(c(Ahat_i[bindex]+2*unvech(Ahat_i[cindex])%*%slope_at)) # estimated slope
+                    }, mc.cores=ncores)
+                    ) # matrix of dimension d times nobs
+                } else {
+                    slope <- sapply(1:nobs, function(i) {
+                        ## quadratic regression for each observation piece (each row of simll)
+                        ll_i <- llmat[i,]
+                        Ahat_i <- c(solve(t(Theta012)%*%W%*%Theta012, t(Theta012)%*%W%*%ll_i))
+                        return(c(Ahat_i[bindex]+2*unvech(Ahat_i[cindex])%*%slope_at)) # estimated slope
+                    }, simplify="array") # matrix of dimension d times nobs
+                }
+                slope <- rbind(slope) # if d = 1, make `slope` into a 1 X nobs matrix
+            } else if (K1_est_method=="batch") {   
+                if (is.null(batch_size)) {
+                    batch_size <- round(nobs^0.4)
+                }
+                if (ncores>1) {
+                    require(parallel)
+                    slope_b <- simplify2array(mclapply(seq(1,nobs,by=batch_size), function(bst) {
+                        ## quadratic regression for each batch (contiguous rows of simll)
+                        ll_b <- apply(llmat[bst:min(bst+batch_size-1,nobs),,drop=FALSE], 2, sum)
+                        Ahat_b <- c(solve(t(Theta012)%*%W%*%Theta012, t(Theta012)%*%W%*%ll_b))
+                        return(c(Ahat_b[bindex]+2*unvech(Ahat_b[cindex])%*%slope_at)) # estimated slope
+                    }, mc.cores=ncores)) # matrix of dimension d times nobs
+                } else {
+                    slope_b <- sapply(seq(1,nobs,by=batch_size), function(bst) {
+                        ## quadratic regression for each batch
+                        ll_b <- apply(llmat[bst:min(bst+batch_size-1,nobs),], 2, sum)
+                        Ahat_b <- c(solve(t(Theta012)%*%W%*%Theta012, t(Theta012)%*%W%*%ll_b))
+                        return(c(Ahat_b[bindex]+2*unvech(Ahat_b[cindex])%*%slope_at)) # estimated slope
+                    }, simplify="array") # matrix of dimension d times nobs
+                }
+                slope_b <- rbind(slope_b) # if d = 1, make `slope` into a 1 X nobs matrix
+                if (any(abs(acf(t(slope_b), plot=plot_acf)$acf[2,,,drop=FALSE])>2*sqrt(d*batch_size/nobs))) {
+                    warning("The slope estimates at consecutive batches had significant correlation. Consider manualy increasing the batch size for estimation of K1.")
+                }
             } else {
-                slope <- sapply(1:nobs, function(i) {
-                    ## quadratic regression for each observation piece (each row of simll)
-                    ll_i <- llmat[i,]
-                    Ahat_i <- c(solve(t(Theta012)%*%W%*%Theta012, t(Theta012)%*%W%*%ll_i))
-                    return(c(Ahat_i[bindex]+2*unvech(Ahat_i[cindex])%*%slope_at)) # estimated slope
-                }, simplify="array") # matrix of dimension d times nobs
+                stop("`K1_est_method` should be 'autocov' or 'batch' when `case` is 'stationary'.")
             }
-            slope <- rbind(slope) # if d = 1, make `slope` into a 1 X nobs matrix
             if (case=="iid") {
                 var_slope_vec <- var(t(slope)) # estimate of the variance of the slope of the fitted quadratic
-            } else if (case=="stationary") {
+            } else if (case=="stationary" && K1_est_method=="batch") {
+                var_slope_vec <- var(t(slope_b)) / batch_size
+            } else if (case=="stationary" && K1_est_method=="autocov") {
                 if (is.null(max_lag)) {
                     sigcorr <- which(apply(acf(t(slope),plot=plot_acf)$acf[-1,,,drop=FALSE], 1, function(x) { any(abs(x) > 4/sqrt(nobs)) })) # lags for which there are significant correlations
                     if (length(sigcorr)==0) { # if correlations on all lags are insignificant
