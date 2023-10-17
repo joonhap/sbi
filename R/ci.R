@@ -167,33 +167,74 @@ ci.simll <- function(simll, level, ci=NULL, case=NULL, max_lag=NULL, plot_acf=FA
     if (ci=="parameter") {
         Winv <- diag(1/w)
         nobs <- dim(llmat)[1] # number of observations
-        if (min(theta) < MESLEhat && MESLEhat < max(theta)) {
-            ## if MESLEhat is within the given simulation range for theta, find the slope at MESLEhat
-            slope_at <- MESLEhat
+        slope_at <- mean(theta)
+        ## estimation of slopes
+        if (case=="iid" || K1_est_method=="autocov") {
+            if (ncores>1) {
+                require(parallel)
+                slope <- simplify2array(mclapply(1:nobs, function(i) {
+                    ## quadratic regression for each observation piece (each row of simll)
+                    ll_i <- llmat[i,]
+                    Ahat_i <- c(solve(t(Theta012)%*%W%*%Theta012, t(Theta012)%*%W%*%ll_i))
+                    return(c(Ahat_i[bindex]+2*unvech(Ahat_i[cindex])%*%slope_at)) # estimated slope
+                }, mc.cores=ncores)
+                ) # matrix of dimension d times nobs
+            } else {
+                slope <- sapply(1:nobs, function(i) {
+                    ## quadratic regression for each observation piece (each row of simll)
+                    ll_i <- llmat[i,]
+                    Ahat_i <- c(solve(t(Theta012)%*%W%*%Theta012, t(Theta012)%*%W%*%ll_i))
+                    return(c(Ahat_i[bindex]+2*unvech(Ahat_i[cindex])%*%slope_at)) # estimated slope
+                }, simplify="array") # matrix of dimension d times nobs
+            }
+            slope <- rbind(slope) # if d = 1, make `slope` into a 1 X nobs matrix
+        } else if (K1_est_method=="batch") {   
+            if (is.null(batch_size)) {
+                batch_size <- round(nobs^0.4)
+            }
+            if (ncores>1) {
+                require(parallel)
+                slope_b <- simplify2array(mclapply(seq(1,nobs,by=batch_size), function(bst) {
+                    ## quadratic regression for each batch (contiguous rows of simll)
+                    ll_b <- apply(llmat[bst:min(bst+batch_size-1,nobs),,drop=FALSE], 2, sum)
+                    Ahat_b <- c(solve(t(Theta012)%*%W%*%Theta012, t(Theta012)%*%W%*%ll_b))
+                    return(c(Ahat_b[bindex]+2*unvech(Ahat_b[cindex])%*%slope_at)) # estimated slope
+                }, mc.cores=ncores)) # matrix of dimension d times nobs
+            } else {
+                slope_b <- sapply(seq(1,nobs,by=batch_size), function(bst) {
+                    ## quadratic regression for each batch
+                    ll_b <- apply(llmat[bst:min(bst+batch_size-1,nobs),], 2, sum)
+                    Ahat_b <- c(solve(t(Theta012)%*%W%*%Theta012, t(Theta012)%*%W%*%ll_b))
+                    return(c(Ahat_b[bindex]+2*unvech(Ahat_b[cindex])%*%slope_at)) # estimated slope
+                }, simplify="array") # matrix of dimension d times nobs
+            }
+            slope_b <- rbind(slope_b) # if d = 1, make `slope` into a 1 X nobs matrix
+            if (any(abs(acf(t(slope_b), plot=plot_acf)$acf[2,,,drop=FALSE])>2*sqrt(d*batch_size/nobs))) {
+                warning("The slope estimates at consecutive batches had significant correlation. Consider manualy increasing the batch size for estimation of K1.")
+            }
         } else {
-            ## otherwise, find the slope at the componentwise mean of the theta matrix
-            slope_at <- mean(theta)
+            stop("`K1_est_method` should be 'autocov' or 'batch' when `case` is 'stationary'.")
         }
-        slope <- sapply(1:nobs, function(i) {
-            ## quadratic regression for each observation piece (each row of simll)
-            ll_i <- llmat[i,]
-            Ahat_i <- c(solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%ll_i))
-            return(c(Ahat_i[2]+2*Ahat_i[3]*slope_at)) # estimated slope
-        }) # estimated slope at `slope_at`
         if (case=="iid") {
-            var_slope <- var(slope)
-        } else if (case=="stationary") {
+            var_slope_vec <- var(t(slope)) # estimate of the variance of the slope of the fitted quadratic
+        } else if (case=="stationary" && K1_est_method=="batch") {
+            var_slope_vec <- var(t(slope_b)) / batch_size
+        } else if (case=="stationary" && K1_est_method=="autocov") {
             if (is.null(max_lag)) {
-                sigcorr <- which(apply(acf(slope,plot=plot_acf)$acf[-1,,,drop=FALSE], 1, function(x) { abs(x) > 4/sqrt(nobs) })) # lags for which there are significant correlations
+                sigcorr <- which(apply(acf(t(slope),plot=plot_acf)$acf[-1,,,drop=FALSE], 1, function(x) { any(abs(x) > 4/sqrt(nobs)) })) # lags for which there are significant correlations
                 if (length(sigcorr)==0) { # if correlations on all lags are insignificant
                     max_lag <- 0
                 } else {
                     max_lag <- max(sigcorr)
                 }
             }
-            var_slope <- 0 # estimate of the variance of the slope of the fitted quadratic
-            for (lag in max_lag:-max_lag) {
-                var_slope <- var_slope + cov(slope[max(1,1+lag):min(nobs,nobs+lag)], slope[max(1,1-lag):min(nobs,nobs-lag)])
+            var_slope_vec <- matrix(0, d, d) # estimate of the variance of the slope of the fitted quadratic
+            for (i1 in 1:d) {
+                for (i2 in 1:d) {
+                    for (lag in max_lag:-max_lag) {
+                        var_slope_vec[i1, i2] <- var_slope_vec[i1, i2] + cov(slope[i1,max(1,1+lag):min(nobs,nobs+lag)], slope[i2,max(1,1-lag):min(nobs,nobs-lag)])
+                    }
+                }
             }
         }
         E_condVar_slope <- cbind(0,1,2*slope_at)%*%solve(t(theta012)%*%W%*%theta012, rbind(0,1,2*slope_at)) * sigsqhat / nobs # an estimate of the expected value of the conditional variance of the estimated slope given Y (expectation taken with respect to Y)
