@@ -396,7 +396,7 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
             if (case=="iid" || K1_est_method=="autocov") {
                 ## quadratic regression for each observation piece (each row of simll)
                 Ahat_i <- solve(t(Theta012)%*%W%*%Theta012, t(Theta012)%*%W%*%t(llmat)) # each column of Ahat_i is the regression estimate for a single i
-                slope <- Ahat_i[bindex,]+2*matricize(slope_at)%*%Ahat_i[cindex,] # estimated slope, a d X nobs matrix
+                slope <- Ahat_i[bindex,,drop=FALSE]+2*matricize(slope_at)%*%Ahat_i[cindex,,drop=FALSE] # estimated slope, a d X nobs matrix
             } else if (K1_est_method=="batch") {   
                 if (is.null(batch_size)) {
                     batch_size <- round(nobs^0.4)
@@ -405,7 +405,7 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
                     apply(llmat[bst:min(bst+batch_size-1,nobs),,drop=FALSE], 2, sum)
                 })
                 Ahat_b <- solve(t(Theta012)%*%W%*%Theta012, t(Theta012)%*%W%*%tllmat_b) # each column of Ahat_b is the regression estimate for a single batch
-                slope_b <- Ahat_b[bindex,]+2*matricize(slope_at)%*%Ahat_b[cindex,] # estimated slope, a d X (num.of.batches) matrix
+                slope_b <- Ahat_b[bindex,,drop=FALSE]+2*matricize(slope_at)%*%Ahat_b[cindex,,drop=FALSE] # estimated slope, a d X (num.of.batches) matrix
                 if (any(abs(acf(t(slope_b), plot=plot_acf)$acf[2,,,drop=FALSE])>2*sqrt(d*batch_size/nobs))) {
                     warning("The slope estimates at consecutive batches had significant correlation. Consider manualy increasing the batch size for estimation of K1.")
                 }
@@ -460,12 +460,12 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
                     G <- R_1%*%desgmat%*%solve(t(desgmat)%*%t(R_1)%*%R_1%*%desgmat, t(desgmat)%*%t(R_1))
                     (M-(d^2+3*d+2)/2)/d*(sum(((diag(M-1)-G)%*%(sqrtQ_1%*%(C%*%ll)))^2)/(M-1)/sigsqhat_lan - 1)
                 })
-            print("starting correction")
             if (MCcorrection=="none") {
                 pval <- pf(teststats, d, M-(d^2+3*d+2)/2, lower.tail=FALSE)
             } else if (MCcorrection=="Wishart") {
-                MCsize <- 5 # Monte Carlo sample size TODO change this
-                llMC <- rbind(0, invsqrtQ_1%*%(outer(c(R_1%*%estEq_2), rep(1,MCsize)) + sqrt(sigsqhat_lan)*matrix(rnorm((M-1)*MCsize), M-1, MCsize))) # Monte Carlo draws for the simulation log likelihood vector
+                MCsize <- 500 # Monte Carlo sample size
+                QhCllMC <- outer(c(R_1%*%estEq_2), rep(1,MCsize)) + sqrt(sigsqhat_lan)*matrix(rnorm((M-1)*MCsize), M-1, MCsize) # Q^{1/2}C l^S
+                llMC <- rbind(0, invsqrtQ_1%*%(QhCllMC)) # Monte Carlo draws for the simulation log likelihood vector
                 resMC <- llMC - Theta012%*%solve(t(Theta012)%*%W%*%Theta012, t(Theta012)%*%W%*%llMC)
                 sigsqhatMC <- 1/M*apply(resMC, 2, function(v) sum(v*v))
                 if (case=="iid") {
@@ -476,38 +476,29 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
                     df <- nobs/batch_size-1
                 }
                 tau1MC <- rWishart(MCsize, df=df, Sigma=var_slope_vec/df)
-                tau2MC <- outer(cbind(0,diag(d),2*matricize(slope_at))%*%solve(t(Theta012)%*%W%*%Theta012, t(cbind(0,diag(d),2*matricize(slope_at)))), sigsqhatMC / nobs)
-                K1hatMC <- tau1MC - tau2MC
-                Q_1MC <- sapply(1:MCsize, function(i_mc) {
-                    solve(C%*%Winv%*%t(C) + nobs/sigsqhatMC[i_mc]*Ctheta%*%K1hatMC[,,i_mc]%*%t(Ctheta))
-                }, simplify="array")
-                sqrtQ_1MC <- array(NA, dim=c(M-1, M-1, MCsize))
-                R_1MC <- array(NA, dim=c(M-1, d*(d+3)/2, MCsize))
-                tRRMC <- array(NA, dim=c(d*(d+3)/2, d*(d+3)/2, MCsize))
-                sigsqhat_lanMC <- rep(NA, MCsize)
-                for (i_mc in 1:MCsize) {
-                    svdQ_1MC <- svd(Q_1MC[,,i_mc])
-                    sqrtQ_1MC[,,i_mc] <- sqrtQ_1this <- svdQ_1MC$u %*% diag(sqrt(svdQ_1MC$d), nrow=M-1) %*% t(svdQ_1MC$v)
-                    R_1MC[,,i_mc] <- R_1this <- sqrtQ_1this%*%(C%*%Theta12)
-                    tRRMC[,,i_mc] <- t(R_1this)%*%R_1this
-                    sigsqhat_lanMC[i_mc] <- 1/(M-1)* sum(((diag(M-1) - R_1this%*%solve(t(R_1this)%*%R_1this, t(R_1this)))%*%(sqrtQ_1MC[,,i_mc]%*%(C%*%llMC[,i_mc])))^2)
-                    print(mean(c(sqrtQ_1MC[,,i_mc]%*%(C%*%llMC[,i_mc]))))
-                    print(sd(c(sqrtQ_1MC[,,i_mc]%*%(C%*%llMC[,i_mc]))))
-                }
-                print(mean(c(sqrtQ_1%*%(C%*%ll))))
-                print(sd(c(sqrtQ_1%*%(C%*%ll))))
+                tau2pre <- cbind(0,diag(d),2*matricize(slope_at))%*%solve(t(Theta012)%*%W%*%Theta012, t(cbind(0,diag(d),2*matricize(slope_at)))) / nobs
+                #sqrtQ_1MC <- array(NA, dim=c(M-1, M-1, MCsize))
+                #R_1MC <- array(NA, dim=c(M-1, d*(d+3)/2, MCsize))
+                #tRRMC <- array(NA, dim=c(d*(d+3)/2, d*(d+3)/2, MCsize))
+                #sigsqhat_lanMC <- rep(NA, MCsize)
+                desgmat <- rbind(-2*matricize(thetastarhat), diag((d^2+d)/2))
+                teststatsMC <- sapply(1:MCsize, function(i_mc) {
+                    tau2MC <- tau2pre * sigsqhatMC[i_mc]
+                    K1hatMC <- tau1MC[,,i_mc] - tau2MC
+                    Q_1MC <- solve(C%*%Winv%*%t(C) + nobs/sigsqhatMC[i_mc]*Ctheta%*%K1hatMC%*%t(Ctheta))
+                    svdQ_1MC <- svd(Q_1MC)
+                    sqrtQ_1MC <- svdQ_1MC$u %*% diag(sqrt(svdQ_1MC$d), nrow=M-1) %*% t(svdQ_1MC$v)
+                    R_1MC <- sqrtQ_1MC%*%(C%*%Theta12)
+                    sigsqhat_lanMC <- 1/(M-1)* sum(((diag(M-1) - R_1MC%*%solve(t(R_1MC)%*%R_1MC, t(R_1MC)))%*%QhCllMC[,i_mc])^2)
+                    DMC <- R_1MC%*%desgmat
+                    GMC <- DMC%*%solve(t(DMC)%*%DMC,t(DMC))
+                    (M-(d^2+3*d+2)/2)/d*(sum(((diag(M-1)-GMC)%*%QhCllMC[,i_mc])^2)/(M-1)/sigsqhat_lanMC - 1)
+                })
                 pval <- sapply(1:length(null.value_n), function(i_nv) {
                     nv <- null.value_n[[i_nv]]
-                    desgmat <- rbind(-2*matricize(nv), diag((d^2+d)/2))
-                    teststatsMC <- sapply(1:MCsize, function(i_mc) {
-                        temp <- R_1MC[,,i_mc]%*%desgmat
-                        GMC <- temp%*%solve(t(temp)%*%temp,t(temp))
-                        (M-(d^2+3*d+2)/2)/d*(sum(((diag(M-1)-GMC)%*%(sqrtQ_1MC[,,i_mc]%*%(C%*%llMC[,i_mc])))^2)/(M-1)/sigsqhat_lanMC[i_mc] - 1)
-                    })
                     mean(teststats[i_nv]<=teststatsMC)
                 })
             }
-            print("correction ended")
             parameter_null <- sapply(null.value, identity)
             if (!is.null(attr(parameter_null,"dim"))) {
                 parameter_null <- t(parameter_null) # if surrogate_null is a matrix, transpose it
@@ -518,7 +509,7 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
             )
             out <- list(regression_estimates=list(a=ahat_b, b=bhat_b, c=chat_b, sigma_sq=sigsqhat),
                 meta_model_MLE_for_parameter=c(trans_b(thetastarhat)),
-                var_slope_vec=var_slope_vec,
+                var_slope_vec=var_slope_vec, ## TODO: remove this and the next line
                 E_condVar_slope=E_condVar_slope,
                 K1=diag(1/theta_sd, nrow=length(theta_sd))%*%K1hat%*%diag(1/theta_sd, nrow=length(theta_sd)),
                 K2=diag(1/theta_sd, nrow=length(theta_sd))%*%K2hat%*%diag(1/theta_sd, nrow=length(theta_sd)),

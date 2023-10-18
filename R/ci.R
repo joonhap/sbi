@@ -12,9 +12,11 @@ ci <- function(x, ...) {
 #' @param level A numeric vector of confidence levels.
 #' @param ci A character string indicating the quantity for which a confidence interval is to be constructed. Either "MESLE" or "parameter". See Details.
 #' @param case When `ci` is "parameter", `case` is either "iid" or "stationary" (default). `case` = "iid" means that the observations are iid, and `case` = "stationary" means that the observations form a stationary sequence. The `case` argument affects how the variance of the slope of the mean function (=K_1 in Park (2023)) is estimated.
+#' @param weights An optional argument. The un-normalized weights of the simulation log likelihoods for regression. A numeric vector of length equal to the 'params' attribute of the 'simll' object. See Details below.
+#' @param K1_est_method Either "autocov" or "batch"
+#' @param batch_size Numeric
 #' @param max_lag When `test` is "parameter" and `case` is "stationary", the value of `max_lag` gives the truncation point for lagged autocovariance when estimating K1 as a sum of lagged autocovariances of estimates slopes. If not supplied, default is the maximum lag for which the lagged autocorrelation has absolute value greater than 4/sqrt(nobs), where the lagged autocorrelation is found up to lag `10*log10(nobs)`. Here `nobs` is the number of observations.
 #' @param plot_acf Logical.  When `test` is "parameter" and `case` is "stationary", If `plot_acf` is TRUE, the autocorrelation plot of the estimated slopes of the quadratic fit to the simulation log likelihoods is shown.
-#' @param weights An optional argument. The un-normalized weights of the simulation log likelihoods for regression. A numeric vector of length equal to the 'params' attribute of the 'simll' object. See Details below.
 #'
 #' @details
 #' This is a generic function, taking a class 'simll' object as the first argument.
@@ -41,7 +43,7 @@ ci <- function(x, ...) {
 #'
 #' @references Park, J. (2023). On simulation based inference for implicitly defined models
 #' @export
-ci.simll <- function(simll, level, ci=NULL, case=NULL, max_lag=NULL, plot_acf=FALSE, weights=NULL) {
+ci.simll <- function(simll, level, ci=NULL, case=NULL, weights=NULL, K1_est_method="batch", batch_size=NULL, max_lag=NULL, plot_acf=FALSE, MCcorrection="none") {
     validate_simll(simll)
     if (is.null(ci)) {
         ci <- "parameter"
@@ -170,74 +172,44 @@ ci.simll <- function(simll, level, ci=NULL, case=NULL, max_lag=NULL, plot_acf=FA
         slope_at <- mean(theta)
         ## estimation of slopes
         if (case=="iid" || K1_est_method=="autocov") {
-            if (ncores>1) {
-                require(parallel)
-                slope <- simplify2array(mclapply(1:nobs, function(i) {
-                    ## quadratic regression for each observation piece (each row of simll)
-                    ll_i <- llmat[i,]
-                    Ahat_i <- c(solve(t(Theta012)%*%W%*%Theta012, t(Theta012)%*%W%*%ll_i))
-                    return(c(Ahat_i[bindex]+2*unvech(Ahat_i[cindex])%*%slope_at)) # estimated slope
-                }, mc.cores=ncores)
-                ) # matrix of dimension d times nobs
-            } else {
-                slope <- sapply(1:nobs, function(i) {
-                    ## quadratic regression for each observation piece (each row of simll)
-                    ll_i <- llmat[i,]
-                    Ahat_i <- c(solve(t(Theta012)%*%W%*%Theta012, t(Theta012)%*%W%*%ll_i))
-                    return(c(Ahat_i[bindex]+2*unvech(Ahat_i[cindex])%*%slope_at)) # estimated slope
-                }, simplify="array") # matrix of dimension d times nobs
-            }
-            slope <- rbind(slope) # if d = 1, make `slope` into a 1 X nobs matrix
+            ## quadratic regression for each observation piece (each row of simll)
+            Ahat_i <- solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%t(llmat)) # each column of Ahat_i is the regression estimate for a single i
+            slope <- Ahat_i[2,]+2*slope_at*Ahat_i[3,] # estimated slope, a d X nobs matrix
         } else if (K1_est_method=="batch") {   
             if (is.null(batch_size)) {
                 batch_size <- round(nobs^0.4)
             }
-            if (ncores>1) {
-                require(parallel)
-                slope_b <- simplify2array(mclapply(seq(1,nobs,by=batch_size), function(bst) {
-                    ## quadratic regression for each batch (contiguous rows of simll)
-                    ll_b <- apply(llmat[bst:min(bst+batch_size-1,nobs),,drop=FALSE], 2, sum)
-                    Ahat_b <- c(solve(t(Theta012)%*%W%*%Theta012, t(Theta012)%*%W%*%ll_b))
-                    return(c(Ahat_b[bindex]+2*unvech(Ahat_b[cindex])%*%slope_at)) # estimated slope
-                }, mc.cores=ncores)) # matrix of dimension d times nobs
-            } else {
-                slope_b <- sapply(seq(1,nobs,by=batch_size), function(bst) {
-                    ## quadratic regression for each batch
-                    ll_b <- apply(llmat[bst:min(bst+batch_size-1,nobs),], 2, sum)
-                    Ahat_b <- c(solve(t(Theta012)%*%W%*%Theta012, t(Theta012)%*%W%*%ll_b))
-                    return(c(Ahat_b[bindex]+2*unvech(Ahat_b[cindex])%*%slope_at)) # estimated slope
-                }, simplify="array") # matrix of dimension d times nobs
-            }
-            slope_b <- rbind(slope_b) # if d = 1, make `slope` into a 1 X nobs matrix
-            if (any(abs(acf(t(slope_b), plot=plot_acf)$acf[2,,,drop=FALSE])>2*sqrt(d*batch_size/nobs))) {
+            tllmat_b <- sapply(seq(1,nobs,by=batch_size), function(bst) {
+                apply(llmat[bst:min(bst+batch_size-1,nobs),,drop=FALSE], 2, sum)
+            })
+            Ahat_b <- solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%tllmat_b) # each column of Ahat_b is the regression estimate for a single batch
+            slope_b <- Ahat_b[2,]+2*slope_at*Ahat_b[3,] # estimated slope, a d X (num.of.batches) matrix
+            if (any(abs(acf(slope_b, plot=plot_acf)$acf[2,,,drop=FALSE])>2*sqrt(batch_size/nobs))) {
                 warning("The slope estimates at consecutive batches had significant correlation. Consider manualy increasing the batch size for estimation of K1.")
             }
         } else {
             stop("`K1_est_method` should be 'autocov' or 'batch' when `case` is 'stationary'.")
         }
         if (case=="iid") {
-            var_slope_vec <- var(t(slope)) # estimate of the variance of the slope of the fitted quadratic
+            var_slope <- var(slope) # estimate of the variance of the slope of the fitted quadratic
         } else if (case=="stationary" && K1_est_method=="batch") {
-            var_slope_vec <- var(t(slope_b)) / batch_size
+            var_slope <- var(slope_b) / batch_size
         } else if (case=="stationary" && K1_est_method=="autocov") {
             if (is.null(max_lag)) {
-                sigcorr <- which(apply(acf(t(slope),plot=plot_acf)$acf[-1,,,drop=FALSE], 1, function(x) { any(abs(x) > 4/sqrt(nobs)) })) # lags for which there are significant correlations
-                if (length(sigcorr)==0) { # if correlations on all lags are insignificant
-                    max_lag <- 0
+                acfmat <- acf(t(slope),plot=plot_acf)$acf
+                insig_corr <- which(apply(acfmat[-1,,,drop=FALSE], 1, function(x) { all(abs(x) < 2*sqrt(d/nobs)) })) # lags for which the autocorrelation is not significant
+                if (length(insig_corr)==0) {
+                    max_lag <- dim(acfmat)[1] - 1
                 } else {
-                    max_lag <- max(sigcorr)
+                    max_lag <- min(insig_corr) - 1
                 }
             }
-            var_slope_vec <- matrix(0, d, d) # estimate of the variance of the slope of the fitted quadratic
-            for (i1 in 1:d) {
-                for (i2 in 1:d) {
-                    for (lag in max_lag:-max_lag) {
-                        var_slope_vec[i1, i2] <- var_slope_vec[i1, i2] + cov(slope[i1,max(1,1+lag):min(nobs,nobs+lag)], slope[i2,max(1,1-lag):min(nobs,nobs-lag)])
-                    }
-                }
+            var_slope <- 0 # estimate of the variance of the slope of the fitted quadratic
+            for (lag in max_lag:-max_lag) {
+                var_slope <- var_slope + cov(slope[max(1,1+lag):min(nobs,nobs+lag)], slope[max(1,1-lag):min(nobs,nobs-lag)])
             }
         }
-        E_condVar_slope <- cbind(0,1,2*slope_at)%*%solve(t(theta012)%*%W%*%theta012, rbind(0,1,2*slope_at)) * sigsqhat / nobs # an estimate of the expected value of the conditional variance of the estimated slope given Y (expectation taken with respect to Y)
+        E_condVar_slope <- c(cbind(0,1,2*slope_at)%*%solve(t(theta012)%*%W%*%theta012, rbind(0,1,2*slope_at))) * sigsqhat / nobs # an estimate of the expected value of the conditional variance of the estimated slope given Y (expectation taken with respect to Y)
         K1hat <- var_slope - E_condVar_slope
         if (K1hat <= 0) {
             warning("The estimate of K1 is not positive definite. The constructed confidence interval will not be reliable.")
@@ -248,6 +220,7 @@ ci.simll <- function(simll, level, ci=NULL, case=NULL, max_lag=NULL, plot_acf=FA
         Q_1 <- solve(C%*%Winv%*%t(C) + nobs/sigsqhat*Ctheta%*%K1hat%*%t(Ctheta)) 
         svdQ_1 <- svd(Q_1)
         sqrtQ_1 <- svdQ_1$u %*% diag(sqrt(svdQ_1$d)) %*% t(svdQ_1$v)
+        invsqrtQ_1 <- svdQ_1$v %*% diag(sqrt(1/svdQ_1$d), nrow=M-1) %*% t(svdQ_1$u)
         R_1 <- sqrtQ_1%*%C%*%theta12
         estEq_2 <- c(solve(t(R_1)%*%R_1, t(R_1)%*%(sqrtQ_1%*%C%*%ll))) # estimating equation for K2 and theta_star. (thetastarhat // -I/2) * n * K2hat = (R_1^T R_1)^{-1} R_1^T (Q_1^{1/2} C lS)
         K2hat <- -2*estEq_2[2]/nobs # second stage estimate of K2
