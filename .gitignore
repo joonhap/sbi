@@ -1,3 +1,7 @@
 DEV_README
 DEV_README~
 inst/doc
+*.R~
+*.Rmd~
+R/obsolete/
+src/obsolete/

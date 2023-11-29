@@ -3,23 +3,22 @@ ht <- function(x, ...) {
     UseMethod("ht")
 }
 
-#' Hypothesis tests based on simulation log likelihoodsbased log likelihood estimates
+#' Hypothesis tests based on simulation based log likelihood estimates
 #'
 #' `ht` outputs results of hypothesis tests carried out using simulation log likelihoods. See Park (2023) for more information.
 #'
 #' @name ht
-#' @param simll A class `simll` object, containing simulation log likelihoods, the parameter values at which simulations are made (optional), and the weights for those simulations for regression (optional). See help(simll).
+#' @param simll A class `simll` object, containing simulation log likelihoods, the parameter values at which simulations are made (may be omitted if all simulations are made at the same parameter value), and the weights for those simulations for regression (optional). See help(simll).
 #' @param null.value The null value(s) for the hypothesis test. The expected format depends on which teset will be carried out. See the Details section for more information.
 #' @param test A character string indicating which is to be tested about. One of "moments", "MESLE", or "parameter". See Details.
 #' @param case When `test` is "parameter", `case` needs to be either "iid" or "stationary". `case` = "iid" means that the observations are iid, and `case` = "stationary" means that the observations form a stationary sequence. The `case` argument affects how the variance of the slope of the mean function (=K_1 in Park (2023)) is estimated. The default value is "stationary".
 #' @param type When `test` is "moments", the `type` argument needs to be specified. `type` = "point" means that the test about the mean and the variance of simulation log likelihoods at a given parameter point is considered. `type` = "regression" means that the test about the mean function and the variance of simulation log likelihoods at various parameter values is considered. See Details.
 #' @param weights An optional argument. The un-normalized weights of the simulation log likelihoods for regression. A numeric vector of length equal to the `params` attribute of the `simll` object. See Details below.
-#' @param K1_est_method Either "autocov" or "batch".
-#' @param batch_size Numeric.
+#' @param K1_est_method Either "batch" or "autocov". Used when `test` is "parameter" and `case` is "stationary". The default is "batch". See Details for more information.
+#' @param batch_size Numeric. The size of the batch when `K1_est_method` is "batch". If not supplied, the default value is `round(n^0.4)` where `n` is the number of observations in the data.
 #' @param max_lag When `test` is "parameter" and `case` is "stationary", the value of `max_lag` gives the truncation point for lagged autocovariance when estimating K1 as a sum of lagged autocovariances of estimates slopes. If not supplied, default is the maximum lag for which at least one of the entries of the matrix of lagged autocorrelation has absolute value greater than 4/sqrt(nobs), where the lagged autocorrelation is found up to lag `10*log10(nobs/d)`. Here `nobs` is the number of observations and `d` is the dimension of the parameter space.
 #' @param plot_acf Logical. Should the autocorrelation plot be generated when estimating K1 for the case where `test` is "parameter" and `case` is "stationary"?
 #' @param MCcorrection For tests on the simulation based parameter surrogate (`test`="parameter"), `MCcorrection` determines if and how the sampling distribution of the test statistic will be corrected by a Monte Carlo method to account for the variability in the estimate of K1. Possible values are "none" (default) and "Wishart". See the Details section and Park (2023) for more details.
-#' @param ncores An optional argument indicating the number of CPU cores to use for computation. Used only when `test`="parameter". The `mclapply` function in the `parallel` package is used. The `parallel` package needs to be installed unless `ncores`=1. In Windows, `ncores` greater than 1 is not supported (see ?mclapply for more information.) TODO: CURRENTLY NOT USED. REMOVE THIS WHEN APPROPRIATE.
 #'
 #' @details
 #' This is a generic function, taking a class `simll` object as the first argument.
@@ -55,7 +54,7 @@ ht <- function(x, ...) {
 #' \item{pval_cubic: The p-value of the test about whether the cubic term in the cubic polynomial regression is significant. If so, the result of the ht function may be biased. The test on the cubic term is carried out only when the number of simulation log likelihoods is greater than \eqn{(d+1)*(d+2)*(d+3)/6} where \eqn{d} is the dimension of the parameter vector.}
 #' }
 #'
-#' @references Park, J. (2023). On simulation based inference for implicitly defined models
+#' @references Park, J. (2023). On simulation-based inference for implicitly defined models (https://arxiv.org/abs/2311.09446)
 #' @export
 ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), case=NULL, type=NULL, weights=NULL, K1_est_method="batch", batch_size=NULL, max_lag=NULL, plot_acf=FALSE, MCcorrection="none", ncores=1) {
     validate_simll(simll)
@@ -401,6 +400,10 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
                 if (is.null(batch_size)) {
                     batch_size <- round(nobs^0.4)
                 }
+                bsizes <- rep(batch_size, floor(nobs/batch_size))
+                if (nobs != batch_size*floor(nobs/batch_size)) {
+                    bsizes <- c(bsizes, nobs-batch_size*floor(nobs/batch_size)) # actual batch sizes
+                }
                 tllmat_b <- sapply(seq(1,nobs,by=batch_size), function(bst) {
                     apply(llmat[bst:min(bst+batch_size-1,nobs),,drop=FALSE], 2, sum)
                 })
@@ -415,7 +418,8 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
             if (case=="iid") {
                 var_slope_vec <- var(t(slope)) # estimate of the variance of the slope of the fitted quadratic
             } else if (case=="stationary" && K1_est_method=="batch") {
-                var_slope_vec <- var(t(slope_b)) / batch_size
+                mean_slope_vec <- apply(slope_b, 1, sum)/nobs
+                var_slope_vec <- 1/(length(bsizes)-1) * (slope_b - outer(mean_slope_vec, bsizes)) %*% diag(1/bsizes) %*% t(slope_b - outer(mean_slope_vec, bsizes))
             } else if (case=="stationary" && K1_est_method=="autocov") {
                 if (is.null(max_lag)) {
                     acfmat <- acf(t(slope),plot=plot_acf)$acf
@@ -509,8 +513,6 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
             )
             out <- list(regression_estimates=list(a=ahat_b, b=bhat_b, c=chat_b, sigma_sq=sigsqhat),
                 meta_model_MLE_for_parameter=c(trans_b(thetastarhat)),
-                var_slope_vec=var_slope_vec, ## TODO: remove this and the next line
-                E_condVar_slope=E_condVar_slope,
                 K1=diag(1/theta_sd, nrow=length(theta_sd))%*%K1hat%*%diag(1/theta_sd, nrow=length(theta_sd)),
                 K2=diag(1/theta_sd, nrow=length(theta_sd))%*%K2hat%*%diag(1/theta_sd, nrow=length(theta_sd)),
                 error_variance=sigsqhat_lan,
@@ -526,6 +528,5 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
         }
     }
 }
-## TODO: check if the inference for the surrogate is exactly the same after linear transformation of the parameter (centering and normalization)
-### TODO: when case='stationary', a test of stationarity can be carried out, and a warning should be given when the test is positive.
+
 
