@@ -1,0 +1,15 @@
+---
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=TRUE)
+```
+
+## package sbi: Simulation-based inference
+
+
+```{r}
+summary(iris)
+```
+

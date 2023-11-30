@@ -1,8 +1,8 @@
 ---
-title: "How to use package siblle"
+title: "How to use package sbi"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{How to use package siblle}
+  %\VignetteIndexEntry{How to use package sbi}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -15,5 +15,5 @@ knitr::opts_chunk$set(
 ```
 
 ```{r setup}
-library(siblle)
+library(sbi)
 ```
