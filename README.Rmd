@@ -8,8 +8,27 @@ knitr::opts_chunk$set(echo=TRUE)
 
 ## package sbi: Simulation-based inference
 
+This package offers parameter inference methods for models defined
+implicitly using a random simulator of a stochastic system under
+study. In particular, the probability density function for the
+stochastic system is not assumed to be available. Inference carried out using
+estimates of the log likelihood of the data obtained via simulating the
+system process. The inference methods implemented in this package are
+explained in Park, J. (2023),
+"On simulation-based inference for implicitly defined models"
+(https://arxiv.org/abs/2311.09446).
+These methods are built on a `simulation meta model` which assumes that
+the estimates of the log likelihood are approximately normally
+distributed with the mean function that is locally quadratic around its
+maximum. Parameter estimation and uncertainty quantification can be
+carried out using the "ht" function (for hypothesis testing) and the
+"ci" function (for constructing a confidence interval for a
+one-dimensional parameter).
 
-```{r}
-summary(iris)
-```
+See package documentation and vignette for detailed explanation.
+
+#### References
+Park, J. (2023) On simulation-based inference for implicitly defined models (https://arxiv.org/abs/2311.09446)
+
+
 
