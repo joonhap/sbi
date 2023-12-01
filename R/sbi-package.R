@@ -1,4 +1,4 @@
-#' @references Park, J. (2023) On simulation based inference for implicitly defined models (in preparation)
+#' @references Park, J. (2023) On simulation-based inference for implicitly defined models (https://arxiv.org/abs/2311.09446)
 #' @keywords internal
 "_PACKAGE"
 

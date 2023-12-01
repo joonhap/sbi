@@ -55,7 +55,7 @@ A list consisting of the following components are returned.
 }
 }
 \description{
-\code{ht} outputs results of hypothesis tests carried out using simulation log likelihoods. See Park (2023) for more information.
+\code{ht} carries out hypothesis tests for models defined implicitly by a random simulator. It takes as input estimates of the log likelihood obtained via simulations of the model. Tests are carried out using a simulation meta model. See Park (2023) for more details on the method.
 }
 \details{
 This is a generic function, taking a class \code{simll} object as the first argument.

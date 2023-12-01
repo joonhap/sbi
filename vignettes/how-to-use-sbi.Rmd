@@ -12,8 +12,226 @@ knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>"
 )
+library(tidyverse)
+library(parallel)
+library(mvtnorm)
+library(gridExtra)
+ncores <- detectCores()-1
 ```
 
 ```{r setup}
 library(sbi)
+```
+
+## Model
+The latent process consists of $n$ copies of $N(\theta, I_d)$, where $\theta \in \mathbb R^d$:
+$$ (X_1, \dots, X_n) \overset{iid}{\sim} N(\theta, I_d).$$
+The partial observation $Y_i$ has the following distribution
+$$ Y_i | X_i \sim N(X_i, I_d)$$
+for each $i=1, \dots, n$.
+The expected simulation log likelihood for the $i$-th observation is given by
+$$ \mu(\theta; y_i) = - \mathbb E_{X_i \sim N(\theta, I_d)} \frac{1}{2} \Vert y_i - X_i\Vert^2 + \text{const.} = -\frac{1}{2} (\Vert y_i - \theta \Vert^2 + d).$$
+The maximum expected simulation log likelihood (MESLE) is given by
+$$ \hat \theta_\text{MESLE} = \arg\min_\theta \sum_{i=1}^n (\Vert y_i - \theta\Vert^2 + d) = \frac{1}{n} \sum_{i=1}^n y_i =: \bar{y}.$$
+
+Suppose that observations were generated at $\theta_0$.
+Marginally, we have $$Y_i \sim N(\theta_0, 2I_d).$$
+Thus the data-averaged expected simulation log likelihood is given by
+$$ U(\theta, \theta_0) = -\mathbb E_{Y_{1:n} \overset{iid}{\sim} N(\theta, 2I_d)} \sum_{i=1}^n \frac{1}{2}(\Vert y_i - \theta \Vert^2 + d) + \text{const.}
+    = -\frac{n}{2} (\Vert\theta_0\Vert^2 + 2d - 2\theta_0^\top \theta + \Vert\theta\Vert^2 + d) + \text{const.}
+    = -\frac{n}{2} (\Vert \theta - \theta_0\Vert^2 + 3d).
+$$
+Therefore the simulation based surrogate is given by $\mathcal J(\theta_0) = \theta_0$.
+
+
+## Tests
+### Test on the maximum expected simulation likelihood estimator (MESLE)
+We test the simulation based hypothesis test for $H_0: \hat \theta_\text{MESLE} = \theta_0$, $H_1: \hat \theta_\text{MESLE} \neq \theta_0$. 
+The observed data is generated for $\theta = (1,1) \in \mathbb R^2$ (i.e., $d=2$), and $n = 1000$.
+Simulations are made at $(1.0 \pm 0.01\times k_1, 1.0 \pm 0.01\times k_2)$, $k_1, k_2 =1, \dots, 20$ ($M=21^2 = 441$).
+The verticle line in the plot is the MESLE (the same as the MLE for this example)
+```{r}
+n <- 1000
+d <- 2
+theta_t <- c(1,1)
+set.seed(876823)
+y_o <- rmvnorm(n, theta_t, 2*diag(d)) # observed data
+MESLE <- apply(y_o, 2, mean) 
+sims_at <- expand.grid(seq(0.8,1.2,by=.02), seq(0.8,1.2,by=0.02)) %>% as.matrix
+llest <- function(x, y) { 
+    apply(x-y, 1, function(v) -sum(v^2)/2)
+}
+s <- simll(apply(sims_at, 1, function(theta) { rmvnorm(n, theta, diag(d)) %>% llest(y=y_o) }), params=sims_at) # created simll
+nulls_theta <- rbind(MESLE, expand.grid(seq(.9, 1.1, by=.1), seq(.9, 1.1, by=.1)))%>%as.matrix # null values to be tested
+ht_result <- ht(s, null.value=apply(nulls_theta, 1, identity, simplify=FALSE), test="MESLE")
+coef_est <- ht_result$regression_estimates
+ht_result$meta_model_MLE_for_MESLE
+```
+
+#### Distribution of the meta model MLE for the MESLE
+```{r}
+MESLE_tests <- function(n, y_o, nulls_theta, sims_at, nreps, mc.cores=1) {
+    M <- dim(sims_at)[1]
+    filename <- paste0("cache/ht_MESLE_meanYo=",paste(round(apply(y_o,2,mean),2), collapse=','),",n=",n,",M=",M,",nreps=",nreps,".rd")
+    if (file.exists(filename)) {
+        load(filename)
+    } else {
+        ht_MESLE_out <- mclapply(1:nreps, function(i) {
+            s <- simll(apply(sims_at, 1, function(theta) { rmvnorm(n, theta, diag(d)) %>% llest(y=y_o) }), params=sims_at)
+            ht_out <- ht(s, null.value=apply(nulls_theta, 1, identity, simplify=FALSE), test="MESLE")
+            metaMLE_out <- ht_out$meta_model_MLE_for_MESLE %>% unname
+            pvals_out <- ht_out$Hypothesis_Tests[,"pvalue"]
+            return(list(metaMLE = metaMLE_out, pvals=pvals_out))
+        }, mc.cores=mc.cores)
+        metaMLE <- sapply(ht_MESLE_out, function(o) o$metaMLE)
+        pvals <- sapply(ht_MESLE_out, function(o) o$pvals)
+        save(y_o, n, metaMLE, pvals, nulls_theta, sims_at, file=filename)
+    }
+    return(list(metaMLE=metaMLE, pvals=pvals))
+}
+```
+
+The distribution of the meta model MLE for the MESLE is as follows.
+```{r}
+n <- 1000
+sims_at <- expand.grid(seq(0.8,1.2,by=.02), seq(0.8,1.2,by=0.02)) %>% as.matrix
+nulls_theta <- rbind(MESLE, expand.grid(seq(.9, 1.1, by=.1), seq(.9, 1.1, by=.1))%>%as.matrix) # null values to be tested
+nreps <- 10000
+out <- MESLE_tests(n, y_o, nulls_theta, sims_at, nreps, mc.cores=ncores)
+metaMLE <- out$metaMLE
+metaMLE1_breaks_minmax <- sort(metaMLE[1,])[c(max(1,round(.02*nreps)),round(.98*nreps))]
+metaMLE1_breaks <- seq(metaMLE1_breaks_minmax[1], metaMLE1_breaks_minmax[2], length.out=31)
+metaMLE1_hist <- ggplot(data.frame(metaMLE=metaMLE[1,]), aes(x=metaMLE)) + geom_histogram(bins=40, col="grey", breaks=metaMLE1_breaks) + geom_vline(xintercept=MESLE[1], col='red')
+metaMLE2_breaks_minmax <- sort(metaMLE[2,])[c(max(1,round(.02*nreps)),round(.98*nreps))]
+metaMLE2_breaks <- seq(metaMLE2_breaks_minmax[1], metaMLE2_breaks_minmax[2], length.out=31)
+metaMLE2_hist <- ggplot(data.frame(metaMLE=metaMLE[2,]), aes(x=metaMLE)) + geom_histogram(bins=40, col="grey", breaks=metaMLE2_breaks) + geom_vline(xintercept=MESLE[2], col='red')
+grid.arrange(metaMLE1_hist, metaMLE2_hist, ncol=2)
+```
+
+#### Distribution of the p-value under the null and the alternative hypotheses
+We carry out hypothesis tests on the MESLE $H_0: \hat\theta_\text{MESLE} = \theta_0$, $H_1: \hat\theta_\text{MESLE} \neq \theta_0$.
+The distribution of the p-value under the null (i.e., $\theta_0 = `r round(MESLE,3)`$) is as follows.
+```{r}
+pvals <- out$pvals
+pval_breaks <- 0.05*0:20
+expected_counts <- nreps/(length(pval_breaks)-1)
+std_err_counts <- sqrt(nreps/(length(pval_breaks)-1)*(1-1/(length(pval_breaks)-1)))
+ggplot(data.frame(pval_null=pvals[1,]), aes(x=pval_null)) + geom_histogram(breaks=pval_breaks, col="grey") +
+    geom_hline(yintercept=expected_counts) +
+    geom_hline(yintercept=expected_counts+c(-2,2)*std_err_counts, linetype="dashed")
+```
+
+The distribution of the p-value for a different null value $\theta_0 = (`r round(nulls_theta[2,],2)`)$ is as follows.
+```{r}
+ggplot(data.frame(pval_null=pvals[2,]), aes(x=pval_null)) + geom_histogram(breaks=pval_breaks, col="grey") 
+```
+
+The distribution of the p-value for a different null value $\theta_0 = (`r round(nulls_theta[5,],2)`)$ is as follows.
+```{r}
+ggplot(data.frame(pval_null=pvals[2,]), aes(x=pval_null)) + geom_histogram(breaks=pval_breaks, col="grey") 
+```
+
+The distribution of the p-value for a different null value $\theta_0 = (`r round(nulls_theta[9,],2)`)$ is as follows.
+```{r}
+ggplot(data.frame(pval_null=pvals[9,]), aes(x=pval_null)) + geom_histogram(breaks=pval_breaks, col="grey") 
+```
+
+The distribution of the p-value for a different null value $\theta_0 = (`r round(nulls_theta[10,],2)`)$ is as follows.
+```{r}
+ggplot(data.frame(pval_null=pvals[10,]), aes(x=pval_null)) + geom_histogram(breaks=pval_breaks, col="grey") 
+```
+
+The power is evaluated by numerically finding the proportion of the replications for which the p-value is less than a given significance level (we take 0.05) for varying null values.
+The following table shows the estimated rejection probabilities, where the row and column names give the first and the second coordinates of the null values, respectively.
+The exact value of the MESLE is `r round(MESLE, 3)`.
+```{r}
+siglvl <- 0.05
+power <- apply(pvals, 1, function(x) sum(x<siglvl)) / dim(pvals)[2] 
+power_table <- data.frame(null1=round(nulls_theta[,1],3), null2=round(nulls_theta[,2],3), pval=power)
+power_table_wide <- pivot_wider(power_table, names_from=null2, values_from=pval)
+power_table_col_ordered <- power_table_wide[,c("null1", sort(as.numeric(colnames(power_table_wide)[-1])))]
+power_table_edited <- power_table_col_ordered[order(unlist(power_table_col_ordered[,1])),]
+colnames(power_table_edited) <- c("null[1]", colnames(power_table_edited)[-1])
+library(knitr)
+kable(power_table_edited, "simple")
+```
+
+### Tests on the simulation based surrogate $\theta_*$
+For the normal-normal location model being considered, the simulation bsaed surrogate $\theta_*$ is equal to the parameter value $\theta_0 = (1,1)$ at which observed data were generated.
+
+```{r}
+surrogate_tests <- function(n, nulls_theta, sims_at, nreps, mc.cores=1) {
+    M <- length(sims_at)
+    filename <- paste0("cache/ht_surrogate_n=",n,",M=",M,",nreps=",nreps,".rd")
+    if (file.exists(filename)) {
+        load(filename)
+    } else {
+        ht_surrogate_out <- mclapply(1:nreps, function(i) {
+            y_o <- rmvnorm(n, theta_t, 2*diag(d))
+            s <- simll(apply(sims_at, 1, function(theta) { rmvnorm(n, theta, diag(d)) %>% llest(y=y_o) }), params=sims_at)
+            ht_out <- ht(s, null.value=apply(nulls_theta, 1, identity, simplify=FALSE), test="parameter", case="iid")
+            metaMLE_out <- ht_out$meta_model_MLE_for_parameter
+            pvals_out <- ht_out$Hypothesis_Tests[,"pvalue"]
+            return(list(metaMLE = metaMLE_out, pvals=pvals_out))
+        }, mc.cores=mc.cores)
+        metaMLE <- sapply(ht_surrogate_out, function(o) o$metaMLE)
+        pvals <- sapply(ht_surrogate_out, function(o) o$pvals)
+        save(n, metaMLE, pvals, nulls_theta, sims_at, file=filename)
+    }
+    return(list(metaMLE=metaMLE, pvals=pvals))
+}
+```
+
+```{r}
+sims_at <- expand.grid(seq(0.8,1.2,by=.02), seq(0.8,1.2,by=0.02)) %>% as.matrix
+nulls_theta <- rbind(expand.grid(seq(.9, 1.1, by=.1), seq(.9, 1.1, by=.1))%>%as.matrix) # null values to be tested
+ht_out <- ht(s, null.value=apply(nulls_theta, 1, identity, simplify=FALSE), test="parameter", case="iid")
+```
+
+```{r}
+nreps <- 10000
+out <- surrogate_tests(n, nulls_theta, sims_at, nreps, mc.cores=ncores)
+```
+
+#### Distribution of the p-value under the null and the alternative hypothesis
+The distribution of the p-value under the null hypothesis $H_0: \theta_* = \theta_{*,0} = (1,1)$, which is the case where the observed data were generated, is given as follows. 
+```{r}
+pvals <- out$pvals
+pval_breaks <- 0.05*0:20
+expected_counts <- nreps/(length(pval_breaks)-1)
+std_err_counts <- sqrt(nreps/(length(pval_breaks)-1)*(1-1/(length(pval_breaks)-1)))
+ggplot(data.frame(pval_null=pvals[5,]), aes(x=pval_null)) + geom_histogram(breaks=pval_breaks, col="grey") +
+    geom_hline(yintercept=expected_counts) +
+    geom_hline(yintercept=expected_counts+c(-2,2)*std_err_counts, linetype="dashed")
+```
+
+The distribution of the p-value for $H_0: \theta_* = (`r round(nulls_theta[1,], 2)`)$ is given as follows.
+```{r}
+ggplot(data.frame(pval_null=pvals[1,]), aes(x=pval_null)) + geom_histogram(breaks=pval_breaks, col="grey") 
+```
+
+The distribution of the p-value for $H_0: \theta_* = (`r round(nulls_theta[4,], 2)`)$ is given as follows.
+```{r}
+ggplot(data.frame(pval_null=pvals[4,]), aes(x=pval_null)) + geom_histogram(breaks=pval_breaks, col="grey") 
+```
+
+The distribution of the p-value for $H_0: \theta_* = (`r round(nulls_theta[8,], 2)`)$ is given as follows.
+```{r}
+ggplot(data.frame(pval_null=pvals[8,]), aes(x=pval_null)) + geom_histogram(breaks=pval_breaks, col="grey") 
+```
+
+The distribution of the p-value for $H_0: \theta_* = (`r round(nulls_theta[9,], 2)`)$ is given as follows.
+```{r}
+ggplot(data.frame(pval_null=pvals[9,]), aes(x=pval_null)) + geom_histogram(breaks=pval_breaks, col="grey") 
+```
+
+The power is evaluated by numerically finding the proportion of the replications for which the p-value is less than a given significance level (we take 0.05) for varying null values.
+The following table shows the estimated rejection probabilities, where the row and column names give the first and the second coordinates of the null values, respectively.
+```{r}
+siglvl <- 0.05
+power <- apply(pvals, 1, function(x) sum(x<siglvl)) / dim(pvals)[2] 
+power_table <- data.frame(null1=round(nulls_theta[,1],3), null2=round(nulls_theta[,2],3), pval=power)
+power_table_wide <- pivot_wider(power_table, names_from=null2, values_from=pval)
+colnames(power_table_wide) <- c("null[1]", colnames(power_table_wide)[-1])
+kable(power_table_wide, "simple")
 ```

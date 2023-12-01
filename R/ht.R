@@ -5,7 +5,7 @@ ht <- function(x, ...) {
 
 #' Hypothesis tests based on simulation based log likelihood estimates
 #'
-#' `ht` outputs results of hypothesis tests carried out using simulation log likelihoods. See Park (2023) for more information.
+#' `ht` carries out hypothesis tests for models defined implicitly by a random simulator. It takes as input estimates of the log likelihood obtained via simulations of the model. Tests are carried out using a simulation meta model. See Park (2023) for more details on the method.
 #'
 #' @name ht
 #' @param simll A class `simll` object, containing simulation log likelihoods, the parameter values at which simulations are made (may be omitted if all simulations are made at the same parameter value), and the weights for those simulations for regression (optional). See help(simll).
