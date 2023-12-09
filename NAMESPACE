@@ -2,6 +2,7 @@
 
 S3method(ci,simll)
 S3method(ht,simll)
+export(SV_pomp)
 export(ci)
 export(ht)
 export(new_simll)
