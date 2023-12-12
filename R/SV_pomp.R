@@ -16,15 +16,15 @@
 #' Latent stochastic volatility: s_t = kappa*s_t + tau*sqrt(1-kappa^2)*V_t,  V_t~N(0,1),  for t>1
 #'        s_1 = tau*V_1,  V_1~N(0,1) for t=1.
 #' @export
-SV_pomp <- function(t0, times, kappa, gamma, tau, sim_seed=NULL) {
+SV_pomp <- function(t0, times, kappa, tau, sim_seed=NULL) {
     require(pomp)
 
     rinit <- Csnippet("
-        s = gamma + tau*rnorm(0,1);
+        s = tau*rnorm(0,1);
     ")
 
     rproc <- Csnippet("
-        s = gamma + kappa*(s-gamma) + tau*sqrt(1-kappa*kappa)*rnorm(0,1);
+        s = kappa*s + tau*sqrt(1-kappa*kappa)*rnorm(0,1);
     ")
 
     rmeas <- Csnippet("
@@ -45,10 +45,10 @@ SV_pomp <- function(t0, times, kappa, gamma, tau, sim_seed=NULL) {
         rprocess=discrete_time(rproc,delta.t=1),
         rmeasure=rmeas,
         dmeasure=dmeas,
-        params=c(kappa=kappa, gamma=gamma, tau=tau),
+        params=c(kappa=kappa, tau=tau),
         statenames = "s",
         obsnames = "r",
-        paramnames = c("kappa", "gamma", "tau")
+        paramnames = c("kappa", "tau")
     )
 }
 

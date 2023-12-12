@@ -35,6 +35,7 @@ validate_simll <- function(x) {
 
     if (is.null(dim(ll))) { # if ll is not a matrix
         ll <- matrix(ll, ncol=1) # coerce into a matrix
+        x <- new_simll(ll)
         message("Simulation log likelihoods were coerced into a matrix form.")
     }
 
