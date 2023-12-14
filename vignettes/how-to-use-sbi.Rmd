@@ -18,8 +18,6 @@ library(ggplot2)
 library(magrittr)
 library(dplyr)
 library(tidyr)
-library(parallel)
-ncores <- detectCores()
 ```
 
 \newcommand\MESLE{\text{MESLE}}
@@ -108,7 +106,7 @@ devtools::install_github("joonhap/sbi")
 The package source code may be downloaded in tar.gz format [from here](.) (not active yet, as of Dec 2023).
 The package can be loaded as usual:
 ```{r}
-library(sbi) 
+library(sbi)  
 ```
 
 The simulation-based inference is carried out using the `ht` function.
@@ -319,14 +317,14 @@ sims_incl_Est <- cbind(seq(theta_Est[inc] - sim_widths[parid], theta_Est[inc] + 
 sims_at_Nat <- outer(rep(1,M), theta_t)
 sims_at_Nat[,inc] <- sapply(1:length(inc), function(i) btrans[[parid[i]]](sims_incl_Est[,i]))
 set.seed(729875)
-llp_est <- simplify2array(mclapply(1:nrow(sims_at_Nat), function(i) {
+llp_est <- simplify2array(lapply(1:nrow(sims_at_Nat), function(i) {
     sp <- sims_at_Nat[i,]
-                                        # run the particle filter for each simulation point
+    ## run the particle filter for each simulation point
     pfSV <- pfilter(pomp(SV_t, params=sp), Np=Np, save.state="weighted") 
-                                        # estimate the simulation log-likelihood for each r_t
+    ## estimate the simulation log-likelihood for each r_t
     lme <- sapply(saved_states(pfSV)$weights, logmeanexp)
     lme
-}, mc.cores=ncores))
+}))
 ll_est <- apply(llp_est, 2, sum)
 ```
 The individual simulation log likelihood $\ell^S(\theta; r_t)$ for each $t$ was found by the average of the particle weights at time $t$ of the bootstrap particle filter.
@@ -381,12 +379,12 @@ sims_incl_Est <- cbind(seq(theta_Est[inc] - sim_widths[parid], theta_Est[inc] + 
 sims_at_Nat <- outer(rep(1,M), theta_t)
 sims_at_Nat[,inc] <- sapply(1:length(inc), function(i) btrans[[parid[i]]](sims_incl_Est[,i]))
 set.seed(729875)
-llp_est <- simplify2array(mclapply(1:nrow(sims_at_Nat), function(i) {
+llp_est <- simplify2array(lapply(1:nrow(sims_at_Nat), function(i) {
     sp <- sims_at_Nat[i,]
     pfSV <- pfilter(pomp(SV_t, params=sp), Np=Np, save.state="weighted")
     lme <- sapply(saved_states(pfSV)$weights, logmeanexp)
     lme
-}, mc.cores=ncores))
+}))
 ll_est <- apply(llp_est, 2, sum)
 s <- simll(llp_est, params=sims_incl_Est)
 null_values_Est <- cbind(theta_Est[inc]+sim_widths[parid]/5*(-10:10))
@@ -424,12 +422,12 @@ sims_incl_Est <- expand.grid(seq(theta_Est[inc[1]]-sim_widths[parid[1]], theta_E
 sims_at_Nat <- outer(rep(1,M), theta_t)
 sims_at_Nat[,inc] <- sapply(1:length(inc), function(i) btrans[[parid[i]]](sims_incl_Est[,i]))
 set.seed(729875)
-llp_est <- simplify2array(mclapply(1:nrow(sims_at_Nat), function(i) {
+llp_est <- simplify2array(lapply(1:nrow(sims_at_Nat), function(i) {
     sp <- sims_at_Nat[i,]
     pfSV <- pfilter(pomp(SV_t, params=sp), Np=Np, save.state="weighted")
     lme <- sapply(saved_states(pfSV)$weights, logmeanexp)
     lme
-}, mc.cores=ncores))
+}))
 ll_est <- apply(llp_est, 2, sum)
 s <- simll(llp_est, params=sims_incl_Est)
 null_values_Est <- expand.grid(theta_Est[inc[1]]+sim_widths[parid[1]]/5*(-10:10), theta_Est[inc[2]]+sim_widths[parid[2]]/5*(-10:10)) |> as.matrix() |> `colnames<-`(inc)

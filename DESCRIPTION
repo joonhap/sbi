@@ -14,11 +14,11 @@ Imports:
     Rcpp,
     stats
 Suggests: 
+    devtools,
     dplyr,
     ggplot2,
     knitr,
     magrittr,
-    parallel,
     pomp,
     rmarkdown,
     tidyr

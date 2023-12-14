@@ -63,6 +63,7 @@ ci.simll <- function(simll, level, ci=NULL, case=NULL, weights=NULL, K1_est_meth
             call. = FALSE
         )
     }
+    d <- 1
     if (ci=="parameter" && is.null(case)) {
         case <- "stationary"
     }
