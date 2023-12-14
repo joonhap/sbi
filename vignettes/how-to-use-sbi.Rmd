@@ -14,9 +14,10 @@ knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>"
 )
-library(tidyverse)
-library(mvtnorm)
-library(gridExtra)
+library(ggplot2)
+library(magrittr)
+library(dplyr)
+library(tidyr)
 library(parallel)
 ncores <- detectCores()
 ```
@@ -107,8 +108,7 @@ devtools::install_github("joonhap/sbi")
 The package source code may be downloaded in tar.gz format [from here](.) (not active yet, as of Dec 2023).
 The package can be loaded as usual:
 ```{r}
-# library(sbi) TODO: revive this line
-devtools::load_all('~/Research/sbi_code') # TODO: remove this line
+library(sbi) 
 ```
 
 The simulation-based inference is carried out using the `ht` function.
@@ -239,7 +239,44 @@ The bootstrap particle filter can be run using the package `pomp` with the reaso
 ```{r message=FALSE}
 library(pomp)
 ```
-The `pomp`-style definitions of the stochastic volatility model can be found in the file in `R/SV_pomp.R` in the package source file.
+The stochastic volatility model can be defined in the `pomp`-style as follows.
+```{r}
+# Stochastic volatility model
+SV_pomp <- function(t0, times, kappa, tau, sim_seed=NULL) {
+
+    rinit <- pomp::Csnippet("
+        s = tau*rnorm(0,1);
+    ")
+
+    rproc <- pomp::Csnippet("
+        s = kappa*s + tau*sqrt(1-kappa*kappa)*rnorm(0,1);
+    ")
+
+    rmeas <- pomp::Csnippet("
+        r = exp(s)*rt(5);
+    ")
+    
+    dmeas <- pomp::Csnippet("
+        double logdmeas = dt(r*exp(-s), 5, 1) - s;
+        lik = (give_log) ? logdmeas : exp(logdmeas);
+    ")
+
+    if (!is.null(sim_seed)) {
+        set.seed(sim_seed)
+    }
+    
+    pomp::simulate(t0=t0, times=times,
+        rinit=rinit,
+        rprocess=pomp::discrete_time(rproc,delta.t=1),
+        rmeasure=rmeas,
+        dmeasure=dmeas,
+        params=c(kappa=kappa, tau=tau),
+        statenames = "s",
+        obsnames = "r",
+        paramnames = c("kappa", "tau")
+    )
+}
+```
 
 The observations $r_t$ for $t=1,\dots, T=500$ are generated under $\kappa = 0.8$ and $\tau = 1$.
 The parameter $\kappa$ is constrained to be between 0 and 1, and $\tau$ has the positivity constraint.
@@ -282,31 +319,23 @@ sims_incl_Est <- cbind(seq(theta_Est[inc] - sim_widths[parid], theta_Est[inc] + 
 sims_at_Nat <- outer(rep(1,M), theta_t)
 sims_at_Nat[,inc] <- sapply(1:length(inc), function(i) btrans[[parid[i]]](sims_incl_Est[,i]))
 set.seed(729875)
-# to save computation time, simulation log-likelihoods will be loaded from saved data
-filename <- paste0("../data/SV/filter_results_sumro=",round(sum(r_o),3),",par=",
-    paste(inc,collapse=','),",sim_widths=",
-    paste(round(sim_widths[parid],3),collapse=','),",M=",M,",Np=",Np,".rd")
-if (file.exists(filename)) {
-    load(filename)
-} else { # if the saved file doesn't exist, the simulations may be carried out as follows 
-    llp_est <- mclapply(1:nrow(sims_at_Nat), function(i) {
-        sp <- sims_at_Nat[i,]
-        # run the particle filter for each simulation point
-        pfSV <- pfilter(pomp(SV_t, params=sp), Np=Np, save.state="weighted") 
-        # estimate the simulation log-likelihood for each r_t
-        lme <- sapply(saved_states(pfSV)$weights, logmeanexp)
-        lme
-    }, mc.cores=ncores) %>% simplify2array
-    ll_est <- apply(llp_est, 2, sum)
-    save(llp_est, ll_est, M, Np, SV_t, file=filename)
-}
+llp_est <- simplify2array(mclapply(1:nrow(sims_at_Nat), function(i) {
+    sp <- sims_at_Nat[i,]
+                                        # run the particle filter for each simulation point
+    pfSV <- pfilter(pomp(SV_t, params=sp), Np=Np, save.state="weighted") 
+                                        # estimate the simulation log-likelihood for each r_t
+    lme <- sapply(saved_states(pfSV)$weights, logmeanexp)
+    lme
+}, mc.cores=ncores))
+ll_est <- apply(llp_est, 2, sum)
 ```
 The individual simulation log likelihood $\ell^S(\theta; r_t)$ for each $t$ was found by the average of the particle weights at time $t$ of the bootstrap particle filter.
 
 The `simll` object is created, and hypothesis tests for the parameter $\kappa$ is carried out as follows.
 ```{r}
 s <- simll(llp_est, params=sims_incl_Est)
-null_values_Est <- cbind(theta_Est[inc]+sim_widths[parid]/5*(-10:10)) %>% `colnames<-`(inc)
+null_values_Est <- cbind(theta_Est[inc]+sim_widths[parid]/5*(-10:10))
+colnames(null_values_Est) <- inc
 ht_result <- ht(s, null.value=null_values_Est, test="parameter", case="stationary")
 ```
 The scaled variance $K_1(\theta_*;\theta_0) = \lim_{T\to\infty} \frac{1}{T} \text{Var}\left\{\frac{\partial \mu}{\partial \theta}(\theta; r_{1:T})\right\}$ can be estimated by dividing the observation sequence into continuous batches so that the estimates of the slope of the function $\mu$ are almost independent between batches.
@@ -352,24 +381,16 @@ sims_incl_Est <- cbind(seq(theta_Est[inc] - sim_widths[parid], theta_Est[inc] + 
 sims_at_Nat <- outer(rep(1,M), theta_t)
 sims_at_Nat[,inc] <- sapply(1:length(inc), function(i) btrans[[parid[i]]](sims_incl_Est[,i]))
 set.seed(729875)
-# to save computation time, simulation log-likelihoods will be loaded from saved data
-filename <- paste0("../data/SV/filter_results_sumro=",round(sum(r_o),3),",par=",
-    paste(inc,collapse=','),",sim_widths=",
-    paste(round(sim_widths[parid],3),collapse=','),",M=",M,",Np=",Np,".rd")
-if (file.exists(filename)) {
-    load(filename)
-} else { # if the saved file doesn't exist, the simulations may be carried out as follows 
-    llp_est <- mclapply(1:nrow(sims_at_Nat), function(i) {
-        sp <- sims_at_Nat[i,]
-        pfSV <- pfilter(pomp(SV_t, params=sp), Np=Np, save.state="weighted")
-        lme <- sapply(saved_states(pfSV)$weights, logmeanexp)
-        lme
-    }, mc.cores=ncores) %>% simplify2array
-    ll_est <- apply(llp_est, 2, sum)
-    save(llp_est, ll_est, M, Np, SV_t, file=filename)
-}
+llp_est <- simplify2array(mclapply(1:nrow(sims_at_Nat), function(i) {
+    sp <- sims_at_Nat[i,]
+    pfSV <- pfilter(pomp(SV_t, params=sp), Np=Np, save.state="weighted")
+    lme <- sapply(saved_states(pfSV)$weights, logmeanexp)
+    lme
+}, mc.cores=ncores))
+ll_est <- apply(llp_est, 2, sum)
 s <- simll(llp_est, params=sims_incl_Est)
-null_values_Est <- cbind(theta_Est[inc]+sim_widths[parid]/5*(-10:10)) %>% `colnames<-`(inc)
+null_values_Est <- cbind(theta_Est[inc]+sim_widths[parid]/5*(-10:10))
+colnames(null_values_Est) <- inc
 ht_result <- ht(s, null.value=null_values_Est, test="parameter", case="stationary")
 dat <- data.frame(simll=ll_est)
 dat[inc] <- sims_incl_Est
@@ -403,22 +424,13 @@ sims_incl_Est <- expand.grid(seq(theta_Est[inc[1]]-sim_widths[parid[1]], theta_E
 sims_at_Nat <- outer(rep(1,M), theta_t)
 sims_at_Nat[,inc] <- sapply(1:length(inc), function(i) btrans[[parid[i]]](sims_incl_Est[,i]))
 set.seed(729875)
-# to save computation time, simulation log-likelihoods will be loaded from saved data
-filename <- paste0("../data/SV/filter_results_sumro=",round(sum(r_o),3),",par=",
-    paste(inc,collapse=','),",sim_widths=",
-    paste(round(sim_widths[parid],3),collapse=','),",M=",M,",Np=",Np,".rd")
-if (file.exists(filename)) {
-    load(filename)
-} else { # if the saved file doesn't exist, the simulations may be carried out as follows 
-    llp_est <- mclapply(1:nrow(sims_at_Nat), function(i) {
-        sp <- sims_at_Nat[i,]
-        pfSV <- pfilter(pomp(SV_t, params=sp), Np=Np, save.state="weighted")
-        lme <- sapply(saved_states(pfSV)$weights, logmeanexp)
-        lme
-    }, mc.cores=ncores) %>% simplify2array
-    ll_est <- apply(llp_est, 2, sum)
-    save(llp_est, ll_est, M, Np, SV_t, file=filename)
-}
+llp_est <- simplify2array(mclapply(1:nrow(sims_at_Nat), function(i) {
+    sp <- sims_at_Nat[i,]
+    pfSV <- pfilter(pomp(SV_t, params=sp), Np=Np, save.state="weighted")
+    lme <- sapply(saved_states(pfSV)$weights, logmeanexp)
+    lme
+}, mc.cores=ncores))
+ll_est <- apply(llp_est, 2, sum)
 s <- simll(llp_est, params=sims_incl_Est)
 null_values_Est <- expand.grid(theta_Est[inc[1]]+sim_widths[parid[1]]/5*(-10:10), theta_Est[inc[2]]+sim_widths[parid[2]]/5*(-10:10)) |> as.matrix() |> `colnames<-`(inc)
 ht_result <- ht(s, null.value=null_values_Est, test="parameter", case="stationary")
