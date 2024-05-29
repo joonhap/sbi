@@ -38,7 +38,7 @@ rscl(n, M, k)
 
 \item{num_error_size}{The requested size of numerical error for the outputs of qscl and pscl functions, in terms of the estimated standard deviation of the output. For example num_error_size of 0.01 will output values with the standard deviation of approximately equal to 0.01.}
 
-\item{lower}{logical; if TRUE, probabilities are P\link{X <= x}, otherwise, P\link{X > x}.}
+\item{lower}{logical; if TRUE, probabilities are P(X <= x), otherwise, P(X > x).}
 
 \item{log_p}{logical; if TRUE, probabilities p are given as log(p).}
 

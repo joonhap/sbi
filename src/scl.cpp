@@ -13,7 +13,7 @@
 //' @param M the first parameter for the SCL distributions
 //' @param k the second parameter for the SCL distribution
 //' @param num_error_size The requested size of numerical error for the outputs of qscl and pscl functions, in terms of the estimated standard deviation of the output. For example num_error_size of 0.01 will output values with the standard deviation of approximately equal to 0.01.
-//' @param lower logical; if TRUE, probabilities are P[X <= x], otherwise, P[X > x].
+//' @param lower logical; if TRUE, probabilities are P(X <= x), otherwise, P(X > x).
 //' @param log_p logical; if TRUE, probabilities p are given as log(p).
 //' @param force logical; if TRUE, the function will run regardless of how long it will take. If FALSE, the function will ask if you want to continue, stop, or give a new num_error_size value whenever the expected run time is longer than 15 seconds. 
 //' @return a list consisting of the numeric vector of quantiles and the num_error_size (numeric) used.
@@ -28,12 +28,10 @@
 // [[Rcpp::export]]
 Rcpp::List qscl(Rcpp::NumericVector p, const double M, const double k, double num_error_size = 0.01, const bool lower = true, const bool log_p = false, const bool force = false) {
   if (k <= 0) { 
-    std::cout << "k should be positive." << std::endl;
-    exit(1);
+    Rcpp::stop("k should be positive.\n");
   }
   if (M <= k) { 
-    std::cout << "M should be greater than k." << std::endl;
-    exit(1);
+    Rcpp::stop("M should be greater than k.\n");
   }
   
   int plen = p.size();
@@ -101,15 +99,15 @@ Rcpp::List qscl(Rcpp::NumericVector p, const double M, const double k, double nu
 
     if (req_time > 15.0 && (!force)) {
       do {
-	std::cout << "Computing quantile values for the SCL distribution (" << M << "," << k << ") with approximate size of numerical error " << num_error_size << ".\n";
-	std::cout << "This will take approximately " << round(duration.count() / 1000.0 * factor) << " seconds.\n";
-	std::cout << "Do you want to continue? (If so, type 'y'.)\nIf not, you can enter a new approximate numerical error size (e.g., 0.03) or type 'n' to stop.\n";
+	Rcpp::Rcout << "Computing quantile values for the SCL distribution (" << M << "," << k << ") with approximate size of numerical error " << num_error_size << ".\n";
+	Rcpp::Rcout << "This will take approximately " << round(duration.count() / 1000.0 * factor) << " seconds.\n";
+	Rcpp::Rcout << "Do you want to continue? (If so, type 'y'.)\nIf not, you can enter a new approximate numerical error size (e.g., 0.03) or type 'n' to stop.\n";
 	std::string response;
 	std::cin >> response;
 	if (response == "y" || response == "Y") {
 	  break;
 	} else if (response == "n" || response == "N") {
-	  std::cout << "Stopping.\n";
+	  Rcpp::Rcout << "Stopping.\n";
 	  return 0;
 	} else {
 	  num_error_size = std::stod(response);
@@ -140,15 +138,14 @@ Rcpp::List qscl(Rcpp::NumericVector p, const double M, const double k, double nu
 
 
 //' @rdname SCL
+//' @export
 // [[Rcpp::export]]
 Rcpp::List pscl(Rcpp::NumericVector q, const double M, const double k, double num_error_size = 0.01, const bool lower = true, const bool log_p = false, const bool force = false) {
   if (k <= 0) { 
-    std::cout << "k should be positive." << std::endl;
-    exit(1);
+    Rcpp::stop("k should be positive.\n");
   }
   if (M <= k) { 
-    std::cout << "M should be greater than k." << std::endl;
-    exit(1);
+    Rcpp::stop("M should be greater than k.\n");
   }
   
   int qlen = q.size();
@@ -193,15 +190,15 @@ Rcpp::List pscl(Rcpp::NumericVector q, const double M, const double k, double nu
 
     if (req_time > 15.0 && (!force)) {
       do {
-	std::cout << "Computing the cdf for the SCL distribution (" << M << "," << k << ") with approximate size of numerical error " << num_error_size << ".\n";
-	std::cout << "This will take approximately " << round(duration.count() / 1000.0 * factor) << " seconds.\n";
-	std::cout << "Do you want to continue? (If so, type 'y'.)\nIf not, you can enter a new approximate numerical error size (e.g., 0.03) or type 'n' to stop.\n";
+	Rcpp::Rcout << "Computing the cdf for the SCL distribution (" << M << "," << k << ") with approximate size of numerical error " << num_error_size << ".\n";
+	Rcpp::Rcout << "This will take approximately " << round(duration.count() / 1000.0 * factor) << " seconds.\n";
+	Rcpp::Rcout << "Do you want to continue? (If so, type 'y'.)\nIf not, you can enter a new approximate numerical error size (e.g., 0.03) or type 'n' to stop.\n";
 	std::string response;
 	std::cin >> response;
 	if (response == "y" || response == "Y") {
 	  break;
 	} else if (response == "n" || response == "N") {
-	  std::cout << "Stopping.\n";
+	  Rcpp::Rcout << "Stopping.\n";
 	  return 0;
 	} else {
 	  double num_error_size = std::stod(response);
@@ -234,15 +231,14 @@ Rcpp::List pscl(Rcpp::NumericVector q, const double M, const double k, double nu
 
 
 //' @rdname SCL
+//' @export
 // [[Rcpp::export]]
 Rcpp::NumericVector rscl(const int n, const double M, const double k) {
   if (k <= 0) { 
-    std::cout << "k should be positive." << std::endl;
-    exit(1);
+    Rcpp::stop("k should be positive.\n");
   }
   if (M <= k) { 
-    std::cout << "M should be greater than k." << std::endl;
-    exit(1);
+    Rcpp::stop("M should be greater than k.\n");
   }
   
   Rcpp::NumericVector out(n); // output

@@ -17,7 +17,7 @@
   max_lag = NULL,
   plot_acf = FALSE,
   MCcorrection = "none",
-  ncores = 1
+  ...
 )
 }
 \arguments{
@@ -42,6 +42,8 @@
 \item{plot_acf}{Logical. Should the autocorrelation plot be generated when estimating K1 for the case where \code{test} is "parameter" and \code{case} is "stationary"?}
 
 \item{MCcorrection}{For tests on the simulation based parameter surrogate (\code{test}="parameter"), \code{MCcorrection} determines if and how the sampling distribution of the test statistic will be corrected by a Monte Carlo method to account for the variability in the estimate of K1. Possible values are "none" (default) and "Wishart". See the Details section and Park (2023) for more details.}
+
+\item{...}{Other optional arguments, not currently used.}
 }
 \value{
 A list consisting of the following components are returned.
@@ -49,13 +51,13 @@ A list consisting of the following components are returned.
 \item{regression_estimates: point estimates for the meta model parameters, a, b, c, and sigma^2. Given only when test="MESLE" or "parameter".}
 \item{meta_model_MLE_for_*: point estimate for the tested quantity under a normal meta model}
 \item{Hypothesis_Tests: a data frame of the null values and the corresponding p-values. When \code{test}="moments" and \code{type}="regression", each null value is given in the form of c(a,b,c,sigma^2) where a, b, c, sigma^2 are first, second, third, and fourth entries of the given null value.}
-\item{pvalue_numerical_error_size: When \code{test}="moments", approximate size of error in numerical evaluation of p-values (automatically set to approximately 0.01 or 0.001). For these case, p-values are found using the SCL distributions, whose cumulative distribution functions are numerically evaluated using random number generations. Thus p-values have some stochastic error. The size of the numerical error is automatically set to approximately 0.01, but if p-value found is less than 0.01 for any of the provided null values, more computations are carried out to reduce the numerical error size to approximately 0.001. Note that when \code{test}="MESLE", "information", or "parameter", the (standard) F distribution is used, so this list component is omitted.}
+\item{pvalue_numerical_error_size: When \code{test}="moments", approximate size of error in numerical evaluation of p-values (automatically set to approximately 0.01 or 0.001). For these case, p-values are found using the SCL distributions, whose cumulative distribution functions are numerically evaluated using random number generations. Thus p-values have some stochastic error. The size of the numerical error is automatically set to approximately 0.01, but if any of the p-values found is less than 0.01, more computations are carried out to reduce the numerical error size to approximately 0.001. Note that when \code{test}="MESLE" or "parameter", the (standard) F distribution is used, so this list component is omitted.}
 \item{max_lag: if \code{test}="parameter" and \code{case}="stationary", the maximum lag for computing the autocovariance in estimating K1 is shown.}
 \item{pval_cubic: The p-value of the test about whether the cubic term in the cubic polynomial regression is significant. If so, the result of the ht function may be biased. The test on the cubic term is carried out only when the number of simulation log likelihoods is greater than \eqn{(d+1)*(d+2)*(d+3)/6} where \eqn{d} is the dimension of the parameter vector.}
 }
 }
 \description{
-\code{ht} outputs results of hypothesis tests carried out using simulation log likelihoods. See Park (2023) for more information.
+\code{ht} carries out hypothesis tests for models defined implicitly by a random simulator. It takes as input estimates of the log likelihood obtained via simulations of the model. Tests are carried out using a simulation meta model. See Park (2023) for more details on the method.
 }
 \details{
 This is a generic function, taking a class \code{simll} object as the first argument.
@@ -82,5 +84,5 @@ When \code{test} is "moments" and \code{type} is "regression", \code{null.value}
 When \code{test} is "MESLE" or "parameter", \code{null.value} is a vector of length \eqn{d} (a single null value), a matrix having \eqn{d} columns (each row giving a vector for a null value), or a list of vectors of length \eqn{d} (more than one null values).
 }
 \references{
-Park, J. (2023). On simulation-based inference for implicitly defined models (https://arxiv.org/abs/2311.09446)
+Park, J. (2023). On simulation-based inference for implicitly defined models \url{https://doi.org/10.48550/arxiv.2311.09446}
 }

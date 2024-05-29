@@ -1,5 +1,5 @@
 #' @export
-ci <- function(x, ...) {
+ci <- function(simll, ...) {
     UseMethod("ci")
 }
 
@@ -17,6 +17,7 @@ ci <- function(x, ...) {
 #' @param batch_size Numeric
 #' @param max_lag When `test` is "parameter" and `case` is "stationary", the value of `max_lag` gives the truncation point for lagged autocovariance when estimating K1 as a sum of lagged autocovariances of estimates slopes. If not supplied, default is the maximum lag for which the lagged autocorrelation has absolute value greater than 4/sqrt(nobs), where the lagged autocorrelation is found up to lag `10*log10(nobs)`. Here `nobs` is the number of observations.
 #' @param plot_acf Logical.  When `test` is "parameter" and `case` is "stationary", If `plot_acf` is TRUE, the autocorrelation plot of the estimated slopes of the quadratic fit to the simulation log likelihoods is shown.
+#' @param ... Other optional arguments, not currently used.
 #'
 #' @details
 #' This is a generic function, taking a class 'simll' object as the first argument.
@@ -41,9 +42,9 @@ ci <- function(x, ...) {
 #' \item{pval_cubic: The p-value of the test about whether the cubic term in the cubic polynomial regression is significant. If so, the constructed confidence interval may be biased.}
 #' }
 #'
-#' @references Park, J. (2023). On simulation based inference for implicitly defined models
+#' @references Park, J. (2023). On simulation based inference for implicitly defined model <https://doi.org/10.48550/arxiv.2311.09446>
 #' @export
-ci.simll <- function(simll, level, ci=NULL, case=NULL, weights=NULL, K1_est_method="batch", batch_size=NULL, max_lag=NULL, plot_acf=FALSE, MCcorrection="none") {
+ci.simll <- function(simll, level, ci=NULL, case=NULL, weights=NULL, K1_est_method="batch", batch_size=NULL, max_lag=NULL, plot_acf=FALSE, ...) {
     validate_simll(simll)
     if (is.null(ci)) {
         ci <- "parameter"
@@ -62,6 +63,7 @@ ci.simll <- function(simll, level, ci=NULL, case=NULL, weights=NULL, K1_est_meth
             call. = FALSE
         )
     }
+    d <- 1
     if (ci=="parameter" && is.null(case)) {
         case <- "stationary"
     }

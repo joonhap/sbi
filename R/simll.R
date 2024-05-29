@@ -12,10 +12,8 @@ simll <- function(ll, params=NULL, weights=NULL) {
 }
 
 
-#' Constructor for a class 'simll' object
-#'
-#' Constructs a new class 'simll' object. Note that the 'simll' function uses the 'new_simll' function to construct an object and use an interval validator function to check the correctness of the object specification.
-#' @export
+# Internal constructor for a class 'simll' object
+# Constructs a new class 'simll' object. Note that the 'simll' function uses the 'new_simll' function to construct an object and use an interval validator function to check the correctness of the object specification.
 new_simll <- function(ll, params=NULL, weights=NULL) {
     stopifnot(is.numeric(ll))
 
@@ -35,6 +33,7 @@ validate_simll <- function(x) {
 
     if (is.null(dim(ll))) { # if ll is not a matrix
         ll <- matrix(ll, ncol=1) # coerce into a matrix
+        x <- new_simll(ll)
         message("Simulation log likelihoods were coerced into a matrix form.")
     }
 

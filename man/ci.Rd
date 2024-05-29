@@ -15,7 +15,7 @@
   batch_size = NULL,
   max_lag = NULL,
   plot_acf = FALSE,
-  MCcorrection = "none"
+  ...
 )
 }
 \arguments{
@@ -36,6 +36,8 @@
 \item{max_lag}{When \code{test} is "parameter" and \code{case} is "stationary", the value of \code{max_lag} gives the truncation point for lagged autocovariance when estimating K1 as a sum of lagged autocovariances of estimates slopes. If not supplied, default is the maximum lag for which the lagged autocorrelation has absolute value greater than 4/sqrt(nobs), where the lagged autocorrelation is found up to lag \code{10*log10(nobs)}. Here \code{nobs} is the number of observations.}
 
 \item{plot_acf}{Logical.  When \code{test} is "parameter" and \code{case} is "stationary", If \code{plot_acf} is TRUE, the autocorrelation plot of the estimated slopes of the quadratic fit to the simulation log likelihoods is shown.}
+
+\item{...}{Other optional arguments, not currently used.}
 }
 \value{
 A list consisting of the followings are returned.
@@ -65,5 +67,5 @@ If 'ci' = "MESLE", confidence intervals are constructed for the maximum expected
 When quadratic regression is carried out, the weights for the simulation based likelihood estimates can be specified. The length of 'weights' should be equal to that of the 'params' attribute of the 'simll', which is equal to the number of rows in the simulation log likelihood matrix in the 'simll' object. It is important to note that the weights are not normalized (i.e., not sum to one). Multiplying all weights by the same constant changes the estimation outputs. If not supplied, the 'weights' attribute of the 'simll' object is used. If neither is supplied, 'weights' defaults to the vector of all ones.
 }
 \references{
-Park, J. (2023). On simulation based inference for implicitly defined models
+Park, J. (2023). On simulation based inference for implicitly defined model \url{https://doi.org/10.48550/arxiv.2311.09446}
 }

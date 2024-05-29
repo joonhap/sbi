@@ -1,11 +1,11 @@
 #' @export
-ht <- function(x, ...) {
+ht <- function(simll, ...) {
     UseMethod("ht")
 }
 
 #' Hypothesis tests based on simulation based log likelihood estimates
 #'
-#' `ht` outputs results of hypothesis tests carried out using simulation log likelihoods. See Park (2023) for more information.
+#' `ht` carries out hypothesis tests for models defined implicitly by a random simulator. It takes as input estimates of the log likelihood obtained via simulations of the model. Tests are carried out using a simulation meta model. See Park (2023) for more details on the method.
 #'
 #' @name ht
 #' @param simll A class `simll` object, containing simulation log likelihoods, the parameter values at which simulations are made (may be omitted if all simulations are made at the same parameter value), and the weights for those simulations for regression (optional). See help(simll).
@@ -19,7 +19,8 @@ ht <- function(x, ...) {
 #' @param max_lag When `test` is "parameter" and `case` is "stationary", the value of `max_lag` gives the truncation point for lagged autocovariance when estimating K1 as a sum of lagged autocovariances of estimates slopes. If not supplied, default is the maximum lag for which at least one of the entries of the matrix of lagged autocorrelation has absolute value greater than 4/sqrt(nobs), where the lagged autocorrelation is found up to lag `10*log10(nobs/d)`. Here `nobs` is the number of observations and `d` is the dimension of the parameter space.
 #' @param plot_acf Logical. Should the autocorrelation plot be generated when estimating K1 for the case where `test` is "parameter" and `case` is "stationary"?
 #' @param MCcorrection For tests on the simulation based parameter surrogate (`test`="parameter"), `MCcorrection` determines if and how the sampling distribution of the test statistic will be corrected by a Monte Carlo method to account for the variability in the estimate of K1. Possible values are "none" (default) and "Wishart". See the Details section and Park (2023) for more details.
-#'
+#' @param ... Other optional arguments, not currently used.
+#' 
 #' @details
 #' This is a generic function, taking a class `simll` object as the first argument.
 #' Hypothesis tests are carried out under a normal meta model--that is, the simulation log likelihoods (whose values are given in the `simll` object) are normally distributed.
@@ -49,14 +50,14 @@ ht <- function(x, ...) {
 #' \item{regression_estimates: point estimates for the meta model parameters, a, b, c, and sigma^2. Given only when test="MESLE" or "parameter".}
 #' \item{meta_model_MLE_for_*: point estimate for the tested quantity under a normal meta model}
 #' \item{Hypothesis_Tests: a data frame of the null values and the corresponding p-values. When `test`="moments" and `type`="regression", each null value is given in the form of c(a,b,c,sigma^2) where a, b, c, sigma^2 are first, second, third, and fourth entries of the given null value.}
-#' \item{pvalue_numerical_error_size: When `test`="moments", approximate size of error in numerical evaluation of p-values (automatically set to approximately 0.01 or 0.001). For these case, p-values are found using the SCL distributions, whose cumulative distribution functions are numerically evaluated using random number generations. Thus p-values have some stochastic error. The size of the numerical error is automatically set to approximately 0.01, but if p-value found is less than 0.01 for any of the provided null values, more computations are carried out to reduce the numerical error size to approximately 0.001. Note that when `test`="MESLE", "information", or "parameter", the (standard) F distribution is used, so this list component is omitted.}
+#' \item{pvalue_numerical_error_size: When `test`="moments", approximate size of error in numerical evaluation of p-values (automatically set to approximately 0.01 or 0.001). For these case, p-values are found using the SCL distributions, whose cumulative distribution functions are numerically evaluated using random number generations. Thus p-values have some stochastic error. The size of the numerical error is automatically set to approximately 0.01, but if any of the p-values found is less than 0.01, more computations are carried out to reduce the numerical error size to approximately 0.001. Note that when `test`="MESLE" or "parameter", the (standard) F distribution is used, so this list component is omitted.}
 #' \item{max_lag: if `test`="parameter" and `case`="stationary", the maximum lag for computing the autocovariance in estimating K1 is shown.}
 #' \item{pval_cubic: The p-value of the test about whether the cubic term in the cubic polynomial regression is significant. If so, the result of the ht function may be biased. The test on the cubic term is carried out only when the number of simulation log likelihoods is greater than \eqn{(d+1)*(d+2)*(d+3)/6} where \eqn{d} is the dimension of the parameter vector.}
 #' }
 #'
-#' @references Park, J. (2023). On simulation-based inference for implicitly defined models (https://arxiv.org/abs/2311.09446)
+#' @references Park, J. (2023). On simulation-based inference for implicitly defined models <https://doi.org/10.48550/arxiv.2311.09446>
 #' @export
-ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), case=NULL, type=NULL, weights=NULL, K1_est_method="batch", batch_size=NULL, max_lag=NULL, plot_acf=FALSE, MCcorrection="none", ncores=1) {
+ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), case=NULL, type=NULL, weights=NULL, K1_est_method="batch", batch_size=NULL, max_lag=NULL, plot_acf=FALSE, MCcorrection="none", ...) {
     validate_simll(simll)
     match.arg(test, c("moments", "MESLE", "parameter"))
     if (test=="parameter") {
@@ -150,8 +151,7 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
         }
     }
     if (test=="moments" && type=="point") {
-        llmat <- unclass(simll)
-        ll <- apply(llmat, 2, sum) # simulation log likelihood for y_{1:n}
+        ll <- unclass(simll)
         muhat <- mean(ll)
         Ssq <- var(ll)
         M <- length(ll)
@@ -173,13 +173,12 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
                 stop("Hypothesis tests stopped by user input")
             }
             pval <- pvalout$probs
-            prec <- pvalout$numerical_error_size
         }
         precdigits <- max(-floor(log10(num.error.size)), 1) + 1
         dfout <- data.frame(
             mu_null=sapply(null.value, function(x) x[1]),
             sigma_sq_null=sapply(null.value, function(x) x[2]),
-            pvalue=round(pval, digits=precdigits)
+            pvalue=pval
         )
         out <- list(meta_model_MLE_for_moments=c(mu=muhat, sigma_sq=(M-1)/M*Ssq),
             Hypothesis_Tests=dfout,
@@ -313,6 +312,9 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
         }
         ## test about moments
         if (test=="moments") {
+            if (!is.list(null.value[[1]])) { # if the first element of null.value is not a list, it should be a list of length four (the null values for a, b, c, and sigma^2). This corresponds to the case where only a single quadruple is tested. If this is the case, coerce `null.value` into a list of a list of length four to be consistent with the other case where multiple quadruples are tested.
+                null.value <- list(null.value)
+            }
             teststats <- sapply(null.value,
                 function(x) {
                     a_null <- c(x[[1]] + x[[2]]%*%theta_mean + theta_mean %*% x[[3]] %*% theta_mean) # a in the transformed scale
@@ -329,7 +331,7 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
             pval <- pvalout$probs
             num.error.size <- pvalout$numerical_error_size
             if (any(pval < .01)) {
-                prec <- 0.001
+                num.error.size <- 0.001
                 pvalout <- pscl(teststats, M, (d^2+3*d+2)/2, num_error_size=num.error.size)
                 if (length(pvalout)==0) { # execution of pscl stopped by user input
                     stop("Hypothesis tests stopped by user input")
@@ -344,7 +346,7 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
                     b_null=null.value[[ii]][[2]],
                     c_null=null.value[[ii]][[3]],
                     sigma_sq_null=null.value[[ii]][[4]],
-                    pvalue=round(pval[ii], digits=precdigits)
+                    pvalue=pval[ii]
                 )}
             )
             out <- list(meta_model_MLE_for_moments=list(a=ahat_b, b=bhat_b, c=chat_b, sigma_sq=sigsqhat),

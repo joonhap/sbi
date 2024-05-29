@@ -6,27 +6,13 @@
 \alias{sbi-package}
 \title{sbi: Simulation Based Inference}
 \description{
-This package offers parameter inference methods for models defined
-implicitly using a random simulator of a stochastic system under
-study. In particular, the probability density function for the
-stochastic system is not assumed to be available. Inference carried out using
-estimates of the log likelihood of the data obtained via simulating the
-system process. The inference methods implemented in this package are
-explained in Park, J. (2023),
-"On simulation-based inference for implicitly defined models"
-(https://arxiv.org/abs/2311.09446).
-These methods are built on a `simulation meta model` which assumes that
-the estimates of the log likelihood are approximately normally
-distributed with the mean function that is locally quadratic around its
-maximum. Parameter estimation and uncertainty quantification can be
-carried out using the "ht" function (for hypothesis testing) and the
-"ci" function (for constructing a confidence interval for a
-one-dimensional parameter).
+Parameter inference methods for models defined implicitly using a random simulator. In particular, the probability density function for the stochastic system is not assumed to be available. Inference carried out using estimates of the log likelihood of the data obtained via simulating the system process. The inference methods implemented in this package are explained in Park, J. (2023) "On simulation-based inference for implicitly defined models" \href{https://arxiv.org/abs/2311.09446}{arXiv:2311.09446}. These methods are built on a simulation metamodel which assumes that the estimates of the log likelihood are approximately normally distributed with the mean function that is locally quadratic around its maximum. Parameter estimation and uncertainty quantification can be carried out using the "ht" function (for hypothesis testing) and the "ci" function (for constructing a confidence interval for one-dimensional parameters).
 }
 \references{
 Park, J. (2023) On simulation-based inference for implicitly defined models (https://arxiv.org/abs/2311.09446)
 }
 \author{
 \strong{Maintainer}: Joonha Park \email{j.park@ku.edu} (\href{https://orcid.org/0000-0002-4493-7730}{ORCID})
+
 }
 \keyword{internal}

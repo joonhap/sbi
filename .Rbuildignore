@@ -1,1 +1,6 @@
+[.]R~$
 ^LICENSE\.md$
+^R/obsolete
+^src/obsolete
+^DEV_README$
+^README.Rmd
