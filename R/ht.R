@@ -20,7 +20,7 @@ ht <- function(simll, ...) {
 #' @param plot_acf Logical. Should the autocorrelation plot be generated when estimating K1 for the case where `test` is "parameter" and `case` is "stationary"?
 #' @param MCcorrection For tests on the simulation based parameter surrogate (`test`="parameter"), `MCcorrection` determines if and how the sampling distribution of the test statistic will be corrected by a Monte Carlo method to account for the variability in the estimate of K1. Possible values are "none" (default) and "Wishart". See the Details section and Park (2023) for more details.
 #' @param ... Other optional arguments, not currently used.
-#' 
+#'
 #' @details
 #' This is a generic function, taking a class `simll` object as the first argument.
 #' Hypothesis tests are carried out under a normal meta model--that is, the simulation log likelihoods (whose values are given in the `simll` object) are normally distributed.
@@ -262,7 +262,6 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
         vec012 <- function(vec) {
             c(1, vec, vech(vec2(vec)))
         }
-        W  <- diag(w, nrow=length(w))
         theta <- cbind(attr(simll, "params")) # coerce into a matrix
         theta_mean <- apply(theta, 2, mean)
         theta_sd <- apply(theta, 2, sd)
@@ -273,7 +272,9 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
         ll <- apply(llmat, 2, sum)
         M <- length(ll)
         Theta012 <- t(apply(theta_n, 1, vec012))
-        Ahat <- c(solve(t(Theta012)%*%W%*%Theta012, t(Theta012)%*%(W%*%ll)))
+        dim012 <- 1 + d + (d^2+d)/2
+        WTheta012 <- outer(w,rep(1,dim012))*Theta012
+        Ahat <- c(solve(t(Theta012)%*%WTheta012, t(Theta012)%*%(w*ll)))
         ahat <- Ahat[1]
         d <- dim(theta)[2]
         bindex <- 2:(d+1) # the positions in A that correspond to b
@@ -285,7 +286,7 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
         bhat_b <- diag(1/theta_sd, nrow=length(theta_sd))%*%bhat - 2*diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd))%*%theta_mean # bhat on the original scale
         chat_b <- diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd)) # chat on the original scale
         resids <- ll - c(Theta012%*%Ahat)
-        sigsqhat <- c(resids%*%W%*%resids) / M
+        sigsqhat <- c(resids%*%(w*resids)) / M
         MESLEhat <- unname(-solve(chat,bhat)/2)
         ## cubic test
         if (M > (d+1)*(d+2)*(d+3)/6) { # carry out cubic test if this condition is met
@@ -303,9 +304,10 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
                 out
             }
             Theta0123 <- cbind(Theta012, t(rbind(apply(theta_n, 1, vec3)))) # design matrix for cubic regression to test whether the cubic coefficient = 0
-            Ahat_cubic <- c(solve(t(Theta0123)%*%W%*%Theta0123, t(Theta0123)%*%(W%*%ll)))
+            dim0123 <- dim(Theta0123)[2]
+            Ahat_cubic <- c(solve(t(Theta0123)%*%(outer(w,rep(1,dim0123))*Theta0123), t(Theta0123)%*%(w*ll)))
             resids_cubic <- ll - c(Theta0123%*%Ahat_cubic)
-            sigsqhat_cubic <- c(resids_cubic%*%W%*%resids_cubic) / M
+            sigsqhat_cubic <- c(resids_cubic%*%(w*resids_cubic)) / M
             pval_cubic <- pf((sigsqhat-sigsqhat_cubic)/sigsqhat_cubic*(sum(w>0)-(d+1)*(d+2)*(d+3)/6)/(d*(d+1)*(d+2)/6), d*(d+1)*(d+2)/6, sum(w>0)-(d+1)*(d+2)*(d+3)/6, lower.tail=FALSE)
         } else {
             cubic_test <- FALSE
@@ -321,7 +323,7 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
                     b_null <- diag(theta_sd, nrow=length(theta_sd))%*%(x[[2]] + 2*x[[3]]%*%theta_mean) # b in the transformed scale
                     c_null <- diag(theta_sd, nrow=length(theta_sd))%*%x[[3]]%*%diag(theta_sd, nrow=length(theta_sd))
                     err <- ll - c(Theta012%*%c(a_null, b_null, vech(c_null)))
-                    .5*M*log(sigsqhat/x[[4]]) - .5*c(err%*%W%*%err)/x[[4]] + M/2
+                    .5*M*log(sigsqhat/x[[4]]) - .5*c(err%*%(w*err))/x[[4]] + M/2
                 })
             num.error.size <- 0.01
             pvalout <- pscl(teststats, M, (d^2+3*d+2)/2, num_error_size=num.error.size)
@@ -361,7 +363,7 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
         ## test about MESLE
         if (test=="MESLE") {
             null.value_n <- lapply(null.value, trans_n) # transform the null values
-            U <- t(Theta012)%*%W%*%Theta012
+            U <- t(Theta012)%*%WTheta012
             V <- U[-1,-1] - U[-1,1,drop=FALSE]%*%U[1,-1,drop=FALSE]/U[1,1]
             teststats <- sapply(null.value_n,
                 function(x) {
@@ -390,13 +392,12 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
         }
         ## test on the simulation based surrogate under LAN
         if (test=="parameter") {
-            Winv <- diag(1/w, nrow=length(w))
             nobs <- dim(llmat)[1] # number of observations
             slope_at <- apply(theta_n, 2, mean)
             ## estimation of slopes
             if (case=="iid" || K1_est_method=="autocov") {
                 ## quadratic regression for each observation piece (each row of simll)
-                Ahat_i <- solve(t(Theta012)%*%W%*%Theta012, t(Theta012)%*%W%*%t(llmat)) # each column of Ahat_i is the regression estimate for a single i
+                Ahat_i <- solve(t(Theta012)%*%(outer(w,rep(1,dim012))*Theta012), t(WTheta012)%*%t(llmat)) # each column of Ahat_i is the regression estimate for a single i
                 slope <- Ahat_i[bindex,,drop=FALSE]+2*matricize(slope_at)%*%Ahat_i[cindex,,drop=FALSE] # estimated slope, a d X nobs matrix
             } else if (K1_est_method=="batch") {
                 if (is.null(batch_size)) {
@@ -409,7 +410,7 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
                 tllmat_b <- sapply(seq(1,nobs,by=batch_size), function(bst) {
                     apply(llmat[bst:min(bst+batch_size-1,nobs),,drop=FALSE], 2, sum)
                 })
-                Ahat_b <- solve(t(Theta012)%*%W%*%Theta012, t(Theta012)%*%W%*%tllmat_b) # each column of Ahat_b is the regression estimate for a single batch
+                Ahat_b <- solve(t(Theta012)%*%WTheta012, t(WTheta012)%*%tllmat_b) # each column of Ahat_b is the regression estimate for a single batch
                 slope_b <- Ahat_b[bindex,,drop=FALSE]+2*matricize(slope_at)%*%Ahat_b[cindex,,drop=FALSE] # estimated slope, a d X (num.of.batches) matrix
                 if (any(abs(acf(t(slope_b), plot=plot_acf)$acf[2,,,drop=FALSE])>2*sqrt(d*batch_size/nobs))) {
                     warning("The slope estimates at consecutive batches had significant correlation. Consider manualy increasing the batch size for estimation of K1.")
@@ -441,29 +442,33 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
                     }
                 }
             }
-            E_condVar_slope <- cbind(0,diag(d),2*matricize(slope_at))%*%solve(t(Theta012)%*%W%*%Theta012, t(cbind(0,diag(d),2*matricize(slope_at)))) * sigsqhat / nobs # an estimate of the expected value of the conditional variance of the estimated slope given Y (expectation taken with respect to Y)
+            E_condVar_slope <- cbind(0,diag(d),2*matricize(slope_at))%*%solve(t(Theta012)%*%WTheta012, t(cbind(0,diag(d),2*matricize(slope_at)))) * sigsqhat / nobs # an estimate of the expected value of the conditional variance of the estimated slope given Y (expectation taken with respect to Y)
             K1hat <- var_slope_vec - E_condVar_slope
             if (any(eigen(K1hat)$values <= 0)) {
                 warning("The estimate of K1 is not positive definite. The result of the hypothesis test may not be reliable.")
             }
             null.value_n <- lapply(null.value, trans_n) # transform the null values
-            C <- cbind(-1, diag(rep(1,M-1)))
             Theta12 <- Theta012[,-1]
-            Ctheta <- C%*%theta_n
-            Wbar <- W - outer(w,w)/sum(w)
-            P_1 <- Wbar - Wbar %*% theta_n %*% solve(sigsqhat/K1hat/nobs + t(theta_n) %*% Wbar %*% theta_n, t(theta_n) %*% Wbar)
-            PTheta12 <- P_1 %*% Theta12
+            WTheta12 <- WTheta012[,-1]
+            WbarTheta12 <- WTheta12 - 1/sum(w)*cbind(w)%*%(w%*%Theta12)
+            WbarTheta <- WbarTheta12[,1:d]
+            Wbarll <- w*ll - 1/sum(w)*w*sum(w*ll)
+            PTheta12 <- WbarTheta12 - WbarTheta %*% solve(sigsqhat/K1hat/nobs + t(theta_n) %*% WbarTheta, t(theta_n)%*%WbarTheta12)
+            Pll <- Wbarll - WbarTheta %*% solve(sigsqhat/K1hat/nobs + t(theta_n) %*% WbarTheta, t(theta_n)%*%Wbarll)
             estEq_2 <- solve(t(Theta12)%*%PTheta12, t(PTheta12)%*%ll) # estimating equation for K2 and theta_star. (thetastarhat // -I/2) * n * vech(K2hat) = (R_1^T R_1)^{-1} R_1^T (Q_1^{1/2} C lS)
             vech_K2hat <- -2*estEq_2[(d+1):((d^2+3*d)/2)]/nobs # second stage estimate of vech(K2)
             K2hat <- unvech(vech_K2hat)
             thetastarhat <- solve(K2hat,estEq_2[1:d])/nobs # maximum meta model likelihood estimate for theta_star (simulation based surrogate)
-            sigsqhat_lan <- 1/(M-1)*c(t(ll-Theta12%*%estEq_2)%*%P_1%*%(ll-Theta12%*%estEq_2))
+            sigsqhat_lan <- 1/(M-1)*c(t(ll-Theta12%*%estEq_2)%*%(Pll-PTheta12%*%estEq_2))
             teststats <- sapply(null.value_n,
                 function(x) {
                     Tmat <- Theta12 %*% rbind(matricize(x), -diag((d^2+d)/2)/2)
-                    Rmat <- Tmat %*% solve(t(Tmat)%*%P_1%*%Tmat, t(Tmat))
-                    resid_surr <- ll - Rmat%*%(P_1%*%ll)
-                    teststat <- (M-(d^2+3*d+2)/2)/d*(t(resid_surr)%*%P_1%*%resid_surr/(M-1)/sigsqhat_lan - 1)
+                    PTmat <- PTheta12 %*% rbind(matricize(x), -diag((d^2+d)/2)/2)
+                    RmatPll <- Tmat %*% solve(t(Tmat)%*%PTmat, t(Tmat)%*%Pll) # Rmat %*% P_1 %*% ll
+                    PRmatPll <- PTmat %*% solve(t(Tmat)%*%PTmat, t(Tmat)%*%Pll)
+                    resid_surr <- ll - RmatPll
+                    Presid_surr <- Pll - PRmatPll
+                    teststat <- (M-(d^2+3*d+2)/2)/d*(t(resid_surr)%*%Presid_surr/(M-1)/sigsqhat_lan - 1)
                     return(teststat)
                 })
             if (MCcorrection=="none") {

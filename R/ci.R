@@ -113,21 +113,20 @@ ci.simll <- function(simll, level, ci=NULL, case=NULL, weights=NULL, K1_est_meth
         }
     }
     ## weighted quadratic regression
-    W  <- diag(w)
     theta <- cbind(attr(simll, "params"))
     llmat <- unclass(simll)
     ll <- apply(llmat, 2, sum)
     M <- length(ll)
     theta012 <- cbind(1, theta, theta^2)
-    Ahat <- c(solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%ll)) # Ahat=(ahat,bhat,chat)
+    Ahat <- c(solve(t(theta012)%*%(outer(w,rep(1,3))*theta012), t(theta012)%*%(w*ll))) # Ahat=(ahat,bhat,chat)
     resids <- ll - c(theta012%*%Ahat)
-    sigsqhat <- c(resids%*%W%*%resids) / M
+    sigsqhat <- c(resids%*%(w*resids)) / M
     MESLEhat <- unname(-Ahat[2]/(2*Ahat[3])) # estimate of the MESLE
     ## cubic polynomial test below
     theta0123 <- cbind(1, theta, theta^2, theta^3) # cubic regression to test whether the cubic coefficient = 0
-    Ahat_cubic <- c(solve(t(theta0123)%*%W%*%theta0123, t(theta0123)%*%W%*%ll))
+    Ahat_cubic <- c(solve(t(theta0123)%*%(outer(w,rep(1,4))*theta0123), t(theta0123)%*%(w*ll)))
     resids_cubic <- ll - c(theta0123%*%Ahat_cubic)
-    sigsqhat_cubic <- c(resids_cubic%*%W%*%resids_cubic) / M
+    sigsqhat_cubic <- c(resids_cubic%*%(w*resids_cubic)) / M
     pval_cubic <- pf((sigsqhat-sigsqhat_cubic)/sigsqhat_cubic*(sum(w>0)-4), 1, sum(w>0)-4, lower.tail=FALSE)
     ## ci for MESLE
     if (ci=="MESLE") {
@@ -169,13 +168,12 @@ ci.simll <- function(simll, level, ci=NULL, case=NULL, weights=NULL, K1_est_meth
     }
     ## ci for the simulation surrogate under LAN
     if (ci=="parameter") {
-        Winv <- diag(1/w)
         nobs <- dim(llmat)[1] # number of observations
         slope_at <- mean(theta)
         ## estimation of slopes
         if (case=="iid" || K1_est_method=="autocov") {
             ## quadratic regression for each observation piece (each row of simll)
-            Ahat_i <- solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%t(llmat)) # each column of Ahat_i is the regression estimate for a single i
+            Ahat_i <- solve(t(theta012)%*%(outer(w,rep(1,3))*theta012), t(outer(w,rep(1,3))*theta012)%*%t(llmat)) # each column of Ahat_i is the regression estimate for a single i
             slope <- Ahat_i[2,]+2*slope_at*Ahat_i[3,] # estimated slope, a d X nobs matrix
         } else if (K1_est_method=="batch") {
             if (is.null(batch_size)) {
@@ -184,7 +182,7 @@ ci.simll <- function(simll, level, ci=NULL, case=NULL, weights=NULL, K1_est_meth
             tllmat_b <- sapply(seq(1,nobs,by=batch_size), function(bst) {
                 apply(llmat[bst:min(bst+batch_size-1,nobs),,drop=FALSE], 2, sum)
             })
-            Ahat_b <- solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%tllmat_b) # each column of Ahat_b is the regression estimate for a single batch
+            Ahat_b <- solve(t(theta012)%*%(outer(w,rep(1,3))*theta012), t(outer(w,rep(1,3))*theta012)%*%tllmat_b) # each column of Ahat_b is the regression estimate for a single batch
             slope_b <- Ahat_b[2,]+2*slope_at*Ahat_b[3,] # estimated slope, a d X (num.of.batches) matrix
             if (any(abs(acf(slope_b, plot=plot_acf)$acf[2,,,drop=FALSE])>2*sqrt(batch_size/nobs))) {
                 warning("The slope estimates at consecutive batches had significant correlation. Consider manualy increasing the batch size for estimation of K1.")
@@ -211,30 +209,31 @@ ci.simll <- function(simll, level, ci=NULL, case=NULL, weights=NULL, K1_est_meth
                 var_slope <- var_slope + cov(slope[max(1,1+lag):min(nobs,nobs+lag)], slope[max(1,1-lag):min(nobs,nobs-lag)])
             }
         }
-        E_condVar_slope <- c(cbind(0,1,2*slope_at)%*%solve(t(theta012)%*%W%*%theta012, rbind(0,1,2*slope_at))) * sigsqhat / nobs # an estimate of the expected value of the conditional variance of the estimated slope given Y (expectation taken with respect to Y)
+        E_condVar_slope <- c(cbind(0,1,2*slope_at)%*%solve(t(theta012)%*%(outer(w,rep(1,3))*theta012), rbind(0,1,2*slope_at))) * sigsqhat / nobs # an estimate of the expected value of the conditional variance of the estimated slope given Y (expectation taken with respect to Y)
         K1hat <- var_slope - E_condVar_slope
         if (K1hat <= 0) {
             warning("The estimate of K1 is not positive definite. The constructed confidence interval will not be reliable.")
         }
-        C <- cbind(-1, diag(rep(1,M-1)))
         theta12 <- theta012[,-1]
-        Ctheta <- C%*%theta
-        Wbar <- W - outer(w,w)/sum(w)
-        P_1 <- Wbar - Wbar %*% theta %*% solve(sigsqhat/K1hat/nobs + t(theta) %*% Wbar %*% theta, t(theta) %*% Wbar)
-        Ptheta12 <- P_1 %*% theta12
+        Wbartheta12 <- outer(w,rep(1,2))*theta12 - 1/sum(w)*cbind(w)%*%(w%*%theta12)
+        Wbartheta <- Wbartheta12[,1]
+        Wbarll <- w*ll - 1/sum(w)*w*sum(w*ll)
+        ## P_1 = Wbar - Wbar %*% theta %*% solve(sigsqhat/K1hat/nobs + t(theta) %*% Wbar %*% theta, t(theta) %*% Wbar)
+        Ptheta12 <- Wbartheta12 - Wbartheta %*% solve(sigsqhat/K1hat/nobs + t(theta) %*% Wbartheta, t(theta)%*%Wbartheta12)
+        Pll <- Wbarll - Wbartheta %*% solve(sigsqhat/K1hat/nobs + t(theta) %*% Wbartheta, t(theta)%*%Wbarll)
         estEq_2 <- solve(t(theta12)%*%Ptheta12, t(Ptheta12)%*%ll) # estimating equation for K2 and theta_star. (thetastarhat // -I/2) * n * vech(K2hat) = (R_1^T R_1)^{-1} R_1^T (Q_1^{1/2} C lS)
         K2hat <- -2*estEq_2[2]/nobs # second stage estimate of K2
         thetastarhat <- estEq_2[1]/(nobs*K2hat) # maximum meta model likelihood estimate for theta_star (simulation based surrogate)
-        sigsqhat_lan <- 1/(M-1)*c(t(ll-theta12%*%estEq_2)%*%P_1%*%(ll-theta12%*%estEq_2))
-        theta12Ptheta12 <- t(theta12)%*%P_1%*%theta12
+        sigsqhat_lan <- 1/(M-1)*c(t(ll-theta12%*%estEq_2)%*%(Pll-Ptheta12%*%estEq_2))
+        theta12Ptheta12 <- t(theta12)%*%Ptheta12
         rho11 <- theta12Ptheta12[1,1]
         rho12 <- theta12Ptheta12[1,2]
         rho22 <- theta12Ptheta12[2,2]
         lub <- sapply(1:length(level), function(i) {
             lvl <- level[i]
             q <- qf(lvl, 1, M-3)
-            zeta0 <- c(t(ll)%*%P_1%*%ll) - (M-1)*sigsqhat_lan*(q/(M-3)+1)
-            zeta12 <- t(theta12)%*%P_1%*%ll
+            zeta0 <- c(t(ll)%*%Pll) - (M-1)*sigsqhat_lan*(q/(M-3)+1)
+            zeta12 <- t(theta12)%*%Pll
             zeta1 <- zeta12[1,1]
             zeta2 <- zeta12[2,1]
             coef2 <- zeta0*rho11 - zeta1^2
