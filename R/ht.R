@@ -43,7 +43,7 @@ ht <- function(x, ...) {
 #' When `test` is "moments" and `type` is "point", `null.value` is either a vector of length two (one entry for the mean and the other for the variance of the simulation log likelihoods), a matrix of two columns (one for the mean and the other for the variance), or a list of vectors of length two (each entry of the list gives a null value consisting of the mean and the variance.)
 #' When `test` is "moments" and `type` is "regression", `null.value` can be a list of length four, or a list of lists of length four. The first case corresponds to when a single null hypothesis is tested. The four components are a) the constant term in the quadratic mean function (scalar), b) the linear coefficient term in the mean function (vector of length \eqn{d} where \eqn{d} is the dimension of the parameter vector), c) the quadratic coefficient term in the mean function (symmetric matrix of dimension \eqn{d \times d}), and d) the variance of the simulation log likelihood (scalar). The second case is when more than one null values are tested. In this case each component of the list is a list having four entries as described for the case of a single null value.
 #' When `test` is "MESLE" or "parameter", `null.value` is a vector of length \eqn{d} (a single null value), a matrix having \eqn{d} columns (each row giving a vector for a null value), or a list of vectors of length \eqn{d} (more than one null values).
-#' 
+#'
 #' @return A list consisting of the following components are returned.
 #' \itemize{
 #' \item{regression_estimates: point estimates for the meta model parameters, a, b, c, and sigma^2. Given only when test="MESLE" or "parameter".}
@@ -93,7 +93,7 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
                     }
                     null.value <- list(null.value)
                 }
-            } else if (is.list(null.value)) { 
+            } else if (is.list(null.value)) {
                 if (!all(sapply(null.value, function(n) { is.numeric(n) && length(n)==2 }))) {
                     stop("If `test` is 'moments', `type` is 'point', and `null.value` should be a vector of length 2, a matrix having two columns, or a list whose entries are all vector of lengths 2.")
                 }
@@ -113,10 +113,10 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
             if (length(null.value)!=4 || !all(c(is.numeric(null.value[[1]]), is.numeric(null.value[[2]]), is.numeric(null.value[[3]]), is.numeric(null.value[[4]]), length(null.value[[1]])==1, length(null.value[[2]])^2==length(null.value[[3]]), length(null.value[[4]])==1))) {
                 if (!all(sapply(null.value, is.list))) {
                     stop("If `test` is 'moments' and `type` is 'regression', `null.value` should be either a list of length four or a list of lists of length four. In the first case, the first entry should be a numeric scalar, the second a numeric vector of length d where d is the dimension of the parameter space, the third a symmetric matrix of dimension d X d, and the fourth a numeric scalar. In the second case, each entry of the list should be of the same form as described for the first case.")
-                } 
+                }
                 if (!all(sapply(null.value, function(n) { all(c(is.numeric(n[[1]]), is.numeric(n[[2]]), is.numeric(n[[3]]), is.numeric(n[[4]]), length(n[[1]])==1, length(n[[2]])==d, length(n[[3]])==d^2, length(n[[4]])==1)) }))) {
                 stop("If `test` is 'moments' and `type` is 'regression', `null.value` should be either a list of length four or a list of lists of length four. In the first case, the first entry should be a numeric scalar, the second a numeric vector of length d where d is the dimension of the parameter space, the third a symmetric matrix of dimension d X d, and the fourth a numeric scalar. In the second case, each entry of the list should be of the same form as described for the first case.")
-                } 
+                }
             }
         }
     }
@@ -396,7 +396,7 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
                 ## quadratic regression for each observation piece (each row of simll)
                 Ahat_i <- solve(t(Theta012)%*%W%*%Theta012, t(Theta012)%*%W%*%t(llmat)) # each column of Ahat_i is the regression estimate for a single i
                 slope <- Ahat_i[bindex,,drop=FALSE]+2*matricize(slope_at)%*%Ahat_i[cindex,,drop=FALSE] # estimated slope, a d X nobs matrix
-            } else if (K1_est_method=="batch") {   
+            } else if (K1_est_method=="batch") {
                 if (is.null(batch_size)) {
                     batch_size <- round(nobs^0.4)
                 }
@@ -448,60 +448,24 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
             C <- cbind(-1, diag(rep(1,M-1)))
             Theta12 <- Theta012[,-1]
             Ctheta <- C%*%theta_n
-            Q_1 <- solve(C%*%Winv%*%t(C) + nobs/sigsqhat*Ctheta%*%K1hat%*%t(Ctheta)) 
-            svdQ_1 <- svd(Q_1)
-            sqrtQ_1 <- svdQ_1$u %*% diag(sqrt(svdQ_1$d), nrow=M-1) %*% t(svdQ_1$v)
-            invsqrtQ_1 <- svdQ_1$v %*% diag(sqrt(1/svdQ_1$d), nrow=M-1) %*% t(svdQ_1$u)
-            R_1 <- sqrtQ_1%*%C%*%Theta12
-            estEq_2 <- c(solve(t(R_1)%*%R_1, t(R_1)%*%(sqrtQ_1%*%(C%*%ll)))) # estimating equation for K2 and theta_star. (thetastarhat // -I/2) * n * vech(K2hat) = (R_1^T R_1)^{-1} R_1^T (Q_1^{1/2} C lS)
+            Wbar <- W - outer(w,w)/sum(w)
+            P_1 <- Wbar - Wbar %*% theta_n %*% solve(sigsqhat/K1hat/nobs + t(theta_n) %*% Wbar %*% theta_n, t(theta_n) %*% Wbar)
+            PTheta12 <- P_1 %*% Theta12
+            estEq_2 <- solve(t(Theta12)%*%PTheta12, t(PTheta12)%*%ll) # estimating equation for K2 and theta_star. (thetastarhat // -I/2) * n * vech(K2hat) = (R_1^T R_1)^{-1} R_1^T (Q_1^{1/2} C lS)
             vech_K2hat <- -2*estEq_2[(d+1):((d^2+3*d)/2)]/nobs # second stage estimate of vech(K2)
             K2hat <- unvech(vech_K2hat)
             thetastarhat <- solve(K2hat,estEq_2[1:d])/nobs # maximum meta model likelihood estimate for theta_star (simulation based surrogate)
-            sigsqhat_lan <- 1/(M-1)*sum((sqrtQ_1%*%(C%*%ll) - R_1%*%estEq_2)^2)
+            sigsqhat_lan <- 1/(M-1)*c(t(ll-Theta12%*%estEq_2)%*%P_1%*%(ll-Theta12%*%estEq_2))
             teststats <- sapply(null.value_n,
                 function(x) {
-                    desgmat <- rbind(-2*matricize(x), diag((d^2+d)/2))
-                    G <- R_1%*%desgmat%*%solve(t(desgmat)%*%t(R_1)%*%R_1%*%desgmat, t(desgmat)%*%t(R_1))
-                    (M-(d^2+3*d+2)/2)/d*(sum(((diag(M-1)-G)%*%(sqrtQ_1%*%(C%*%ll)))^2)/(M-1)/sigsqhat_lan - 1)
+                    Tmat <- Theta12 %*% rbind(matricize(x), -diag((d^2+d)/2)/2)
+                    Rmat <- Tmat %*% solve(t(Tmat)%*%P_1%*%Tmat, t(Tmat))
+                    resid_surr <- ll - Rmat%*%(P_1%*%ll)
+                    teststat <- (M-(d^2+3*d+2)/2)/d*(t(resid_surr)%*%P_1%*%resid_surr/(M-1)/sigsqhat_lan - 1)
+                    return(teststat)
                 })
             if (MCcorrection=="none") {
                 pval <- pf(teststats, d, M-(d^2+3*d+2)/2, lower.tail=FALSE)
-            } else if (MCcorrection=="Wishart") {
-                MCsize <- 500 # Monte Carlo sample size
-                QhCllMC <- outer(c(R_1%*%estEq_2), rep(1,MCsize)) + sqrt(sigsqhat_lan)*matrix(rnorm((M-1)*MCsize), M-1, MCsize) # Q^{1/2}C l^S
-                llMC <- rbind(0, invsqrtQ_1%*%(QhCllMC)) # Monte Carlo draws for the simulation log likelihood vector
-                resMC <- llMC - Theta012%*%solve(t(Theta012)%*%W%*%Theta012, t(Theta012)%*%W%*%llMC)
-                sigsqhatMC <- 1/M*apply(resMC, 2, function(v) sum(v*v))
-                if (case=="iid") {
-                    df <- nobs-1
-                } else if (K1_est_method=="autocov") {
-                    df <- nobs/(2*max_lag+1)-1
-                } else if (K1_est_method=="batch") {
-                    df <- nobs/batch_size-1
-                }
-                tau1MC <- rWishart(MCsize, df=df, Sigma=var_slope_vec/df)
-                tau2pre <- cbind(0,diag(d),2*matricize(slope_at))%*%solve(t(Theta012)%*%W%*%Theta012, t(cbind(0,diag(d),2*matricize(slope_at)))) / nobs
-                #sqrtQ_1MC <- array(NA, dim=c(M-1, M-1, MCsize))
-                #R_1MC <- array(NA, dim=c(M-1, d*(d+3)/2, MCsize))
-                #tRRMC <- array(NA, dim=c(d*(d+3)/2, d*(d+3)/2, MCsize))
-                #sigsqhat_lanMC <- rep(NA, MCsize)
-                desgmat <- rbind(-2*matricize(thetastarhat), diag((d^2+d)/2))
-                teststatsMC <- sapply(1:MCsize, function(i_mc) {
-                    tau2MC <- tau2pre * sigsqhatMC[i_mc]
-                    K1hatMC <- tau1MC[,,i_mc] - tau2MC
-                    Q_1MC <- solve(C%*%Winv%*%t(C) + nobs/sigsqhatMC[i_mc]*Ctheta%*%K1hatMC%*%t(Ctheta))
-                    svdQ_1MC <- svd(Q_1MC)
-                    sqrtQ_1MC <- svdQ_1MC$u %*% diag(sqrt(svdQ_1MC$d), nrow=M-1) %*% t(svdQ_1MC$v)
-                    R_1MC <- sqrtQ_1MC%*%(C%*%Theta12)
-                    sigsqhat_lanMC <- 1/(M-1)* sum(((diag(M-1) - R_1MC%*%solve(t(R_1MC)%*%R_1MC, t(R_1MC)))%*%QhCllMC[,i_mc])^2)
-                    DMC <- R_1MC%*%desgmat
-                    GMC <- DMC%*%solve(t(DMC)%*%DMC,t(DMC))
-                    (M-(d^2+3*d+2)/2)/d*(sum(((diag(M-1)-GMC)%*%QhCllMC[,i_mc])^2)/(M-1)/sigsqhat_lanMC - 1)
-                })
-                pval <- sapply(1:length(null.value_n), function(i_nv) {
-                    nv <- null.value_n[[i_nv]]
-                    mean(teststats[i_nv]<=teststatsMC)
-                })
             }
             parameter_null <- sapply(null.value, identity)
             if (!is.null(attr(parameter_null,"dim"))) {

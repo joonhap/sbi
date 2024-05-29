@@ -175,7 +175,7 @@ ci.simll <- function(simll, level, ci=NULL, case=NULL, weights=NULL, K1_est_meth
             ## quadratic regression for each observation piece (each row of simll)
             Ahat_i <- solve(t(theta012)%*%W%*%theta012, t(theta012)%*%W%*%t(llmat)) # each column of Ahat_i is the regression estimate for a single i
             slope <- Ahat_i[2,]+2*slope_at*Ahat_i[3,] # estimated slope, a d X nobs matrix
-        } else if (K1_est_method=="batch") {   
+        } else if (K1_est_method=="batch") {
             if (is.null(batch_size)) {
                 batch_size <- round(nobs^0.4)
             }
@@ -217,24 +217,22 @@ ci.simll <- function(simll, level, ci=NULL, case=NULL, weights=NULL, K1_est_meth
         C <- cbind(-1, diag(rep(1,M-1)))
         theta12 <- theta012[,-1]
         Ctheta <- C%*%theta
-        Q_1 <- solve(C%*%Winv%*%t(C) + nobs/sigsqhat*Ctheta%*%K1hat%*%t(Ctheta)) 
-        svdQ_1 <- svd(Q_1)
-        sqrtQ_1 <- svdQ_1$u %*% diag(sqrt(svdQ_1$d)) %*% t(svdQ_1$v)
-        invsqrtQ_1 <- svdQ_1$v %*% diag(sqrt(1/svdQ_1$d), nrow=M-1) %*% t(svdQ_1$u)
-        R_1 <- sqrtQ_1%*%C%*%theta12
-        estEq_2 <- c(solve(t(R_1)%*%R_1, t(R_1)%*%(sqrtQ_1%*%C%*%ll))) # estimating equation for K2 and theta_star. (thetastarhat // -I/2) * n * K2hat = (R_1^T R_1)^{-1} R_1^T (Q_1^{1/2} C lS)
+        Wbar <- W - outer(w,w)/sum(w)
+        P_1 <- Wbar - Wbar %*% theta %*% solve(sigsqhat/K1hat/nobs + t(theta) %*% Wbar %*% theta, t(theta) %*% Wbar)
+        Ptheta12 <- P_1 %*% theta12
+        estEq_2 <- solve(t(theta12)%*%Ptheta12, t(Ptheta12)%*%ll) # estimating equation for K2 and theta_star. (thetastarhat // -I/2) * n * vech(K2hat) = (R_1^T R_1)^{-1} R_1^T (Q_1^{1/2} C lS)
         K2hat <- -2*estEq_2[2]/nobs # second stage estimate of K2
         thetastarhat <- estEq_2[1]/(nobs*K2hat) # maximum meta model likelihood estimate for theta_star (simulation based surrogate)
-        sigsqhat_lan <- 1/(M-1)*sum((sqrtQ_1%*%C%*%ll - R_1%*%estEq_2)^2)
-        tRR <- t(R_1)%*%R_1
-        rho11 <- tRR[1,1]
-        rho12 <- tRR[1,2]
-        rho22 <- tRR[2,2]
+        sigsqhat_lan <- 1/(M-1)*c(t(ll-theta12%*%estEq_2)%*%P_1%*%(ll-theta12%*%estEq_2))
+        theta12Ptheta12 <- t(theta12)%*%P_1%*%theta12
+        rho11 <- theta12Ptheta12[1,1]
+        rho12 <- theta12Ptheta12[1,2]
+        rho22 <- theta12Ptheta12[2,2]
         lub <- sapply(1:length(level), function(i) {
             lvl <- level[i]
             q <- qf(lvl, 1, M-3)
-            zeta0 <- sum((sqrtQ_1%*%C%*%ll)^2) - (M-1)*sigsqhat_lan*(q/(M-3)+1)
-            zeta12 <- t(R_1)%*%sqrtQ_1%*%C%*%ll
+            zeta0 <- c(t(ll)%*%P_1%*%ll) - (M-1)*sigsqhat_lan*(q/(M-3)+1)
+            zeta12 <- t(theta12)%*%P_1%*%ll
             zeta1 <- zeta12[1,1]
             zeta2 <- zeta12[2,1]
             coef2 <- zeta0*rho11 - zeta1^2
