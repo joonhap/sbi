@@ -453,8 +453,8 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
             WbarTheta12 <- WTheta12 - 1/sum(w)*cbind(w)%*%(w%*%Theta12)
             WbarTheta <- WbarTheta12[,1:d]
             Wbarll <- w*ll - 1/sum(w)*w*sum(w*ll)
-            PTheta12 <- WbarTheta12 - WbarTheta %*% solve(sigsqhat/K1hat/nobs + t(theta_n) %*% WbarTheta, t(theta_n)%*%WbarTheta12)
-            Pll <- Wbarll - WbarTheta %*% solve(sigsqhat/K1hat/nobs + t(theta_n) %*% WbarTheta, t(theta_n)%*%Wbarll)
+            PTheta12 <- WbarTheta12 - WbarTheta %*% solve(sigsqhat/nobs*solve(K1hat) + t(theta_n) %*% WbarTheta, t(theta_n)%*%WbarTheta12)
+            Pll <- Wbarll - WbarTheta %*% solve(sigsqhat/nobs*solve(K1hat) + t(theta_n) %*% WbarTheta, t(theta_n)%*%Wbarll)
             estEq_2 <- solve(t(Theta12)%*%PTheta12, t(PTheta12)%*%ll) # estimating equation for K2 and theta_star. (thetastarhat // -I/2) * n * vech(K2hat) = (R_1^T R_1)^{-1} R_1^T (Q_1^{1/2} C lS)
             vech_K2hat <- -2*estEq_2[(d+1):((d^2+3*d)/2)]/nobs # second stage estimate of vech(K2)
             K2hat <- unvech(vech_K2hat)
@@ -464,10 +464,10 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
                 function(x) {
                     Tmat <- Theta12 %*% rbind(matricize(x), -diag((d^2+d)/2)/2)
                     PTmat <- PTheta12 %*% rbind(matricize(x), -diag((d^2+d)/2)/2)
-                    RmatPll <- Tmat %*% solve(t(Tmat)%*%PTmat, t(Tmat)%*%Pll) # Rmat %*% P_1 %*% ll
-                    PRmatPll <- PTmat %*% solve(t(Tmat)%*%PTmat, t(Tmat)%*%Pll)
-                    resid_surr <- ll - RmatPll
-                    Presid_surr <- Pll - PRmatPll
+                    SmatPll <- Tmat %*% solve(t(Tmat)%*%PTmat, t(Tmat)%*%Pll) # Rmat %*% P_1 %*% ll
+                    PSmatPll <- PTmat %*% solve(t(Tmat)%*%PTmat, t(Tmat)%*%Pll)
+                    resid_surr <- ll - SmatPll
+                    Presid_surr <- Pll - PSmatPll
                     teststat <- (M-(d^2+3*d+2)/2)/d*(t(resid_surr)%*%Presid_surr/(M-1)/sigsqhat_lan - 1)
                     return(teststat)
                 })

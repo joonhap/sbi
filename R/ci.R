@@ -219,8 +219,8 @@ ci.simll <- function(simll, level, ci=NULL, case=NULL, weights=NULL, K1_est_meth
         Wbartheta <- Wbartheta12[,1]
         Wbarll <- w*ll - 1/sum(w)*w*sum(w*ll)
         ## P_1 = Wbar - Wbar %*% theta %*% solve(sigsqhat/K1hat/nobs + t(theta) %*% Wbar %*% theta, t(theta) %*% Wbar)
-        Ptheta12 <- Wbartheta12 - Wbartheta %*% solve(sigsqhat/K1hat/nobs + t(theta) %*% Wbartheta, t(theta)%*%Wbartheta12)
-        Pll <- Wbarll - Wbartheta %*% solve(sigsqhat/K1hat/nobs + t(theta) %*% Wbartheta, t(theta)%*%Wbarll)
+        Ptheta12 <- Wbartheta12 - Wbartheta %*% solve(sigsqhat/nobs*solve(K1hat) + t(theta) %*% Wbartheta, t(theta)%*%Wbartheta12)
+        Pll <- Wbarll - Wbartheta %*% solve(sigsqhat/nobs*solve(K1hat) + t(theta) %*% Wbartheta, t(theta)%*%Wbarll)
         estEq_2 <- solve(t(theta12)%*%Ptheta12, t(Ptheta12)%*%ll) # estimating equation for K2 and theta_star. (thetastarhat // -I/2) * n * vech(K2hat) = (R_1^T R_1)^{-1} R_1^T (Q_1^{1/2} C lS)
         K2hat <- -2*estEq_2[2]/nobs # second stage estimate of K2
         thetastarhat <- estEq_2[1]/(nobs*K2hat) # maximum meta model likelihood estimate for theta_star (simulation based surrogate)
