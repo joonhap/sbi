@@ -3,46 +3,46 @@ ci <- function(simll, ...) {
     UseMethod("ci")
 }
 
-#' Confidence interval for scalar parameter constructed using simulation log likelihoods
+#' Confidence interval for scalar parameter constructed using simulated log likelihoods
 #'
-#' `ci` constructs confidence intervals for a scalar (one-dimensional) parameter using simulation log likelihoods. See Park (2023) for more information.
+#' `ci` constructs confidence intervals for a scalar (one-dimensional) parameter using simulated log likelihoods. See Park (2025) for more information.
 #'
 #' @name ci
-#' @param simll A class 'simll' object, containing simulation log likelihoods, the parameter values at which simulations are made, and the weights for those simulations for regression (optional). See help(simll).
+#' @param simll A class 'simll' object, containing simulated log likelihoods, the parameter values at which simulations are made, and the weights for those simulations for regression (optional). See help(simll).
 #' @param level A numeric vector of confidence levels.
 #' @param ci A character string indicating the quantity for which a confidence interval is to be constructed. Either "MESLE" or "parameter". See Details.
-#' @param case When `ci` is "parameter", `case` is either "iid" or "stationary" (default). `case` = "iid" means that the observations are iid, and `case` = "stationary" means that the observations form a stationary sequence. The `case` argument affects how the variance of the slope of the mean function (=K_1 in Park (2023)) is estimated.
-#' @param weights An optional argument. The un-normalized weights of the simulation log likelihoods for regression. A numeric vector of length equal to the 'params' attribute of the 'simll' object. See Details below.
+#' @param case When `ci` is "parameter", `case` is either "iid" or "stationary" (default). `case` = "iid" means that the observations are iid, and `case` = "stationary" means that the observations form a stationary sequence. The `case` argument affects how the variance of the slope of the mean function (=K_1 in Park (2025)) is estimated.
+#' @param weights An optional argument. The un-normalized weights of the simulated log likelihoods for regression. A numeric vector of length equal to the 'params' attribute of the 'simll' object. See Details below.
 #' @param K1_est_method Either "autocov" or "batch"
 #' @param batch_size Numeric
 #' @param max_lag When `test` is "parameter" and `case` is "stationary", the value of `max_lag` gives the truncation point for lagged autocovariance when estimating K1 as a sum of lagged autocovariances of estimates slopes. If not supplied, default is the maximum lag for which the lagged autocorrelation has absolute value greater than 4/sqrt(nobs), where the lagged autocorrelation is found up to lag `10*log10(nobs)`. Here `nobs` is the number of observations.
-#' @param plot_acf Logical.  When `test` is "parameter" and `case` is "stationary", If `plot_acf` is TRUE, the autocorrelation plot of the estimated slopes of the quadratic fit to the simulation log likelihoods is shown.
+#' @param plot_acf Logical.  When `test` is "parameter" and `case` is "stationary", If `plot_acf` is TRUE, the autocorrelation plot of the estimated slopes of the quadratic fit to the simulated log likelihoods is shown.
 #' @param ... Other optional arguments, not currently used.
 #'
 #' @details
 #' This is a generic function, taking a class 'simll' object as the first argument.
-#' Confidence intervals are constructed under a normal, locally quadratic meta model where the simulation log likelihoods given in the 'simll' object are normally distributed.
+#' Confidence intervals are constructed under a normal, locally quadratic meta model where the simulated log likelihoods given in the 'simll' object are normally distributed.
 #'
 #' When 'level' has length greater than one, a confidence interval is constructed for each value in the vector.
 #'
-#' Quadratic regression for the simulation log likelihoods is carried out to construct confidence intervals, where the x-axis values are the 'params' values of the 'simll' object and the y-axis values are the corresponding simulation log likelihoods.
-#' In the case where 'ci' = "parameter", inference on the simulation based surrogate will be carried out under the local asymptotic normality for simulation log likelihoods (see Park (2023) for more information.)
+#' Quadratic regression for the simulated log likelihoods is carried out to construct confidence intervals, where the x-axis values are the 'params' values of the 'simll' object and the y-axis values are the corresponding simulated log likelihoods.
+#' In the case where 'ci' = "parameter", inference on the simulation based surrogate will be carried out under the local asymptotic normality for simulated log likelihoods (see Park (2025) for more information.)
 #' The default value of 'ci' is "parameter".
 #'
 #' If 'ci' = "MESLE", confidence intervals are constructed for the maximum expected simulation likelihood estimate given the observed data.
 #'
-#' When quadratic regression is carried out, the weights for the simulation based likelihood estimates can be specified. The length of 'weights' should be equal to that of the 'params' attribute of the 'simll', which is equal to the number of rows in the simulation log likelihood matrix in the 'simll' object. It is important to note that the weights are not normalized (i.e., not sum to one). Multiplying all weights by the same constant changes the estimation outputs. If not supplied, the 'weights' attribute of the 'simll' object is used. If neither is supplied, 'weights' defaults to the vector of all ones.
+#' When quadratic regression is carried out, the weights for the simulation based likelihood estimates can be specified. The length of 'weights' should be equal to that of the 'params' attribute of the 'simll', which is equal to the number of rows in the simulated log likelihood matrix in the 'simll' object. It is important to note that the weights are not normalized (i.e., not sum to one). Multiplying all weights by the same constant changes the estimation outputs. If not supplied, the 'weights' attribute of the 'simll' object is used. If neither is supplied, 'weights' defaults to the vector of all ones.
 #'
 #' @return A list consisting of the followings are returned.
 #' \itemize{
 #' \item{regression_estimates: point estimates for the meta model parameters, a, b, c, and sigma^2.}
 #' \item{meta_model_MLE_for_*: point estimate for the quantity for which confidence intervals are constructed under a normal meta model}
-#' \item{confidence_interval: a data frame of the lower and upper bounds of the confidence intervals and the corresponding confidence levels. Note that in some unfortunate cases (especially if the quadratic coefficient of the estimated quadratic fit of the log likelihood estimates is close to zero or nonnegative), the confidence interval may be inverted, meaning that it is of the form (-infty, bound1) U (bound2, infty). This case can happen if the signal-to-noise ratio in simulation log likelihoods is too small. The inverted confidence interval will be indicated by the additional column "inverted" in the data frame taking values of 0 or 1.}
+#' \item{confidence_interval: a data frame of the lower and upper bounds of the confidence intervals and the corresponding confidence levels. Note that in some unfortunate cases (especially if the quadratic coefficient of the estimated quadratic fit of the log likelihood estimates is close to zero or nonnegative), the confidence interval may be inverted, meaning that it is of the form (-infty, bound1) U (bound2, infty). This case can happen if the signal-to-noise ratio in simulated log likelihoods is too small. The inverted confidence interval will be indicated by the additional column "inverted" in the data frame taking values of 0 or 1.}
 #' \item{max_lag: if `test`="parameter" and `case`="stationary", the maximum lag for computing the autocovariance in estimating K1 is shown.}
 #' \item{pval_cubic: The p-value of the test about whether the cubic term in the cubic polynomial regression is significant. If so, the constructed confidence interval may be biased.}
 #' }
 #'
-#' @references Park, J. (2023). On simulation based inference for implicitly defined model <https://doi.org/10.48550/arxiv.2311.09446>
+#' @references Park, J. (2025). Scalable simulation based inference for implicitly defined models using a metamodel for log-likelihood estimator <https://doi.org/10.48550/arxiv.2311.09446>
 #' @export
 ci.simll <- function(simll, level, ci=NULL, case=NULL, weights=NULL, K1_est_method="batch", batch_size=NULL, max_lag=NULL, plot_acf=FALSE, ...) {
     validate_simll(simll)
@@ -103,7 +103,7 @@ ci.simll <- function(simll, level, ci=NULL, case=NULL, weights=NULL, K1_est_meth
             }
             if (dim(simll)[2] != length(attr(simll, "weights"))) {
                 stop(
-                    "When the 'simll' object has 'weights' attribute, the length of 'weights' should be the same as the number of columns in the simulation log likelihood matrix in 'simll'.",
+                    "When the 'simll' object has 'weights' attribute, the length of 'weights' should be the same as the number of columns in the simulated log likelihood matrix in 'simll'.",
                     call. = FALSE
                 )
             }
