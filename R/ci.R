@@ -157,8 +157,8 @@ ci.simll <- function(simll, level, ci=NULL, case=NULL, weights=NULL, K1_est_meth
         })
         if (any(lub["inverted",]==1)) { # if for any given level the confidence interval is inverted (Case 2)
             warning(paste0("For level(s) ", toString(unlist(level)[which(lub["inverted",]==1)]), ", the constructed confidence is of the form (-Inf, bound_1) U (bound_2, Inf)."), call.=FALSE)
-        } else { # otherwise, remove the "inverted" column
-            lub <- lub[-4,]
+        } else { # otherwise, remove the "inverted" column -> this operation is no longer conducted as of Jan 15, 2015
+            # lub <- lub[-4,] # this operation is no longer conducted
         }
         out <- list(regression_estimates=list(a=Ahat[1], b=Ahat[2], c=Ahat[3], sigma_sq=sigsqhat),
             meta_model_MLE_for_MESLE=c(MESLE=MESLEhat),
@@ -252,8 +252,8 @@ ci.simll <- function(simll, level, ci=NULL, case=NULL, weights=NULL, K1_est_meth
         })
         if (any(lub["inverted",]==1)) { # if for any given level the confidence interval is inverted (Case 2)
             warning(paste0("For level(s) ", toString(unlist(level)[which(lub["inverted",]==1)]), ", the constructed confidence is of the form (-Inf, bound_1) U (bound_2, Inf)."), call.=FALSE)
-        } else { # otherwise, remove the "inverted" column
-            lub <- lub[-4,]
+        } else { # otherwise, remove the "inverted" column -> This operation is no longer conducted as of Jan 15, 2015.
+            # lub <- lub[-4,] # This operation is no longer conducted.
         }
         out <- list(regression_estimates=list(a=Ahat[1], b=Ahat[2], c=Ahat[3], sigma_sq=sigsqhat),
             meta_model_MLE_for_parameter=c(parameter=thetastarhat, K1=K1hat, K2=K2hat, error_variance=sigsqhat_lan),
