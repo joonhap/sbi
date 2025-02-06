@@ -9,8 +9,10 @@ optDesign <- function(simll, ...) {
 #'
 #' @name optDesign
 #' @param simll A class `simll` object, containing simulation log likelihoods, the parameter values at which simulations are made, and the weights for those simulations for regression (optional). See help(simll).
-#' @param n An integer indicating the number of next Design points to be found
+#' @param init (optional) An initial parameter vector at which a search for optimal point starts.
 #' @param penalty A positive real that determines how heavily deviation from local quadratic approximation should be penalized. Specifically, a design point is assigned a penalization weight of `exp(-penalty*abs(cubic_term)/quadratic_term)`, where the `quadratic_term` and `cubic_term` respectively indicate the estimated second-order and third-order Taylor expansion terms with respect to the estimated maximum of the expected simulated log-likelihood function. The larger this `penalty` coefficient, the closer the next optimal design points are found near the currently estimated maximizer of the expected simulated log-likelihood. The default value is 2.
+#' @param learning_rate A positive real that determines the learning rate for the gradient descient algorithm. Defaults to 50.
+#' @param weight (optional) A positive real number indicating the user-assigned weight for the new design point. The default value is 1. This value should be chosen relative to the weights in the provided simll object.
 #' @param ... Other optional arguments, not currently used.
 #'
 #' @details
@@ -27,7 +29,7 @@ optDesign <- function(simll, ...) {
 #'
 #' @references Park, J. (2025). Scalable simulation-based inference for implicitly defined models using a metamodel for log-likelihood estimator <https://doi.org/10.48550/arxiv.2311.09446>
 #' @export
-optDesign.simll <- function(simll, n, penalty=2, ...) {
+optDesign.simll <- function(simll, init=NULL, penalty=2, learning_rate=50, weight=1, ...) {
     validate_simll(simll)
     vech <- function(mat) { # half-vectorization
         if (length(mat)==1) {
@@ -81,6 +83,11 @@ optDesign.simll <- function(simll, n, penalty=2, ...) {
         c(1, vec, vech(vec2(vec)))
     }
     ## weighted quadratic regression
+    if (is.null(attr(attr(simll, "params"), "dim"))) {
+        d <- 1
+    } else {
+        d <- dim(attr(simll, "params"))[2]
+    }
     if (!is.null(attr(simll, "weights"))) {
         if (!is.numeric(attr(simll, "weights"))) {
             stop("When the `simll` object has `weights` attribute, it has to be a numeric vector.")
@@ -106,7 +113,6 @@ optDesign.simll <- function(simll, n, penalty=2, ...) {
     WTheta012 <- outer(w,rep(1,dim012))*Theta012
     Ahat <- c(solve(t(Theta012)%*%WTheta012, t(Theta012)%*%(w*ll)))
     ahat <- Ahat[1]
-    d <- dim(theta)[2]
     bindex <- 2:(d+1) # the positions in A that correspond to b
     bhat <- Ahat[bindex]
     cindex <- (d+2):((d^2+3*d+2)/2) # the positions in A that correspond to vech(c)
@@ -139,5 +145,93 @@ optDesign.simll <- function(simll, n, penalty=2, ...) {
     } else {
         cubic_test <- FALSE
     }
-
+    ## Compute the gradient of the variance of MESLEhat with respect to new design point
+    chatinv <- solve(chat)
+    pMpchat <- matrix(0, d, (d^2+d)/2) # partial MESLEhat / partial vech(chat)
+    n <- 0
+    for (i in 1:d) {
+        l <- d+1-i
+        pMpchat[,(n+1):(n+l)] <- -chatinv[,i:d]*MESLEhat[i]
+        n <- n+l
+    }
+    pMpAhat <- cbind(0, -1/2*chatinv, pMpchat) # partial MESLEhat / partial Ahat
+    ## partial MESLEhat / partial ahat = 0
+    ## partial MESLEhat / partial bhat = -1/2*solve(chat)
+    ## partial MESLEhat / partial vech(chat) = (-solve(chat)*MESLEhat[1], -solve(chat)[,2:d]*MESLEhat[2], ..., -solve(chat)[,d]*MESLEhat[d])
+    VarAhat <- t(Theta012)%*%WTheta012 # variance of Ahat divided by sigma^2
+    wpen <- function(point) { # penalty weight due to the discrepancy between quadratic and cubic approx
+        quad_approx <- c(vec012(point)%*%Ahat) # quadratic approx at `point`
+        max_quad <- c(vec012(MESLEhat)%*%Ahat) # maximum of quadratic approximation
+        cubic_approx <- c(c(vec012(point), vec3(point))%*%Ahat_cubic) # cubic approx at `point`
+        max_cubic <- c(c(vec012(MESLEhat), vec3(MESLEhat))%*%Ahat_cubic) # cubic approx at MESLEhat
+        exp(-penalty*abs((max_quad-quad_approx)-(max_cubic-cubic_approx))/max(1,abs(quad_approx-max_quad)))
+    }
+    pVpPti <- function(point, index) { # partial Var(Ahat) / partial point[index], divided by sigma^2
+        ei <- rep(0, d); ei[index] <- 1
+        Dwpen <- 1e6*(wpen(point+1e-6*ei) - wpen(point)) # derivative of wpen w.r.t. point[index]
+        pPtsqpPti <- matrix(0, d, d) # partial point^2 / partial point[index], where point^2 is a d-by-d matrix (see Park(2025) for definition)
+        pPtsqpPti[,index] <- 2*point; pPtsqpPti[index,] <- 2*point
+        pPt012pPti <- c(0,ei,vech(pPtsqpPti)) # partial point^{0:2} / partial point[index]
+        pt012 <- vec012(point)
+        wpenpt <- wpen(point)
+        out <- Dwpen*outer(pt012,pt012) + wpenpt*(outer(pPt012pPti,pt012)+outer(pt012,pPt012pPti))
+        out * weight
+    }
+    pTVpPti <- function(point, index) { # partial TV(MESLEhat) / partial point[index], where TV = trace(Var(MESLEhat)) is the total variation of MESLEhat
+        Vinv_pMpAhatT <- solve(VarAhat, t(pMpAhat)) # Var(Ahat) %*% (partial MESLEhat / partial Ahat)^T
+        pVpPti_eval <- pVpPti(point, index)
+        out <- 0
+        for (i in 1:d) {
+            out <- out + c(Vinv_pMpAhatT[,i] %*% pVpPti_eval %*% Vinv_pMpAhatT[,i])
+        }
+        -out
+    }
+    TV <- function(point) { # TV(MESLEhat) when a new simulation is conducted at `point`
+        pt012 <- vec012(point)
+        Vinv <- solve(VarAhat + wpen(point)*outer(pt012,pt012))
+        out <- 0
+        for (i in 1:d) {
+            out <- out + c(pMpAhat[i,] %*% Vinv %*% pMpAhat[i,])
+        }
+        out
+    }
+    logTV <- function(point) { log(TV(point)) }
+    plogTVpPt <- function(point) { # partial log(TV(MESLEhat)) / partial point
+        sapply(1:d, function(i) { pTVpPti(point, i) }) / TV(point)
+    }
+    ## gradient descent search
+    if (is.null(init)) {
+        init <- MESLEhat
+    } else if (!is.numeric(init) || length(init) != d) {
+        init <- MESLEhat
+        message("The `init` should be a numeric vector of the same length as parameter vectors. Defaults to the estimated MESLE.")
+    }
+    
+    GD <- FALSE
+    if (GD) {
+        maxiter <- 30
+        pt_b_traj <- rep(NA, maxiter+1)
+        pt <- trans_n(init)
+        pt_b_traj[1] <- init
+        innov_traj <- rep(NA, maxiter)
+        TV_traj <- rep(NA, maxiter)
+        for (j in 1:maxiter) {
+            innov <- -plogTVpPti(pt, 1)
+            pt <- pt + learning_rate/(1+j/10)*innov
+            pt_b_traj[j+1] <- trans_b(pt)
+            innov_traj[j] <- innov
+            TV_traj[j] <- TV(pt)
+            if (sum(innov^2) < 1e-12) {
+                break
+            }
+        }
+    }
+    opt <- optim(trans_n(init), fn=logTV, gr=plogTVpPt, method="BFGS")
+    if (!opt$convergence%in%c(0,1)) {
+        print(opt)
+        stop("Convergence using the BFGS method has not been reached.")
+    }
+    return(trans_b(opt$par))
 }
+
+

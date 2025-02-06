@@ -59,6 +59,10 @@ ht <- function(simll, ...) {
 #' @export
 ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), case=NULL, type=NULL, weights=NULL, K1_est_method="batch", batch_size=NULL, max_lag=NULL, plot_acf=FALSE, MCcorrection="none", ...) {
     validate_simll(simll)
+    if (is.null(test)) {
+        test <- "parameter"
+        message("The `test` argument is not supplied. Defaults to `paramter`.")
+    }
     match.arg(test, c("moments", "MESLE", "parameter"))
     if (test=="parameter") {
         if (is.null(case)) {
@@ -276,7 +280,6 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
         WTheta012 <- outer(w,rep(1,dim012))*Theta012
         Ahat <- c(solve(t(Theta012)%*%WTheta012, t(Theta012)%*%(w*ll)))
         ahat <- Ahat[1]
-        d <- dim(theta)[2]
         bindex <- 2:(d+1) # the positions in A that correspond to b
         bhat <- Ahat[bindex]
         cindex <- (d+2):((d^2+3*d+2)/2) # the positions in A that correspond to vech(c)
