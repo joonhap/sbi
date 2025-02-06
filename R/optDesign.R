@@ -8,7 +8,7 @@ optDesign <- function(simll, ...) {
 #' `optDesign` finds the next design point at which simulation should be carried out for approximately best efficiency in a metamodel-based inference. See Park (2025) for more details on this method. It takes a class `simll` object.
 #'
 #' @name optDesign
-#' @param simll A class `simll` object, containing simulation log likelihoods, the parameter values at which simulations are made, and the weights for those simulations for regression (optional). See help(simll).
+#' @param s A class `simll` object, containing simulation log likelihoods, the parameter values at which simulations are made, and the weights for those simulations for regression (optional). See help(simll).
 #' @param init (optional) An initial parameter vector at which a search for optimal point starts.
 #' @param penalty A positive real that determines how heavily deviation from local quadratic approximation should be penalized. Specifically, a design point is assigned a penalization weight of `exp(-penalty*abs(cubic_term)/quadratic_term)`, where the `quadratic_term` and `cubic_term` respectively indicate the estimated second-order and third-order Taylor expansion terms with respect to the estimated maximum of the expected simulated log-likelihood function. The larger this `penalty` coefficient, the closer the next optimal design points are found near the currently estimated maximizer of the expected simulated log-likelihood. The default value is 2.
 #' @param learning_rate A positive real that determines the learning rate for the gradient descient algorithm. Defaults to 50.
@@ -21,16 +21,17 @@ optDesign <- function(simll, ...) {
 #' See function `ht` for hypothesis testing and `ci` for confidence interval construction for a one-dimensional parameter.
 #' This function `optDesign` founds the next points at which simulations are to be carried out such that the variance of the parameter estimate is reduced approximately the most.
 #' This function computes penalization weights given by `exp(-penalty*abs(cubic_term)/quadratic_term)` as described in the explanation for the `penalty` parameter to find design points that are within the scope where local quadratic approximation has relative low error.
-#' These penalization weights are multiplied to the original `weights` given to the simulation points specified in the `simll` object.
+#' These penalization weights are multiplied to the original `weights` given to the simulation points specified in the `s` object.
 #' Quadratic regression through the simulated log-likelihoods with these product weights is considered for the selection of next design points.
+#' TODO: check this description.
 #'
 #' @return A matrix of parameter values at which next simulations are to be carried out for approximately best efficiency.
 #' Each row gives a parameter vector.
 #'
 #' @references Park, J. (2025). Scalable simulation-based inference for implicitly defined models using a metamodel for log-likelihood estimator <https://doi.org/10.48550/arxiv.2311.09446>
 #' @export
-optDesign.simll <- function(simll, init=NULL, penalty=2, learning_rate=50, weight=1, ...) {
-    validate_simll(simll)
+optDesign.simll <- function(s, init=NULL, penalty=2, learning_rate=50, weight=1, ...) {
+    #validate_simll(s)
     vech <- function(mat) { # half-vectorization
         if (length(mat)==1) {
             mat <- cbind(mat)
@@ -83,29 +84,29 @@ optDesign.simll <- function(simll, init=NULL, penalty=2, learning_rate=50, weigh
         c(1, vec, vech(vec2(vec)))
     }
     ## weighted quadratic regression
-    if (is.null(attr(attr(simll, "params"), "dim"))) {
+    if (is.null(attr(attr(s, "params"), "dim"))) {
         d <- 1
     } else {
-        d <- dim(attr(simll, "params"))[2]
+        d <- dim(attr(s, "params"))[2]
     }
-    if (!is.null(attr(simll, "weights"))) {
-        if (!is.numeric(attr(simll, "weights"))) {
-            stop("When the `simll` object has `weights` attribute, it has to be a numeric vector.")
+    if (!is.null(attr(s, "weights"))) {
+        if (!is.numeric(attr(s, "weights"))) {
+            stop("When the `simll` object `s` has `weights` attribute, it has to be a numeric vector.")
         }
-        if (dim(simll)[2] != length(attr(simll, "weights"))) {
-            stop("When the `simll` object has `weights` attribute, the length of `weights` should be the same as the number of rows in the simulated log likelihood matrix in `simll`.")
+        if (dim(s)[2] != length(attr(s, "weights"))) {
+            stop("When the `simll` object `s` has `weights` attribute, the length of `weights` should be the same as the number of rows in the simulated log likelihood matrix in `s`.")
         }
-        w <- attr(simll, "weights")
+        w <- attr(s, "weights")
     } else {
-        w <- rep(1, dim(simll)[2])
+        w <- rep(1, dim(s)[2])
     }
-    theta <- cbind(attr(simll, "params")) # coerce into a matrix
+    theta <- cbind(attr(s, "params")) # coerce into a matrix
     theta_mean <- apply(theta, 2, mean)
     theta_sd <- apply(theta, 2, sd)
     trans_n <- function(vec) { (vec-theta_mean)/theta_sd } # normalize by centering and scaling
     trans_b <- function(vec) { vec*theta_sd + theta_mean } # transform back to the original scale
     theta_n <- apply(theta, 1, trans_n) |> rbind() |> t() # apply trans_n rowwise
-    llmat <- unclass(simll)
+    llmat <- unclass(s)
     ll <- apply(llmat, 2, sum)
     M <- length(ll)
     Theta012 <- t(apply(theta_n, 1, vec012))
@@ -164,7 +165,7 @@ optDesign.simll <- function(simll, init=NULL, penalty=2, learning_rate=50, weigh
         max_quad <- c(vec012(MESLEhat)%*%Ahat) # maximum of quadratic approximation
         cubic_approx <- c(c(vec012(point), vec3(point))%*%Ahat_cubic) # cubic approx at `point`
         max_cubic <- c(c(vec012(MESLEhat), vec3(MESLEhat))%*%Ahat_cubic) # cubic approx at MESLEhat
-        exp(-penalty*abs((max_quad-quad_approx)-(max_cubic-cubic_approx))/max(1,abs(quad_approx-max_quad)))
+        exp(-penalty*((max_quad-quad_approx)-(max_cubic-cubic_approx))^2/max(1,abs(quad_approx-max_quad))^2)
     }
     pVpPti <- function(point, index) { # partial Var(Ahat) / partial point[index], divided by sigma^2
         ei <- rep(0, d); ei[index] <- 1
@@ -206,7 +207,7 @@ optDesign.simll <- function(simll, init=NULL, penalty=2, learning_rate=50, weigh
         init <- MESLEhat
         message("The `init` should be a numeric vector of the same length as parameter vectors. Defaults to the estimated MESLE.")
     }
-    
+
     GD <- FALSE
     if (GD) {
         maxiter <- 30
@@ -226,12 +227,18 @@ optDesign.simll <- function(simll, init=NULL, penalty=2, learning_rate=50, weigh
             }
         }
     }
+
     opt <- optim(trans_n(init), fn=logTV, gr=plogTVpPt, method="BFGS")
+    min_theta_n <- apply(theta_n,2,min)
+    max_theta_n <- apply(theta_n,2,max)
+    optpar <- pmin(pmax(opt$par, min_theta_n-1), max_theta_n+1) # truncate optimum values
+
     if (!opt$convergence%in%c(0,1)) {
         print(opt)
-        stop("Convergence using the BFGS method has not been reached.")
+        stop("Optimization using the BFGS method did not end properly.")
     }
-    return(trans_b(opt$par))
+
+    trans_b(optpar)
 }
 
 
