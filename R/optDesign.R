@@ -161,11 +161,9 @@ optDesign.simll <- function(s, init=NULL, penalty=2, learning_rate=50, weight=1,
     ## partial MESLEhat / partial vech(chat) = (-solve(chat)*MESLEhat[1], -solve(chat)[,2:d]*MESLEhat[2], ..., -solve(chat)[,d]*MESLEhat[d])
     VarAhat <- t(Theta012)%*%WTheta012 # variance of Ahat divided by sigma^2
     wpen <- function(point) { # penalty weight due to the discrepancy between quadratic and cubic approx
-        quad_approx <- c(vec012(point)%*%Ahat) # quadratic approx at `point`
-        max_quad <- c(vec012(MESLEhat)%*%Ahat) # maximum of quadratic approximation
-        cubic_approx <- c(c(vec012(point), vec3(point))%*%Ahat_cubic) # cubic approx at `point`
-        max_cubic <- c(c(vec012(MESLEhat), vec3(MESLEhat))%*%Ahat_cubic) # cubic approx at MESLEhat
-        exp(-penalty*((max_quad-quad_approx)-(max_cubic-cubic_approx))^2/max(1,abs(quad_approx-max_quad))^2)
+        ca <- function(x) { sum(c(vec012(x), vec3(x)) * Ahat_cubic) } # cubic approx
+        tca <- function(x) { ca(x) - sum(vec3(x-MESLEhat) * Ahat_cubic[(dim012+1):dim0123]) } # truncated cubic approximation where the third order term is dropped
+        exp(-penalty*(ca(point) - tca(point))^2/(tca(point) - tca(MESLEhat))^2)
     }
     pVpPti <- function(point, index) { # partial Var(Ahat) / partial point[index], divided by sigma^2
         ei <- rep(0, d); ei[index] <- 1
