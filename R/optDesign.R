@@ -11,6 +11,7 @@ optDesign <- function(simll, ...) {
 #' @param s A class `simll` object, containing simulation log likelihoods, the parameter values at which simulations are made, and the weights for those simulations for regression (optional). See help(simll).
 #' @param init (optional) An initial parameter vector at which a search for optimal point starts.
 #' @param weight (optional) A positive real number indicating the user-assigned weight for the new design point. The default value is 1. This value should be chosen relative to the weights in the provided simll object.
+#' @param refgap (optional) A positive real number that determines the weight discount factor for the significance of the third order term in Taylor approximation. The weight of a point `theta` is discounted by a factor of exp(-(qa(theta)-qa(MESLEhat))/refgap), where MESLEhat is the estimated MESLE and qa is the quadratic approximation to the simulated log-likelihoods (before weight discount). Defaults to `refgap=Inf`.
 #' @param ... Other optional arguments, not currently used.
 #'
 #' @details
@@ -27,7 +28,7 @@ optDesign <- function(simll, ...) {
 #'
 #' @references Park, J. (2025). Scalable simulation-based inference for implicitly defined models using a metamodel for log-likelihood estimator <https://doi.org/10.48550/arxiv.2311.09446>
 #' @export
-optDesign.simll <- function(s, init=NULL, weight=1, ...) {
+optDesign.simll <- function(s, init=NULL, weight=1, refgap=Inf, ...) {
     #validate_simll(s)
     vech <- function(mat) { # half-vectorization
         if (length(mat)==1) {
@@ -117,8 +118,23 @@ optDesign.simll <- function(s, init=NULL, weight=1, ...) {
     resids <- ll - c(Theta012%*%Ahat)
     sigsqhat <- c(resids%*%(w*resids)) / M
     MESLEhat <- unname(-solve(chat,bhat)/2)
+    ## total variation (TV) of MESLEhat before point addition (_bpa)
+    chatinv <- solve(chat)
+    pMpchat_bpa <- matrix(0, d, (d^2+d)/2) # partial MESLEhat / partial vech(chat)
+    n <- 0
+    for (i in 1:d) {
+        l <- d+1-i
+        pMpchat_bpa[,(n+1):(n+l)] <- -chatinv[,i:d]*MESLEhat[i]
+        n <- n+l
+    }
+    pMpAhat_bpa <- cbind(0, -1/2*chatinv, pMpchat_bpa) # partial MESLEhat / partial Ahat
+    VarAhat_bpa <- t(Theta012)%*%WTheta012 # variance of Ahat divided by sigma^2
+    TV_bpa <- 0
+    for (i in 1:d) {
+        TV_bpa <- TV_bpa + c(pMpAhat_bpa[i,] %*% solve(VarAhat_bpa, pMpAhat_bpa[i,]))
+    }
     qa <- function(x) { sum(vec012(x)*Ahat) }
-    logwpen <- function(point) { -(qa(point)-qa(MESLEhat))^2/refgap^2 } # penalizaing weight (weight discount factor)
+    logwpen <- function(point) { -(qa(MESLEhat)-qa(point))/refgap } # penalizaing weight (weight discount factor)
     ## cubic test
     if (M <= (d+1)*(d+2)*(d+3)/6) { # carry out cubic test if this condition is met
         stop("The number of simulations is not large enough to carry out cubic polynomial fitting (should be greater than (d+1)*(d+2)*(d+3)/6)")
@@ -137,7 +153,8 @@ optDesign.simll <- function(s, init=NULL, weight=1, ...) {
     }
     Theta0123 <- cbind(Theta012, t(rbind(apply(theta_n, 1, vec3)))) # design matrix for cubic regression to test whether the cubic coefficient = 0
     dim0123 <- dim(Theta0123)[2]
-    refgap <- Inf # reference value for the gap qa(MESLEhat)-qa(theta) where qa is the quadratic approximation
+    refgap_init <- refgap # initial value of refgap
+    exit_upon_sufficient_ESS <- FALSE
     repeat{
         ## Weight points appropriately to make the third order term insignificant
         wadj <- w * exp(apply(theta_n, 1, logwpen)) # adjusted weights
@@ -152,15 +169,41 @@ optDesign.simll <- function(s, init=NULL, weight=1, ...) {
         Ahat_cubic <- c(solve(t(Theta0123)%*%(outer(wadj,rep(1,dim0123))*Theta0123), t(Theta0123)%*%(wadj*ll)))
         resids_cubic <- ll - c(Theta0123%*%Ahat_cubic)
         sigsqhat_cubic <- c(resids_cubic%*%(wadj*resids_cubic)) / M
-        pval_cubic <- pf((sigsqhat-sigsqhat_cubic)/sigsqhat_cubic*(sum(w>0)-(d+1)*(d+2)*(d+3)/6)/(d*(d+1)*(d+2)/6), d*(d+1)*(d+2)/6, sum(w>0)-(d+1)*(d+2)*(d+3)/6, lower.tail=FALSE)
-        if (pval_cubic > .01) {
+        sigratio <- (sigsqhat-sigsqhat_cubic)/sigsqhat_cubic
+        multiplier <- (sum(w>0)-(d+1)*(d+2)*(d+3)/6)/(d*(d+1)*(d+2)/6)
+        fstat <- sigratio * multiplier
+        pval_cubic <- pf(fstat, d*(d+1)*(d+2)/6, sum(w>0)-(d+1)*(d+2)*(d+3)/6, lower.tail=FALSE)
+        ESS <- sum(wadj)^2/sum(wadj^2) # effective sample size (ESS)
+        if (ESS <= (d+1)*(d+2)*(d+3)/6) { # if the ESS is too small, increase refgap
+            ##cat("refgap:",refgap,"pval_cubic:",pval_cubic,"sigsqhat:",sigsqhat,"sigsqhat_cubic:",sigsqhat_cubic,"sigratio:",sigratio,"multiplier:",multiplier,"fstat:",fstat,"ESS:",ESS,"\n")
+            exit_upon_sufficient_ESS <- TRUE # break from loop as soon as the ESS is large enough
+            refgap <- refgap * 1.5
+            next
+        }
+        if (exit_upon_sufficient_ESS) {
+            ##cat("refgap:",refgap,"pval_cubic:",pval_cubic,"sigsqhat:",sigsqhat,"sigsqhat_cubic:",sigsqhat_cubic,"sigratio:",sigratio,"multiplier:",multiplier,"fstat:",fstat,"ESS:",ESS,"\n")
+            ##cat("break, sufficient ESS reached.\n")
             break
-        } else {
+        }
+        if (pval_cubic < .01) {
+            ##cat("refgap:",refgap,"pval_cubic:",pval_cubic,"sigsqhat:",sigsqhat,"sigsqhat_cubic:",sigsqhat_cubic,"sigratio:",sigratio,"multiplier:",multiplier,"fstat:",fstat,"ESS:",ESS,"\n")
             if (refgap==Inf) {
                 refgap <- qa(MESLEhat) - min(apply(theta_n, 1, qa))
             } else {
-                refgap <- refgap / 2
+                refgap <- refgap / 1.8
             }
+        } else if (pval_cubic > .3) {
+            if (refgap >= 10*refgap_init) { # if refgap has been increased a lot already, stop. Note: in order to account for the case where pval_cubic > .3 even with refgap = Inf, the comparison should be ">=" rather than ">".
+                ##cat("refgap:",refgap,"pval_cubic:",pval_cubic,"sigsqhat:",sigsqhat,"sigsqhat_cubic:",sigsqhat_cubic,"sigratio:",sigratio,"multiplier:",multiplier,"fstat:",fstat,"ESS:",ESS,"\n")
+                ##cat("break, maximally increased refgap.\n")
+                break 
+            }
+            ##cat("refgap:",refgap,"pval_cubic:",pval_cubic,"sigsqhat:",sigsqhat,"sigsqhat_cubic:",sigsqhat_cubic,"sigratio:",sigratio,"multiplier:",multiplier,"fstat:",fstat,"ESS:",ESS,"\n")
+            refgap <- refgap * 1.3
+        } else {
+            ##cat("refgap:",refgap,"pval_cubic:",pval_cubic,"sigsqhat:",sigsqhat,"sigsqhat_cubic:",sigsqhat_cubic,"sigratio:",sigratio,"multiplier:",multiplier,"fstat:",fstat,"ESS:",ESS,"\n")
+            ##cat("break, p-val suitable.\n")
+            break
         }
     }
     ## Compute the gradient of the variance of MESLEhat with respect to new design point
@@ -187,7 +230,7 @@ optDesign.simll <- function(s, init=NULL, weight=1, ...) {
         if (nuniq==3) { return(entry/6) } # Ahat_cubic entry is the sum of six permutations of indices
     }
     Dlogwpen <- function(point) { # derivative of logwpen
-        (-2) * (qa(point)-qa(MESLEhat)) / refgap^2 * (bhat + 2*c(chat%*%point))
+        (bhat + 2*c(chat%*%point))/refgap
     }
     pVpPti <- function(point, index) { # partial Var(Ahat) / partial point[index], divided by sigma^2
         ei <- rep(0, d); ei[index] <- 1
@@ -233,13 +276,10 @@ optDesign.simll <- function(s, init=NULL, weight=1, ...) {
         init_n <- trans_n(init)
     }
     if (logwpen(init_n) < log(1e-4)) { # if wpen is too small, move the initial point closer to the MESLEhat such that the issue of too small a gradient can be avoided.
-        init_n <- MESLEhat + (init_n - MESLEhat) * (-logwpen(init_n))^(-1/4)
+        init_n <- MESLEhat + (init_n - MESLEhat) * (-logwpen(init_n))^(-1/2)
     }
 
     opt <- optim(trans_n(init_n), fn=logTV, gr=plogTVpPt, method="BFGS")
-    #min_theta_n <- apply(theta_n,2,min)
-    #max_theta_n <- apply(theta_n,2,max)
-    #optpar <- pmin(pmax(opt$par, min_theta_n-1), max_theta_n+1) # truncate optimum values
 
     if (!opt$convergence%in%c(0,1)) {
         print(opt)
@@ -249,6 +289,5 @@ optDesign.simll <- function(s, init=NULL, weight=1, ...) {
         message("Optimization did not converge within the max number of cycles.")
     }
 
-    list(par=trans_b(opt$par), w=exp(logwpen(opt$par)), Wadj=wadj)
+    list(par=trans_b(opt$par), TV=TV_bpa, w=exp(logwpen(opt$par)), Wadj=wadj, refgap=refgap)
 }
-
