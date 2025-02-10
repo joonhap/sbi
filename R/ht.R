@@ -14,7 +14,7 @@ ht <- function(simll, ...) {
 #' @param case When `test` is "parameter", `case` needs to be either "iid" or "stationary". `case` = "iid" means that the observations are iid, and `case` = "stationary" means that the observations form a stationary sequence. The `case` argument affects how the variance of the slope of the mean function (=K_1 in Park (2025)) is estimated. The default value is "stationary".
 #' @param type When `test` is "moments", the `type` argument needs to be specified. `type` = "point" means that the test about the mean and the variance of simulated log likelihoods at a given parameter point is considered. `type` = "regression" means that the test about the mean function and the variance of simulated log likelihoods at various parameter values is considered. See Details.
 #' @param weights An optional argument. The un-normalized weights of the simulated log likelihoods for regression. A numeric vector of length equal to the `params` attribute of the `simll` object. See Details below.
-#' @param weight_penalization logical. If TRUE, a cubic approximation is first carried out in order to determine the penalizing weight for each point due to the discrepancy between the second order and the third order Taylor approximation. Points close to the estimated MESLE have penalizing weights close to 1, and points for which the third order term is significant have weights close to zero. These penalizing weights are multiplied to the original weights to carry out a second-stage estimation and hypothesis testing. If `weight_penalization` is FALSE, the weight penalization step is skipped. The default value is FALSE.
+#' @param autoScaling logical. If TRUE, simulation points at which the third order term in the cubic approximation is significant have discounted weights for metamodel fitting. The weights of the points relatively far from the estimated MESLE are more heavily discounted. These weight discount factors are multiplied to the originally given weights for parameter estimation. See Park (2025) for more details. If `autoScaling` is FALSE, the weight discount step is skipped. Defaults to TRUE.
 #' @param K1_est_method Either "batch" or "autocov". Used when `test` is "parameter" and `case` is "stationary". The default is "batch". See Details for more information.
 #' @param batch_size Numeric. The size of the batch when `K1_est_method` is "batch". If not supplied, the default value is `round(n^0.4)` where `n` is the number of observations in the data.
 #' @param max_lag When `test` is "parameter" and `case` is "stationary", the value of `max_lag` gives the truncation point for lagged autocovariance when estimating K1 as a sum of lagged autocovariances of estimates slopes. If not supplied, default is the maximum lag for which at least one of the entries of the matrix of lagged autocorrelation has absolute value greater than 4/sqrt(nobs), where the lagged autocorrelation is found up to lag `10*log10(nobs/d)`. Here `nobs` is the number of observations and `d` is the dimension of the parameter space.
@@ -58,7 +58,7 @@ ht <- function(simll, ...) {
 #'
 #' @references Park, J. (2025). Scalable simulation-based inference for implicitly defined models using a metamodel for log-likelihood estimator <https://doi.org/10.48550/arxiv.2311.09446>
 #' @export
-ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), case=NULL, type=NULL, weights=NULL, weight_penalization=FALSE, K1_est_method="batch", batch_size=NULL, max_lag=NULL, plot_acf=FALSE, MCcorrection="none", ...) {
+ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), case=NULL, type=NULL, weights=NULL, autoScaling=FALSE, K1_est_method="batch", batch_size=NULL, max_lag=NULL, plot_acf=FALSE, MCcorrection="none", ...) {
     validate_simll(simll)
     if (is.null(test)) {
         test <- "parameter"
@@ -278,73 +278,22 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
         M <- length(ll)
         Theta012 <- t(apply(theta_n, 1, vec012))
         dim012 <- 1 + d + (d^2+d)/2
-        if (weight_penalization) {
-            ## First stage polynomial approximation for determining the penalizing weights (due to the inaccuracy of the quadratic approximation)
-            WTheta012 <- outer(w,rep(1,dim012))*Theta012
-            Ahat <- c(solve(t(Theta012)%*%WTheta012, t(Theta012)%*%(w*ll)))
-            ahat <- Ahat[1]
-            bindex <- 2:(d+1) # the positions in A that correspond to b
-            bhat <- Ahat[bindex]
-            cindex <- (d+2):((d^2+3*d+2)/2) # the positions in A that correspond to vech(c)
-            vech_chat <- Ahat[cindex]
-            chat <- unvech(vech_chat)
-            ahat_b <- c(Ahat[1] - bhat%*%diag(1/theta_sd, nrow=length(theta_sd))%*%theta_mean + theta_mean%*%diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd))%*%theta_mean) # the constant term ahat on the original scale (transformed back)
-            bhat_b <- diag(1/theta_sd, nrow=length(theta_sd))%*%bhat - 2*diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd))%*%theta_mean # bhat on the original scale
-            chat_b <- diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd)) # chat on the original scale
-            resids <- ll - c(Theta012%*%Ahat)
-            sigsqhat <- c(resids%*%(w*resids)) / M
-            MESLEhat <- unname(-solve(chat,bhat)/2)
-            ## cubic test
-            if (M > (d+1)*(d+2)*(d+3)/6) { # carry out cubic test if this condition is met
-                cubic_test <- TRUE
-                vec3 <- function(vec) {
-                    d <- length(vec)
-                    l <- 0
-                    out <- numeric((d^3+2*d^2+d)/6)
-                    for (k1 in 1:d) {
-                        for (k2 in 1:k1) {
-                            out[(l+1):(l+k2)] <- vec[k1]*vec[k2]*vec[1:k2]
-                            l <- l+k2
-                        }
-                    }
-                    out
-                }
-                Theta0123 <- cbind(Theta012, t(rbind(apply(theta_n, 1, vec3)))) # design matrix for cubic regression to test whether the cubic coefficient = 0
-                dim0123 <- dim(Theta0123)[2]
-                Ahat_cubic <- c(solve(t(Theta0123)%*%(outer(w,rep(1,dim0123))*Theta0123), t(Theta0123)%*%(w*ll)))
-                resids_cubic <- ll - c(Theta0123%*%Ahat_cubic)
-                sigsqhat_cubic <- c(resids_cubic%*%(w*resids_cubic)) / M
-                pval_cubic <- pf((sigsqhat-sigsqhat_cubic)/sigsqhat_cubic*(sum(w>0)-(d+1)*(d+2)*(d+3)/6)/(d*(d+1)*(d+2)/6), d*(d+1)*(d+2)/6, sum(w>0)-(d+1)*(d+2)*(d+3)/6, lower.tail=FALSE)
-                first_stage_Ahat_cubic <- Ahat_cubic ## TODO: remove this line
-            } else {
-                cubic_test <- FALSE
-            }
-            ca <- function(x) { sum(c(vec012(x), vec3(x)) * Ahat_cubic) } # cubic approx
-            Third <- function(x) { sum(vec3(x-MESLEhat) * Ahat_cubic[(dim012+1):dim0123]) } # third order term of the cubic approximation in the form of (multidimensional equivalent of) cubic_coeff*(theta-MESLEhat)^3
-            tca <- function(x) { ca(x) - Third(x) } # truncated cubic approximation where the third order term is dropped
-            wpen <- function(point) { # penalty weight due to the discrepancy between quadratic and cubic approx
-                exp(-penalty*(ca(point) - tca(point))^2/(tca(point) - tca(MESLEhat))^2)
-            }
-            w <- apply(theta_n, 1, wpen) * w # update w by multiplying penalizing weights
-            ## The second stage approximation, accounting for the penalizing weights, follows next.
-        }
+        ## first stage approximation of MESLEhat
         WTheta012 <- outer(w,rep(1,dim012))*Theta012
         Ahat <- c(solve(t(Theta012)%*%WTheta012, t(Theta012)%*%(w*ll)))
-        ahat <- Ahat[1]
-        bindex <- 2:(d+1) # the positions in A that correspond to b
-        bhat <- Ahat[bindex]
-        cindex <- (d+2):((d^2+3*d+2)/2) # the positions in A that correspond to vech(c)
-        vech_chat <- Ahat[cindex]
+        bhat <- Ahat[2:(d+1)]
+        vech_chat <- Ahat[(d+2):((d^2+3*d+2)/2)]
         chat <- unvech(vech_chat)
-        ahat_b <- c(Ahat[1] - bhat%*%diag(1/theta_sd, nrow=length(theta_sd))%*%theta_mean + theta_mean%*%diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd))%*%theta_mean) # the constant term ahat on the original scale (transformed back)
-        bhat_b <- diag(1/theta_sd, nrow=length(theta_sd))%*%bhat - 2*diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd))%*%theta_mean # bhat on the original scale
-        chat_b <- diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd)) # chat on the original scale
         resids <- ll - c(Theta012%*%Ahat)
         sigsqhat <- c(resids%*%(w*resids)) / M
         MESLEhat <- unname(-solve(chat,bhat)/2)
-        ## cubic test
-        if (M > (d+1)*(d+2)*(d+3)/6) { # carry out cubic test if this condition is met
+        if (autoScaling) {
+            if (M <= (d+1)*(d+2)*(d+3)/6) { # carry out cubic test if this condition is met
+                stop("The number of simulations is not large enough to carry out cubic polynomial fitting (should be greater than (d+1)*(d+2)*(d+3)/6)")
+            }
             cubic_test <- TRUE
+            qa <- function(x) { sum(vec012(x)*Ahat) }
+            wpen <- function(point) { exp(-(qa(point)-qa(MESLEhat))^2/refgap^2) } # penalizaing weight
             vec3 <- function(vec) {
                 d <- length(vec)
                 l <- 0
@@ -359,13 +308,52 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
             }
             Theta0123 <- cbind(Theta012, t(rbind(apply(theta_n, 1, vec3)))) # design matrix for cubic regression to test whether the cubic coefficient = 0
             dim0123 <- dim(Theta0123)[2]
+            refgap <- Inf # reference value for the gap qa(MESLEhat)-qa(theta) where qa is the quadratic approximation
+            repeat{
+                ## Weight points appropriately to make the third order term insignificant
+                wadj <- w * apply(theta_n, 1, wpen) # adjusted weights
+                WadjTheta012 <- outer(wadj,rep(1,dim012))*Theta012
+                Ahat <- c(solve(t(Theta012)%*%WadjTheta012, t(Theta012)%*%(wadj*ll)))
+                bhat <- Ahat[2:(d+1)]
+                vech_chat <- Ahat[(d+2):((d^2+3*d+2)/2)]
+                chat <- unvech(vech_chat)
+                resids <- ll - c(Theta012%*%Ahat)
+                sigsqhat <- c(resids%*%(wadj*resids)) / M
+                MESLEhat <- unname(-solve(chat,bhat)/2)
+                Ahat_cubic <- c(solve(t(Theta0123)%*%(outer(wadj,rep(1,dim0123))*Theta0123), t(Theta0123)%*%(wadj*ll)))
+                resids_cubic <- ll - c(Theta0123%*%Ahat_cubic)
+                sigsqhat_cubic <- c(resids_cubic%*%(wadj*resids_cubic)) / M
+                pval_cubic <- pf((sigsqhat-sigsqhat_cubic)/sigsqhat_cubic*(sum(w>0)-(d+1)*(d+2)*(d+3)/6)/(d*(d+1)*(d+2)/6), d*(d+1)*(d+2)/6, sum(w>0)-(d+1)*(d+2)*(d+3)/6, lower.tail=FALSE)
+                if (pval_cubic > .01) {
+                    break
+                } else {
+                    if (refgap==Inf) {
+                        refgap <- qa(MESLEhat) - min(apply(theta_n, 1, qa))
+                    } else {
+                        refgap <- refgap / 1.5
+                    }
+                }
+            }
+            w <- wadj
+        }
+        if (!autoScaling && M > (d+1)*(d+2)*(d+3)/6) {
+            cubic_test <- TRUE
+            WTheta012 <- outer(w,rep(1,dim012))*Theta012
+            Ahat <- c(solve(t(Theta012)%*%WTheta012, t(Theta012)%*%(w*ll)))
+            bhat <- Ahat[2:(d+1)]
+            vech_chat <- Ahat[(d+2):((d^2+3*d+2)/2)]
+            chat <- unvech(vech_chat)
+            resids <- ll - c(Theta012%*%Ahat)
+            sigsqhat <- c(resids%*%(w*resids)) / M
+            MESLEhat <- unname(-solve(chat,bhat)/2)
             Ahat_cubic <- c(solve(t(Theta0123)%*%(outer(w,rep(1,dim0123))*Theta0123), t(Theta0123)%*%(w*ll)))
             resids_cubic <- ll - c(Theta0123%*%Ahat_cubic)
             sigsqhat_cubic <- c(resids_cubic%*%(w*resids_cubic)) / M
             pval_cubic <- pf((sigsqhat-sigsqhat_cubic)/sigsqhat_cubic*(sum(w>0)-(d+1)*(d+2)*(d+3)/6)/(d*(d+1)*(d+2)/6), d*(d+1)*(d+2)/6, sum(w>0)-(d+1)*(d+2)*(d+3)/6, lower.tail=FALSE)
-        } else {
-            cubic_test <- FALSE
         }
+        ahat_b <- c(Ahat[1] - bhat%*%diag(1/theta_sd, nrow=length(theta_sd))%*%theta_mean + theta_mean%*%diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd))%*%theta_mean) # the constant term ahat on the original scale (transformed back)
+        bhat_b <- diag(1/theta_sd, nrow=length(theta_sd))%*%bhat - 2*diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd))%*%theta_mean # bhat on the original scale
+        chat_b <- diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd)) # chat on the original scale
         ## test about moments
         if (test=="moments") {
             if (!is.list(null.value[[1]])) { # if the first element of null.value is not a list, it should be a list of length four (the null values for a, b, c, and sigma^2). This corresponds to the case where only a single quadruple is tested. If this is the case, coerce `null.value` into a list of a list of length four to be consistent with the other case where multiple quadruples are tested.
@@ -412,6 +400,9 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
             if (cubic_test) {
                 out <- c(out, pval_cubic=pval_cubic)
             }
+            if (autoScaling) {
+                out[["updated_weights"]] <- w
+            }
             return(out)
         }
         ## test about MESLE
@@ -443,9 +434,8 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
                 out <- c(out, pval_cubic=pval_cubic)
                 out[["cubic_coefficients"]] <- Ahat_cubic ## TODO: remove this line
             }
-            if (weight_penalization) { 
+            if (autoScaling) {
                 out[["updated_weights"]] <- w
-                out[["first_stage_cubic_approx"]] <- first_stage_Ahat_cubic ## TODO: remove this line
             }
             return(out)
         }
@@ -554,9 +544,11 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
             if (cubic_test) {
                 out <- c(out, pval_cubic=pval_cubic)
             }
+            if (autoScaling) {
+                out[["updated_weights"]] <- w
+            }
             return(out)
         }
     }
 }
-
 

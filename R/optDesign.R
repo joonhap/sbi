@@ -10,8 +10,6 @@ optDesign <- function(simll, ...) {
 #' @name optDesign
 #' @param s A class `simll` object, containing simulation log likelihoods, the parameter values at which simulations are made, and the weights for those simulations for regression (optional). See help(simll).
 #' @param init (optional) An initial parameter vector at which a search for optimal point starts.
-#' @param penalty A positive real that determines how heavily deviation from local quadratic approximation should be penalized. Specifically, a design point is assigned a penalization weight of `exp(-penalty*abs(cubic_term)/quadratic_term)`, where the `quadratic_term` and `cubic_term` respectively indicate the estimated second-order and third-order Taylor expansion terms with respect to the estimated maximum of the expected simulated log-likelihood function. The larger this `penalty` coefficient, the closer the next optimal design points are found near the currently estimated maximizer of the expected simulated log-likelihood. The default value is 2.
-#' @param learning_rate A positive real that determines the learning rate for the gradient descient algorithm. Defaults to 50.
 #' @param weight (optional) A positive real number indicating the user-assigned weight for the new design point. The default value is 1. This value should be chosen relative to the weights in the provided simll object.
 #' @param ... Other optional arguments, not currently used.
 #'
@@ -19,18 +17,17 @@ optDesign <- function(simll, ...) {
 #' This is a generic function, taking a class `simll` object as the first argument.
 #' Parameter inference for implicitly defined simulation models can be carried out under a metamodel for the distribution of the log-likelihood estimator.
 #' See function `ht` for hypothesis testing and `ci` for confidence interval construction for a one-dimensional parameter.
-#' This function `optDesign` founds the next points at which simulations are to be carried out such that the variance of the parameter estimate is reduced approximately the most.
-#' This function computes penalization weights given by `exp(-penalty*abs(cubic_term)/quadratic_term)` as described in the explanation for the `penalty` parameter to find design points that are within the scope where local quadratic approximation has relative low error.
-#' These penalization weights are multiplied to the original `weights` given to the simulation points specified in the `s` object.
-#' Quadratic regression through the simulated log-likelihoods with these product weights is considered for the selection of next design points.
-#' TODO: check this description.
+#' This function `optDesign` finds the next point at which a simulation is to be carried out such that the variance of the parameter estimate is reduced approximately the most.
+#' Points far from the estimated MESLE have discounted weights such that the third order term in the Taylor approximation is not statistically significant.
+#' The weight discount factor the a point at theta is given by exp(-(qa(theta)-qa(MESLEhat))^2/g^2), where qa is the quadratic approximation, MESLEhat is the estimated MLE, and g is a scaling parameter such that the resulting test for the third order approximation term is not statistically significant.
+#' These discount factors are multipled to the original `weights` given to the simulation points specified in the `s` object.
 #'
 #' @return A matrix of parameter values at which next simulations are to be carried out for approximately best efficiency.
 #' Each row gives a parameter vector.
 #'
 #' @references Park, J. (2025). Scalable simulation-based inference for implicitly defined models using a metamodel for log-likelihood estimator <https://doi.org/10.48550/arxiv.2311.09446>
 #' @export
-optDesign.simll <- function(s, init=NULL, penalty=2, learning_rate=50, weight=1, ...) {
+optDesign.simll <- function(s, init=NULL, weight=1, ...) {
     #validate_simll(s)
     vech <- function(mat) { # half-vectorization
         if (length(mat)==1) {
@@ -111,84 +108,60 @@ optDesign.simll <- function(s, init=NULL, penalty=2, learning_rate=50, weight=1,
     M <- length(ll)
     Theta012 <- t(apply(theta_n, 1, vec012))
     dim012 <- 1 + d + (d^2+d)/2
-    ## First stage polynomial approximation for determining the penalizing weights (due to the inaccuracy of the quadratic approximation)
+    ## first stage approximation of MESLEhat
     WTheta012 <- outer(w,rep(1,dim012))*Theta012
     Ahat <- c(solve(t(Theta012)%*%WTheta012, t(Theta012)%*%(w*ll)))
-    ahat <- Ahat[1]
-    bindex <- 2:(d+1) # the positions in A that correspond to b
-    bhat <- Ahat[bindex]
-    cindex <- (d+2):((d^2+3*d+2)/2) # the positions in A that correspond to vech(c)
-    vech_chat <- Ahat[cindex]
+    bhat <- Ahat[2:(d+1)]
+    vech_chat <- Ahat[(d+2):((d^2+3*d+2)/2)]
     chat <- unvech(vech_chat)
     resids <- ll - c(Theta012%*%Ahat)
     sigsqhat <- c(resids%*%(w*resids)) / M
     MESLEhat <- unname(-solve(chat,bhat)/2)
+    qa <- function(x) { sum(vec012(x)*Ahat) }
+    logwpen <- function(point) { -(qa(point)-qa(MESLEhat))^2/refgap^2 } # penalizaing weight (weight discount factor)
     ## cubic test
-    if (M > (d+1)*(d+2)*(d+3)/6) { # carry out cubic test if this condition is met
-        cubic_test <- TRUE
-        vec3 <- function(vec) {
-            d <- length(vec)
-            l <- 0
-            out <- numeric((d^3+2*d^2+d)/6)
-            for (k1 in 1:d) {
-                for (k2 in 1:k1) {
-                    out[(l+1):(l+k2)] <- vec[k1]*vec[k2]*vec[1:k2]
-                    l <- l+k2
-                }
-            }
-            out
-        }
-        Theta0123 <- cbind(Theta012, t(rbind(apply(theta_n, 1, vec3)))) # design matrix for cubic regression to test whether the cubic coefficient = 0
-        dim0123 <- dim(Theta0123)[2]
-        Ahat_cubic <- c(solve(t(Theta0123)%*%(outer(w,rep(1,dim0123))*Theta0123), t(Theta0123)%*%(w*ll)))
-        resids_cubic <- ll - c(Theta0123%*%Ahat_cubic)
-        sigsqhat_cubic <- c(resids_cubic%*%(w*resids_cubic)) / M
-        pval_cubic <- pf((sigsqhat-sigsqhat_cubic)/sigsqhat_cubic*(sum(w>0)-(d+1)*(d+2)*(d+3)/6)/(d*(d+1)*(d+2)/6), d*(d+1)*(d+2)/6, sum(w>0)-(d+1)*(d+2)*(d+3)/6, lower.tail=FALSE)
-    } else {
-        cubic_test <- FALSE
+    if (M <= (d+1)*(d+2)*(d+3)/6) { # carry out cubic test if this condition is met
+        stop("The number of simulations is not large enough to carry out cubic polynomial fitting (should be greater than (d+1)*(d+2)*(d+3)/6)")
     }
-    ca <- function(x) { sum(c(vec012(x), vec3(x)) * Ahat_cubic) } # cubic approx
-    Third <- function(x) { sum(vec3(x-MESLEhat) * Ahat_cubic[(dim012+1):dim0123]) } # third order term of the cubic approximation in the form of (multidimensional equivalent of) cubic_coeff*(theta-MESLEhat)^3
-    tca <- function(x) { ca(x) - Third(x) } # truncated cubic approximation where the third order term is dropped
-    wpen <- function(point) { # penalty weight due to the discrepancy between quadratic and cubic approx
-        exp(-penalty*(ca(point) - tca(point))^2/(tca(point) - tca(MESLEhat))^2)
-    }
-    w <- apply(theta_n, 1, wpen) * w # update w by multiplying penalizing weights
-    ## Second stage approximation, accounting for the penalizing weights, to find optimal design point
-    WTheta012 <- outer(w,rep(1,dim012))*Theta012
-    Ahat <- c(solve(t(Theta012)%*%WTheta012, t(Theta012)%*%(w*ll)))
-    ahat <- Ahat[1]
-    bindex <- 2:(d+1) # the positions in A that correspond to b
-    bhat <- Ahat[bindex]
-    cindex <- (d+2):((d^2+3*d+2)/2) # the positions in A that correspond to vech(c)
-    vech_chat <- Ahat[cindex]
-    chat <- unvech(vech_chat)
-    resids <- ll - c(Theta012%*%Ahat)
-    sigsqhat <- c(resids%*%(w*resids)) / M
-    MESLEhat <- unname(-solve(chat,bhat)/2)
-    ## cubic test
-    if (M > (d+1)*(d+2)*(d+3)/6) { # carry out cubic test if this condition is met
-        cubic_test <- TRUE
-        vec3 <- function(vec) {
-            d <- length(vec)
-            l <- 0
-            out <- numeric((d^3+2*d^2+d)/6)
-            for (k1 in 1:d) {
-                for (k2 in 1:k1) {
-                    out[(l+1):(l+k2)] <- vec[k1]*vec[k2]*vec[1:k2]
-                    l <- l+k2
-                }
+    vec3 <- function(vec) {
+        d <- length(vec)
+        l <- 0
+        out <- numeric((d^3+2*d^2+d)/6)
+        for (k1 in 1:d) {
+            for (k2 in 1:k1) {
+                out[(l+1):(l+k2)] <- vec[k1]*vec[k2]*vec[1:k2]
+                l <- l+k2
             }
-            out
         }
-        Theta0123 <- cbind(Theta012, t(rbind(apply(theta_n, 1, vec3)))) # design matrix for cubic regression to test whether the cubic coefficient = 0
-        dim0123 <- dim(Theta0123)[2]
-        Ahat_cubic <- c(solve(t(Theta0123)%*%(outer(w,rep(1,dim0123))*Theta0123), t(Theta0123)%*%(w*ll)))
+        out
+    }
+    Theta0123 <- cbind(Theta012, t(rbind(apply(theta_n, 1, vec3)))) # design matrix for cubic regression to test whether the cubic coefficient = 0
+    dim0123 <- dim(Theta0123)[2]
+    refgap <- Inf # reference value for the gap qa(MESLEhat)-qa(theta) where qa is the quadratic approximation
+    repeat{
+        ## Weight points appropriately to make the third order term insignificant
+        wadj <- w * exp(apply(theta_n, 1, logwpen)) # adjusted weights
+        WadjTheta012 <- outer(wadj,rep(1,dim012))*Theta012
+        Ahat <- c(solve(t(Theta012)%*%WadjTheta012, t(Theta012)%*%(wadj*ll)))
+        bhat <- Ahat[2:(d+1)]
+        vech_chat <- Ahat[(d+2):((d^2+3*d+2)/2)]
+        chat <- unvech(vech_chat)
+        resids <- ll - c(Theta012%*%Ahat)
+        sigsqhat <- c(resids%*%(wadj*resids)) / M
+        MESLEhat <- unname(-solve(chat,bhat)/2)
+        Ahat_cubic <- c(solve(t(Theta0123)%*%(outer(wadj,rep(1,dim0123))*Theta0123), t(Theta0123)%*%(wadj*ll)))
         resids_cubic <- ll - c(Theta0123%*%Ahat_cubic)
-        sigsqhat_cubic <- c(resids_cubic%*%(w*resids_cubic)) / M
+        sigsqhat_cubic <- c(resids_cubic%*%(wadj*resids_cubic)) / M
         pval_cubic <- pf((sigsqhat-sigsqhat_cubic)/sigsqhat_cubic*(sum(w>0)-(d+1)*(d+2)*(d+3)/6)/(d*(d+1)*(d+2)/6), d*(d+1)*(d+2)/6, sum(w>0)-(d+1)*(d+2)*(d+3)/6, lower.tail=FALSE)
-    } else {
-        cubic_test <- FALSE
+        if (pval_cubic > .01) {
+            break
+        } else {
+            if (refgap==Inf) {
+                refgap <- qa(MESLEhat) - min(apply(theta_n, 1, qa))
+            } else {
+                refgap <- refgap / 2
+            }
+        }
     }
     ## Compute the gradient of the variance of MESLEhat with respect to new design point
     chatinv <- solve(chat)
@@ -203,7 +176,6 @@ optDesign.simll <- function(s, init=NULL, penalty=2, learning_rate=50, weight=1,
     ## partial MESLEhat / partial ahat = 0
     ## partial MESLEhat / partial bhat = -1/2*solve(chat)
     ## partial MESLEhat / partial vech(chat) = (-solve(chat)*MESLEhat[1], -solve(chat)[,2:d]*MESLEhat[2], ..., -solve(chat)[,d]*MESLEhat[d])
-    VarAhat <- t(Theta012)%*%WTheta012 # variance of Ahat divided by sigma^2
     CubicCoef <- function(i,j,k) { # Supposing that the third order term in the cubic approximation is given by Sum_{j,k,l} e_{j,k,l}*(theta_j-thetahat_j)*(theta_k-thetahat_k)*(theta_l-thetahat_l), this function gives the value of e_{i,j,k}
         sm <- min(i,j,k) # smallest
         lg <- max(i,j,k) # largest
@@ -211,48 +183,27 @@ optDesign.simll <- function(s, init=NULL, penalty=2, learning_rate=50, weight=1,
         entry <- Ahat_cubic[(d+1)*(d+2)/2 + lg*(lg-1)*(lg+1)/6+mi*(mi-1)/2+sm]
         nuniq <- length(unique(c(i,j,k))) # number of distinct (unique) values among i,j,k
         if (nuniq==1) { return(entry) }
-        if (nuniq==2) { return(entry/3) } # Ahat_cubic entry is (e.g.) e_{112}+e_{121}+e_{211} 
+        if (nuniq==2) { return(entry/3) } # Ahat_cubic entry is (e.g.) e_{112}+e_{121}+e_{211}
         if (nuniq==3) { return(entry/6) } # Ahat_cubic entry is the sum of six permutations of indices
     }
-    Dwpen <- function(point) { # derivative of wpen
-        DCubic <- function(vec, ref) { # derivative of the trilinear form given by the third order term in the Taylor approximation, evaluated at vec - ref (i.e., d e(vec-ref, vec-ref, vec-ref) / d vec where e is the trilinear form given by Ahat_cubic
-            sapply(1:d, function(i) { 
-            ## partial trilinear_form(vec-ref,vec-ref,vec-ref) / partial vec_i is given by
-            ## Sum_{j,k} 3*e_{ijk}*(vec_j-ref_j)*(vec_k-ref_k)
-                sumval <- 0
-                for (j in 1:d) {
-                    sum_k <- 0
-                    for (k in 1:j) {
-                        sum_k <- sum_k + ifelse(j==k,1,2)*CubicCoef(i,j,k)*(vec[k]-ref[k])
-                    }
-                    sumval <- sumval + 3*(vec[j]-ref[j])*sum_k
-                }
-                sumval
-            })
-        }
-        DThird <- DCubic(point, MESLEhat) ## derivative of ca - tca
-        Dca <- Ahat_cubic[2:(d+1)] + 2*c(unvech(Ahat_cubic[(d+2):((d+1)*(d+2)/2)])%*%point) + DCubic(point, 0) # derivative of the cubic approximation
-        Dtca <- Dca - DThird # derivative of the truncated cubic approximation, i.e., the sum up to the second order term of the cubic approximation
-        ca_pt <- ca(point)
-        tca_pt <- tca(point)
-        tca_MESLEhat <- tca(MESLEhat)
-        Third_pt <- Third(point)
-        ## Derivative of wpen(point) is given by wpen(point) * (-penalty) * [ 2*DThird(point)*Third(point)/(tca(point)-tca(MESLEhat))^2 - 2*Third(point)^2*Dtca(point)/(tca(point)-tca(MESLEhat))^3 ]
-        wpen(point) * (-penalty) * ( 2*DThird*Third_pt/(tca_pt-tca_MESLEhat)^2 - 2*Third_pt^2*Dtca/(tca_pt-tca_MESLEhat)^3 )
+    Dlogwpen <- function(point) { # derivative of logwpen
+        (-2) * (qa(point)-qa(MESLEhat)) / refgap^2 * (bhat + 2*c(chat%*%point))
     }
     pVpPti <- function(point, index) { # partial Var(Ahat) / partial point[index], divided by sigma^2
         ei <- rep(0, d); ei[index] <- 1
-        Dwpen <- 1e6*(wpen(point+1e-6*ei) - wpen(point)) # derivative of wpen w.r.t. point[index]
         pPtsqpPti <- matrix(0, d, d) # partial point^2 / partial point[index], where point^2 is a d-by-d matrix (see Park(2025) for definition)
         pPtsqpPti[,index] <- 2*point; pPtsqpPti[index,] <- 2*point
         pPt012pPti <- c(0,ei,vech(pPtsqpPti)) # partial point^{0:2} / partial point[index]
         pt012 <- vec012(point)
-        wpenpt <- wpen(point)
-        out <- Dwpen*outer(pt012,pt012) + wpenpt*(outer(pPt012pPti,pt012)+outer(pt012,pPt012pPti))
+        logwpenpt <- logwpen(point)
+        out <- exp(logwpenpt) * (Dlogwpen(point)*outer(pt012,pt012) + outer(pPt012pPti,pt012)+outer(pt012,pPt012pPti))
         out * weight
     }
+    VarAhat <- function(point) {
+        t(Theta012)%*%WadjTheta012 + exp(logwpen(point))*outer(vec012(point),vec012(point)) # variance of Ahat divided by sigma^2
+    }
     pTVpPti <- function(point, index) { # partial TV(MESLEhat) / partial point[index], where TV = trace(Var(MESLEhat)) is the total variation of MESLEhat
-        Vinv_pMpAhatT <- solve(VarAhat, t(pMpAhat)) # Var(Ahat) %*% (partial MESLEhat / partial Ahat)^T
+        Vinv_pMpAhatT <- solve(VarAhat(point), t(pMpAhat)) # Var(Ahat) %*% (partial MESLEhat / partial Ahat)^T
         pVpPti_eval <- pVpPti(point, index)
         out <- 0
         for (i in 1:d) {
@@ -261,11 +212,10 @@ optDesign.simll <- function(s, init=NULL, penalty=2, learning_rate=50, weight=1,
         -out
     }
     TV <- function(point) { # TV(MESLEhat) when a new simulation is conducted at `point`
-        pt012 <- vec012(point)
-        Vinv <- solve(VarAhat + wpen(point)*outer(pt012,pt012))
+        VarAhatpt <- VarAhat(point)
         out <- 0
         for (i in 1:d) {
-            out <- out + c(pMpAhat[i,] %*% Vinv %*% pMpAhat[i,])
+            out <- out + c(pMpAhat[i,] %*% solve(VarAhatpt, pMpAhat[i,]))
         }
         out
     }
@@ -275,46 +225,30 @@ optDesign.simll <- function(s, init=NULL, penalty=2, learning_rate=50, weight=1,
     }
     ## gradient descent search
     if (is.null(init)) {
-        init <- MESLEhat
+        init_n <- MESLEhat
     } else if (!is.numeric(init) || length(init) != d) {
-        init <- MESLEhat
-        message("The `init` should be a numeric vector of the same length as parameter vectors. Defaults to the estimated MESLE.")
+        init_n <- MESLEhat
+        message("The `init` should be a numeric vector of the same length as the parameter vector. Defaults to the estimated MESLE.")
+    } else {
+        init_n <- trans_n(init)
+    }
+    if (logwpen(init_n) < log(1e-4)) { # if wpen is too small, move the initial point closer to the MESLEhat such that the issue of too small a gradient can be avoided.
+        init_n <- MESLEhat + (init_n - MESLEhat) * (-logwpen(init_n))^(-1/4)
     }
 
-    GD <- FALSE
-    if (GD) {
-        maxiter <- 30
-        pt_b_traj <- rep(NA, maxiter+1)
-        pt <- trans_n(init)
-        pt_b_traj[1] <- init
-        innov_traj <- rep(NA, maxiter)
-        TV_traj <- rep(NA, maxiter)
-        for (j in 1:maxiter) {
-            innov <- -plogTVpPti(pt, 1)
-            pt <- pt + learning_rate/(1+j/10)*innov
-            pt_b_traj[j+1] <- trans_b(pt)
-            innov_traj[j] <- innov
-            TV_traj[j] <- TV(pt)
-            if (sum(innov^2) < 1e-12) {
-                break
-            }
-        }
-    }
-
-    opt <- optim(trans_n(init), fn=logTV, gr=plogTVpPt, method="BFGS")
-    min_theta_n <- apply(theta_n,2,min)
-    max_theta_n <- apply(theta_n,2,max)
-    optpar <- pmin(pmax(opt$par, min_theta_n-1), max_theta_n+1) # truncate optimum values
+    opt <- optim(trans_n(init_n), fn=logTV, gr=plogTVpPt, method="BFGS")
+    #min_theta_n <- apply(theta_n,2,min)
+    #max_theta_n <- apply(theta_n,2,max)
+    #optpar <- pmin(pmax(opt$par, min_theta_n-1), max_theta_n+1) # truncate optimum values
 
     if (!opt$convergence%in%c(0,1)) {
         print(opt)
-        stop("Optimization using the BFGS method did not end properly.")
+        stop("The optimization procedure did not end properly.")
     }
     if (opt$convergence==1) {
-        message("Optimization using the BFGS method did not converge within the max number of cycles.")
+        message("Optimization did not converge within the max number of cycles.")
     }
 
-    list(par=trans_b(optpar), w=wpen(optpar), allweights=w)
+    list(par=trans_b(opt$par), w=exp(logwpen(opt$par)), Wadj=wadj)
 }
 
-## TODO: handle the case where the cubic test is not carried out due to insufficient M

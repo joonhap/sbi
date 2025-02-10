@@ -32,6 +32,8 @@ plotgrid <- seq(range(grid)[1], range(grid)[2], length.out=151)
 
 lines(plotgrid, sapply(plotgrid, function(x) { sum(estCoef*c(1,x,x^2)) }))
 
+plot(grid, log(htout$updated_weights))
+
 theta <- cbind(attr(s, "params")) # coerce into a matrix
 theta_mean <- apply(theta, 2, mean)
 theta_sd <- apply(theta, 2, sd)
@@ -41,23 +43,23 @@ trans_b <- function(vec) { vec*theta_sd + theta_mean } # transform back to the o
 ca <- function(x) { sum(c(vec012(trans_n(x)), vec3(trans_n(x))) * Ahat_cubic) } # cubic approx
 Third <- function(x) { sum(vec3(trans_n(x)-trans_n(MESLEhat)) * Ahat_cubic[(dim012+1):dim0123]) } # third order term of the cubic approximation in the form of (multidimensional equivalent of) cubic_coeff*(theta-MESLEhat)^3
 tca <- function(x) { ca(x) - Third(x) } # truncated cubic approximation where the third order term is dropped
+qa <- function(x) { sum(vec012(x)*estCoef) } # quadratic approximation
 wpen <- function(point) { # penalty weight due to the discrepancy between quadratic and cubic approx
-    exp(-penalty*(ca(point) - tca(point))^2/(tca(point) - tca(MESLEhat))^2)
+    exp(-penalty*(ca(point) - tca(point))^2/(qa(point) - qa(MESLEhat))^2)
 }
 upd_w <- sapply(grid, wpen) # update w by multiplying penalizing weights
 ## The second stage approximation, accounting for the penalizing weights, follows next.
 
+plot(grid,ll)
 lines(plotgrid, sapply(plotgrid, ca), lty=2)
-
 lines(plotgrid, sapply(plotgrid, tca), col='red')
+lines(plotgrid, sapply(plotgrid, qa))
 
 plot(grid, sapply(grid, function(point) { (ca(point) - tca(point))^2/(tca(point) - tca(MESLEhat))^2 }))
 
 plot(grid, sapply(grid, function(point) { (ca(point) - tca(point))^2 }))
 
 plot(grid, sapply(grid, function(point) { (tca(point) - tca(MESLEhat))^2 }))
-
-plot(grid, log(htout$updated_weights))
 
 plot(grid)
 
