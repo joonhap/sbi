@@ -14,7 +14,7 @@ ht <- function(simll, ...) {
 #' @param case When `test` is "parameter", `case` needs to be either "iid" or "stationary". `case` = "iid" means that the observations are iid, and `case` = "stationary" means that the observations form a stationary sequence. The `case` argument affects how the variance of the slope of the mean function (=K_1 in Park (2025)) is estimated. The default value is "stationary".
 #' @param type When `test` is "moments", the `type` argument needs to be specified. `type` = "point" means that the test about the mean and the variance of simulated log likelihoods at a given parameter point is considered. `type` = "regression" means that the test about the mean function and the variance of simulated log likelihoods at various parameter values is considered. See Details.
 #' @param weights An optional argument. The un-normalized weights of the simulated log likelihoods for regression. A numeric vector of length equal to the `params` attribute of the `simll` object. See Details below.
-#' @param autoScaling logical. If TRUE, simulation points at which the third order term is statistically significant in the cubic approximation to the simulated log-likelihooods have discounted weights for metamodel fitting. The weights of the points relatively far from the estimated MESLE are more heavily discounted. These weight discount factors are multiplied to the originally given weights for parameter estimation. See Park (2025) for more details. If `autoScaling` is FALSE, the weight discount step is skipped. Defaults to FALSE.
+#' @param autoAdjust logical. If TRUE, simulation points at which the third order term is statistically significant in the cubic approximation to the simulated log-likelihooods have discounted weights for metamodel fitting. The weights of the points relatively far from the estimated MESLE are more heavily discounted. These weight discount factors are multiplied to the originally given weights for parameter estimation. See Park (2025) for more details. If `autoAdjust` is FALSE, the weight discount step is skipped. Defaults to FALSE.
 #' @param K1_est_method Either "batch" or "autocov". Used when `test` is "parameter" and `case` is "stationary". The default is "batch". See Details for more information.
 #' @param batch_size Numeric. The size of the batch when `K1_est_method` is "batch". If not supplied, the default value is `round(n^0.4)` where `n` is the number of observations in the data.
 #' @param max_lag When `test` is "parameter" and `case` is "stationary", the value of `max_lag` gives the truncation point for lagged autocovariance when estimating K1 as a sum of lagged autocovariances of estimates slopes. If not supplied, default is the maximum lag for which at least one of the entries of the matrix of lagged autocorrelation has absolute value greater than 4/sqrt(nobs), where the lagged autocorrelation is found up to lag `10*log10(nobs/d)`. Here `nobs` is the number of observations and `d` is the dimension of the parameter space.
@@ -58,7 +58,7 @@ ht <- function(simll, ...) {
 #'
 #' @references Park, J. (2025). Scalable simulation-based inference for implicitly defined models using a metamodel for log-likelihood estimator <https://doi.org/10.48550/arxiv.2311.09446>
 #' @export
-ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), case=NULL, type=NULL, weights=NULL, autoScaling=FALSE, K1_est_method="batch", batch_size=NULL, max_lag=NULL, plot_acf=FALSE, MCcorrection="none", ...) {
+ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), case=NULL, type=NULL, weights=NULL, autoAdjust=FALSE, K1_est_method="batch", batch_size=NULL, max_lag=NULL, plot_acf=FALSE, MCcorrection="none", ...) {
     validate_simll(simll)
     if (is.null(test)) {
         test <- "parameter"
@@ -288,27 +288,27 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
         sigsqhat <- c(resids%*%(w*resids)) / M
         MESLEhat <- unname(-solve(chat,bhat)/2)
         cubic_test <- FALSE
-        if (autoScaling) {
+        vec3 <- function(vec) {
+            d <- length(vec)
+            l <- 0
+            out <- numeric((d^3+2*d^2+d)/6)
+            for (k1 in 1:d) {
+                for (k2 in 1:k1) {
+                    out[(l+1):(l+k2)] <- vec[k1]*vec[k2]*vec[1:k2]
+                    l <- l+k2
+                }
+            }
+            out
+        }
+        Theta0123 <- cbind(Theta012, t(rbind(apply(theta_n, 1, vec3)))) # design matrix for cubic regression to test whether the cubic coefficient = 0
+        dim0123 <- dim(Theta0123)[2]
+        if (autoAdjust) {
             if (M <= (d+1)*(d+2)*(d+3)/6) { # carry out cubic test if this condition is met
                 stop("The number of simulations is not large enough to carry out cubic polynomial fitting (should be greater than (d+1)*(d+2)*(d+3)/6)")
             }
             cubic_test <- TRUE
             qa <- function(x) { sum(vec012(x)*Ahat) }
             logwpen <- function(point) { -(qa(MESLEhat)-qa(point))/refgap } # penalizaing weight (weight discount factor)
-            vec3 <- function(vec) {
-                d <- length(vec)
-                l <- 0
-                out <- numeric((d^3+2*d^2+d)/6)
-                for (k1 in 1:d) {
-                    for (k2 in 1:k1) {
-                        out[(l+1):(l+k2)] <- vec[k1]*vec[k2]*vec[1:k2]
-                        l <- l+k2
-                    }
-                }
-                out
-            }
-            Theta0123 <- cbind(Theta012, t(rbind(apply(theta_n, 1, vec3)))) # design matrix for cubic regression to test whether the cubic coefficient = 0
-            dim0123 <- dim(Theta0123)[2]
             refgap <- Inf # reference value for the gap qa(MESLEhat)-qa(theta) where qa is the quadratic approximation
             exit_upon_sufficient_ESS <- FALSE
             repeat{
@@ -349,8 +349,9 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
                 }
             }
             w <- wadj
+            WTheta012 <- WadjTheta012
         }
-        if (!autoScaling && M > (d+1)*(d+2)*(d+3)/6) {
+        if (!autoAdjust && M > (d+1)*(d+2)*(d+3)/6) {
             cubic_test <- TRUE
             WTheta012 <- outer(w,rep(1,dim012))*Theta012
             Ahat <- c(solve(t(Theta012)%*%WTheta012, t(Theta012)%*%(w*ll)))
@@ -364,7 +365,7 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
             resids_cubic <- ll - c(Theta0123%*%Ahat_cubic)
             sigsqhat_cubic <- c(resids_cubic%*%(w*resids_cubic)) / M
             pval_cubic <- pf((sigsqhat-sigsqhat_cubic)/sigsqhat_cubic*(sum(w>0)-(d+1)*(d+2)*(d+3)/6)/(d*(d+1)*(d+2)/6), d*(d+1)*(d+2)/6, sum(w>0)-(d+1)*(d+2)*(d+3)/6, lower.tail=FALSE)
-        } 
+        }
         ahat_b <- c(Ahat[1] - bhat%*%diag(1/theta_sd, nrow=length(theta_sd))%*%theta_mean + theta_mean%*%diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd))%*%theta_mean) # the constant term ahat on the original scale (transformed back)
         bhat_b <- diag(1/theta_sd, nrow=length(theta_sd))%*%bhat - 2*diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd))%*%theta_mean # bhat on the original scale
         chat_b <- diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd)) # chat on the original scale
@@ -414,7 +415,7 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
             if (cubic_test) {
                 out <- c(out, pval_cubic=pval_cubic)
             }
-            if (autoScaling) {
+            if (autoAdjust) {
                 out[["updated_weights"]] <- w
             }
             return(out)
@@ -447,7 +448,7 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
             if (cubic_test) {
                 out <- c(out, pval_cubic=pval_cubic)
             }
-            if (autoScaling) {
+            if (autoAdjust) {
                 out[["updated_weights"]] <- w
             }
             return(out)
@@ -557,7 +558,7 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
             if (cubic_test) {
                 out <- c(out, pval_cubic=pval_cubic)
             }
-            if (autoScaling) {
+            if (autoAdjust) {
                 out[["updated_weights"]] <- w
             }
             return(out)

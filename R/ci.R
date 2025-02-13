@@ -13,7 +13,7 @@ ci <- function(simll, ...) {
 #' @param ci A character string indicating the quantity for which a confidence interval is to be constructed. Either "MESLE" or "parameter". See Details.
 #' @param case When `ci` is "parameter", `case` is either "iid" or "stationary" (default). `case` = "iid" means that the observations are iid, and `case` = "stationary" means that the observations form a stationary sequence. The `case` argument affects how the variance of the slope of the mean function (=K_1 in Park (2025)) is estimated.
 #' @param weights An optional argument. The un-normalized weights of the simulated log likelihoods for regression. A numeric vector of length equal to the 'params' attribute of the 'simll' object. See Details below.
-#' @param autoScaling logical. If TRUE, simulation points at which the third order term is statistically significant in the cubic approximation to the simulated log-likelihooods have discounted weights for metamodel fitting. The weights of the points relatively far from the estimated MESLE are more heavily discounted. These weight discount factors are multiplied to the originally given weights for parameter estimation. See Park (2025) for more details. If `autoScaling` is FALSE, the weight discount step is skipped. Defaults to FALSE.
+#' @param autoAdjust logical. If TRUE, simulation points at which the third order term is statistically significant in the cubic approximation to the simulated log-likelihooods have discounted weights for metamodel fitting. The weights of the points relatively far from the estimated MESLE are more heavily discounted. These weight discount factors are multiplied to the originally given weights for parameter estimation. See Park (2025) for more details. If `autoAdjust` is FALSE, the weight discount step is skipped. Defaults to FALSE.
 #' @param K1_est_method Either "autocov" or "batch"
 #' @param batch_size Numeric
 #' @param max_lag When `test` is "parameter" and `case` is "stationary", the value of `max_lag` gives the truncation point for lagged autocovariance when estimating K1 as a sum of lagged autocovariances of estimates slopes. If not supplied, default is the maximum lag for which the lagged autocorrelation has absolute value greater than 4/sqrt(nobs), where the lagged autocorrelation is found up to lag `10*log10(nobs)`. Here `nobs` is the number of observations.
@@ -45,7 +45,7 @@ ci <- function(simll, ...) {
 #'
 #' @references Park, J. (2025). Scalable simulation based inference for implicitly defined models using a metamodel for log-likelihood estimator <https://doi.org/10.48550/arxiv.2311.09446>
 #' @export
-ci.simll <- function(simll, level, ci=NULL, case=NULL, weights=NULL, autoScaling=FALSE, K1_est_method="batch", batch_size=NULL, max_lag=NULL, plot_acf=FALSE, ...) {
+ci.simll <- function(simll, level, ci=NULL, case=NULL, weights=NULL, autoAdjust=FALSE, K1_est_method="batch", batch_size=NULL, max_lag=NULL, plot_acf=FALSE, ...) {
     validate_simll(simll)
     if (is.null(ci)) {
         ci <- "parameter"
@@ -129,7 +129,7 @@ ci.simll <- function(simll, level, ci=NULL, case=NULL, weights=NULL, autoScaling
     resids_cubic <- ll - c(theta0123%*%Ahat_cubic)
     sigsqhat_cubic <- c(resids_cubic%*%(w*resids_cubic)) / M
     pval_cubic <- pf((sigsqhat-sigsqhat_cubic)/sigsqhat_cubic*(sum(w>0)-4), 1, sum(w>0)-4, lower.tail=FALSE)
-    if (autoScaling) {
+    if (autoAdjust) {
         if (M <= (d+1)*(d+2)*(d+3)/6) { # carry out cubic test if this condition is met
             stop("The number of simulations is not large enough to carry out cubic polynomial fitting (should be greater than (d+1)*(d+2)*(d+3)/6)")
         }
@@ -148,7 +148,7 @@ ci.simll <- function(simll, level, ci=NULL, case=NULL, weights=NULL, autoScaling
             Ahat <- c(solve(t(theta012)%*%WadjTheta012, t(theta012)%*%(wadj*ll)))
             resids <- ll - c(theta012%*%Ahat)
             sigsqhat <- c(resids%*%(wadj*resids)) / M
-            MESLEhat <- unname(-Ahat[2]/(2*Ahat[3])) 
+            MESLEhat <- unname(-Ahat[2]/(2*Ahat[3]))
             Ahat_cubic <- c(solve(t(theta0123)%*%(outer(wadj,rep(1,4))*theta0123), t(theta0123)%*%(wadj*ll)))
             resids_cubic <- ll - c(theta0123%*%Ahat_cubic)
             sigsqhat_cubic <- c(resids_cubic%*%(wadj*resids_cubic)) / M
@@ -210,7 +210,7 @@ ci.simll <- function(simll, level, ci=NULL, case=NULL, weights=NULL, autoScaling
             meta_model_MLE_for_MESLE=c(MESLE=MESLEhat),
             confidence_interval=t(lub)
         )
-        if (autoScaling) {
+        if (autoAdjust) {
             out[["updated_weights"]] <- w
         }
         return(out)
@@ -311,7 +311,7 @@ ci.simll <- function(simll, level, ci=NULL, case=NULL, weights=NULL, autoScaling
         if (case=="stationary") {
             out <- c(out, max_lag=max_lag)
         }
-        if (autoScaling) {
+        if (autoAdjust) {
             out[["updated_weights"]] <- w
         }
         out <- c(out, pval_cubic=pval_cubic)

@@ -8,7 +8,7 @@ ll <- llfun(grid) + 5*rnorm(length(grid))
 s <- simll(rbind(ll), params=grid)
 
 newpt <- 0
-TVvals <- optDesign.simll(s, init=newpt)$TV
+logSTVvals <- optDesign.simll(s, init=newpt)$logSTV
 refgapvals <- c()
 
 refgap <- Inf
@@ -18,18 +18,18 @@ for (m in 1:100) {
     refgapvals <- c(refgapvals, refgap)
     newpt <- unname(opt[["par"]])
     grid <- c(grid, newpt)
-    TVvals <- c(TVvals, opt$TV)
+    logSTVvals <- c(logSTVvals, opt$logSTV)
     ll <- c(ll, llfun(newpt) + 5*rnorm(1))
     s <- simll(rbind(ll), params=grid)
 }
 
-plot(grid, type='b')
+plot(grid, type='p')
 
-plot(TVvals, ylim=c(0,1e-6))
+plot(logSTVvals)
 
 plot(refgapvals)
 
-htout <- ht(s, null.value=0, test="MESLE", autoScaling=TRUE)
+htout <- ht(s, null.value=0, test="MESLE", autoAdjust=TRUE)
 MESLEhat <- htout$meta_model_MLE_for_MESLE
 
 ciout <- ci(s, level=.9, ci="MESLE", autoScaling=TRUE)
@@ -78,17 +78,17 @@ xgrid <- seq(-5, 5, by=.1)
 plot(xgrid, sapply(xgrid, function(x) llfun(c(x,3))))
 
 newpt <- c(0,0)
-TVvals <- optDesign.simll(s, init=newpt)$TV
+logSTVvals <- optDesign.simll(s, init=newpt)$logSTV
 refgapvals <- c()
 
 refgap <- Inf
-for (m in 1:100) {
+for (m in 1:300) {
     opt <- optDesign.simll(s, init=runif(2,-5,5), refgap=refgap)
     refgap <- opt$refgap
     refgapvals <- c(refgapvals, refgap)
     newpt <- unname(opt[["par"]])
     grid <- rbind(grid, newpt)
-    TVvals <- c(TVvals, opt$TV)
+    logSTVvals <- c(logSTVvals, opt$logSTV)
     ll <- c(ll, llfun(newpt) + 5*rnorm(1))
     s <- simll(rbind(ll), params=grid)
 }
@@ -100,11 +100,11 @@ text(grid[(M+1):len,]); lines(grid[(M+1):len,])
 plot(grid[,1])
 plot(grid[,2])
 
-plot(TVvals)
-
+par(mfrow=c(2,1))
+plot(logSTVvals)
 plot(refgapvals, type='b')
 
-htout <- ht(s, null.value=c(0,0), test="MESLE", autoScaling=TRUE)
+htout <- ht(s, null.value=c(0,0), test="MESLE", autoAdjust=TRUE)
 MESLEhat <- htout$meta_model_MLE_for_MESLE
 
 estCoef <- c(htout$regression_estimates$a, htout$regression_estimates$b, htout$regression_estimates$c)

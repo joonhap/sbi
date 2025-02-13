@@ -118,21 +118,6 @@ optDesign.simll <- function(s, init=NULL, weight=1, refgap=Inf, ...) {
     resids <- ll - c(Theta012%*%Ahat)
     sigsqhat <- c(resids%*%(w*resids)) / M
     MESLEhat <- unname(-solve(chat,bhat)/2)
-    ## total variation (TV) of MESLEhat before point addition (_bpa)
-    chatinv <- solve(chat)
-    pMpchat_bpa <- matrix(0, d, (d^2+d)/2) # partial MESLEhat / partial vech(chat)
-    n <- 0
-    for (i in 1:d) {
-        l <- d+1-i
-        pMpchat_bpa[,(n+1):(n+l)] <- -chatinv[,i:d]*MESLEhat[i]
-        n <- n+l
-    }
-    pMpAhat_bpa <- cbind(0, -1/2*chatinv, pMpchat_bpa) # partial MESLEhat / partial Ahat
-    VarAhat_bpa <- t(Theta012)%*%WTheta012 # variance of Ahat divided by sigma^2
-    TV_bpa <- 0
-    for (i in 1:d) {
-        TV_bpa <- TV_bpa + c(pMpAhat_bpa[i,] %*% solve(VarAhat_bpa, pMpAhat_bpa[i,]))
-    }
     qa <- function(x) { sum(vec012(x)*Ahat) }
     logwpen <- function(point) { -(qa(MESLEhat)-qa(point))/refgap } # penalizaing weight (weight discount factor)
     ## cubic test
@@ -196,7 +181,7 @@ optDesign.simll <- function(s, init=NULL, weight=1, refgap=Inf, ...) {
             if (refgap >= 10*refgap_init) { # if refgap has been increased a lot already, stop. Note: in order to account for the case where pval_cubic > .3 even with refgap = Inf, the comparison should be ">=" rather than ">".
                 ##cat("refgap:",refgap,"pval_cubic:",pval_cubic,"sigsqhat:",sigsqhat,"sigsqhat_cubic:",sigsqhat_cubic,"sigratio:",sigratio,"multiplier:",multiplier,"fstat:",fstat,"ESS:",ESS,"\n")
                 ##cat("break, maximally increased refgap.\n")
-                break 
+                break
             }
             ##cat("refgap:",refgap,"pval_cubic:",pval_cubic,"sigsqhat:",sigsqhat,"sigsqhat_cubic:",sigsqhat_cubic,"sigratio:",sigratio,"multiplier:",multiplier,"fstat:",fstat,"ESS:",ESS,"\n")
             refgap <- refgap * 1.3
@@ -228,11 +213,11 @@ optDesign.simll <- function(s, init=NULL, weight=1, refgap=Inf, ...) {
         if (nuniq==1) { return(entry) }
         if (nuniq==2) { return(entry/3) } # Ahat_cubic entry is (e.g.) e_{112}+e_{121}+e_{211}
         if (nuniq==3) { return(entry/6) } # Ahat_cubic entry is the sum of six permutations of indices
-    }
+    } ## TODO: remove this CubicCoef function, no longer necessary
     Dlogwpen <- function(point) { # derivative of logwpen
         (bhat + 2*c(chat%*%point))/refgap
     }
-    pVpPti <- function(point, index) { # partial Var(Ahat) / partial point[index], divided by sigma^2
+    pVinvpPti <- function(point, index) { # partial Var(Ahat)^{-1} / partial point[index], multiplied by sigma^2
         ei <- rep(0, d); ei[index] <- 1
         pPtsqpPti <- matrix(0, d, d) # partial point^2 / partial point[index], where point^2 is a d-by-d matrix (see Park(2025) for definition)
         pPtsqpPti[,index] <- 2*point; pPtsqpPti[index,] <- 2*point
@@ -242,9 +227,24 @@ optDesign.simll <- function(s, init=NULL, weight=1, refgap=Inf, ...) {
         out <- exp(logwpenpt) * (Dlogwpen(point)*outer(pt012,pt012) + outer(pPt012pPti,pt012)+outer(pt012,pPt012pPti))
         out * weight
     }
-    VarAhat <- function(point) {
-        t(Theta012)%*%WadjTheta012 + exp(logwpen(point))*outer(vec012(point),vec012(point)) # variance of Ahat divided by sigma^2
+    VinvAhat <- function(point) {
+        t(Theta012)%*%WadjTheta012 + exp(logwpen(point))*outer(vec012(point),vec012(point)) # inverse of (variance of Ahat / sigma^2)
     }
+    pSTVpPti <- function(point, index) { # partial STV(MESLEhat) / partial point[index], where STV = trace(-chat^{-1}%*%Var(MESLEhat)) is the scaled total variation of MESLEhat
+        V_pMpAhatT <- solve(VinvAhat(point), t(pMpAhat)) # Var(Ahat) %*% (partial MESLEhat / partial Ahat)^T (divided by sigma^2)
+        sum(diag(solve(chat, t(V_pMpAhatT) %*% pVinvpPti(point, index) %*% V_pMpAhatT)))
+    }
+    pSTVpPt <- function(point) { # partial log(STV(MESLEhat)) / partial point
+        sapply(1:d, function(i) { pSTVpPti(point, i) })
+    }
+    STV <- function(point) { # STV(MESLEhat) when a new simulation is conducted at `point`
+        -sum(diag(solve(chat, pMpAhat %*% solve(VinvAhat(point), t(pMpAhat)))))
+    }
+    logSTV <- function(point) { log(STV(point)) }
+    plogSTVpPt <- function(point) { # partial log(STV(MESLEhat)) / partial point
+        sapply(1:d, function(i) { pSTVpPti(point, i) }) / STV(point)
+    }
+    ## original
     pTVpPti <- function(point, index) { # partial TV(MESLEhat) / partial point[index], where TV = trace(Var(MESLEhat)) is the total variation of MESLEhat
         Vinv_pMpAhatT <- solve(VarAhat(point), t(pMpAhat)) # Var(Ahat) %*% (partial MESLEhat / partial Ahat)^T
         pVpPti_eval <- pVpPti(point, index)
@@ -279,15 +279,18 @@ optDesign.simll <- function(s, init=NULL, weight=1, refgap=Inf, ...) {
         init_n <- MESLEhat + (init_n - MESLEhat) * (-logwpen(init_n))^(-1/2)
     }
 
-    opt <- optim(trans_n(init_n), fn=logTV, gr=plogTVpPt, method="BFGS")
+    opt <- optim(trans_n(init_n), fn=logSTV, gr=plogSTVpPt, method="BFGS")
 
     if (!opt$convergence%in%c(0,1)) {
         print(opt)
         stop("The optimization procedure did not end properly.")
     }
     if (opt$convergence==1) {
-        message("Optimization did not converge within the max number of cycles.")
+        message("The optimization procedure did not end within the max number of iterations.")
     }
 
-    list(par=trans_b(opt$par), TV=TV_bpa, w=exp(logwpen(opt$par)), Wadj=wadj, refgap=refgap)
+    list(par=trans_b(opt$par), logSTV=opt$value, w=exp(logwpen(opt$par)), Wadj=wadj, refgap=refgap)
 }
+
+## TODO: add explanations for the return values
+## TODO: uncomment validate_simll
