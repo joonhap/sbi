@@ -204,16 +204,6 @@ optDesign.simll <- function(s, init=NULL, weight=1, refgap=Inf, ...) {
     ## partial MESLEhat / partial ahat = 0
     ## partial MESLEhat / partial bhat = -1/2*solve(chat)
     ## partial MESLEhat / partial vech(chat) = (-solve(chat)*MESLEhat[1], -solve(chat)[,2:d]*MESLEhat[2], ..., -solve(chat)[,d]*MESLEhat[d])
-    CubicCoef <- function(i,j,k) { # Supposing that the third order term in the cubic approximation is given by Sum_{j,k,l} e_{j,k,l}*(theta_j-thetahat_j)*(theta_k-thetahat_k)*(theta_l-thetahat_l), this function gives the value of e_{i,j,k}
-        sm <- min(i,j,k) # smallest
-        lg <- max(i,j,k) # largest
-        mi <- i+j+k-sm-lg # middle number
-        entry <- Ahat_cubic[(d+1)*(d+2)/2 + lg*(lg-1)*(lg+1)/6+mi*(mi-1)/2+sm]
-        nuniq <- length(unique(c(i,j,k))) # number of distinct (unique) values among i,j,k
-        if (nuniq==1) { return(entry) }
-        if (nuniq==2) { return(entry/3) } # Ahat_cubic entry is (e.g.) e_{112}+e_{121}+e_{211}
-        if (nuniq==3) { return(entry/6) } # Ahat_cubic entry is the sum of six permutations of indices
-    } ## TODO: remove this CubicCoef function, no longer necessary
     Dlogwpen <- function(point) { # derivative of logwpen
         (bhat + 2*c(chat%*%point))/refgap
     }
@@ -244,29 +234,7 @@ optDesign.simll <- function(s, init=NULL, weight=1, refgap=Inf, ...) {
     plogSTVpPt <- function(point) { # partial log(STV(MESLEhat)) / partial point
         sapply(1:d, function(i) { pSTVpPti(point, i) }) / STV(point)
     }
-    ## original
-    pTVpPti <- function(point, index) { # partial TV(MESLEhat) / partial point[index], where TV = trace(Var(MESLEhat)) is the total variation of MESLEhat
-        Vinv_pMpAhatT <- solve(VarAhat(point), t(pMpAhat)) # Var(Ahat) %*% (partial MESLEhat / partial Ahat)^T
-        pVpPti_eval <- pVpPti(point, index)
-        out <- 0
-        for (i in 1:d) {
-            out <- out + c(Vinv_pMpAhatT[,i] %*% pVpPti_eval %*% Vinv_pMpAhatT[,i])
-        }
-        -out
-    }
-    TV <- function(point) { # TV(MESLEhat) when a new simulation is conducted at `point`
-        VarAhatpt <- VarAhat(point)
-        out <- 0
-        for (i in 1:d) {
-            out <- out + c(pMpAhat[i,] %*% solve(VarAhatpt, pMpAhat[i,]))
-        }
-        out
-    }
-    logTV <- function(point) { log(TV(point)) }
-    plogTVpPt <- function(point) { # partial log(TV(MESLEhat)) / partial point
-        sapply(1:d, function(i) { pTVpPti(point, i) }) / TV(point)
-    }
-    ## gradient descent search
+    ## initialize the optimization routine
     if (is.null(init)) {
         init_n <- MESLEhat
     } else if (!is.numeric(init) || length(init) != d) {
