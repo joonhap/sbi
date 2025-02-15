@@ -4,3 +4,5 @@
 ^src/obsolete
 ^DEV_README$
 ^README.Rmd
+^doc$
+^Meta$
