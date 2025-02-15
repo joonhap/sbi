@@ -8,28 +8,42 @@ optDesign <- function(simll, ...) {
 #' `optDesign` finds the next design point at which simulation should be carried out for approximately best efficiency in a metamodel-based inference. See Park (2025) for more details on this method. It takes a class `simll` object.
 #'
 #' @name optDesign
-#' @param s A class `simll` object, containing simulation log likelihoods, the parameter values at which simulations are made, and the weights for those simulations for regression (optional). See help(simll).
+#' @param simll A class `simll` object, containing simulation log likelihoods, the parameter values at which simulations are made, and the weights for those simulations for regression (optional). See help(simll).
 #' @param init (optional) An initial parameter vector at which a search for optimal point starts.
 #' @param weight (optional) A positive real number indicating the user-assigned weight for the new design point. The default value is 1. This value should be chosen relative to the weights in the provided simll object.
-#' @param refgap (optional) A positive real number that determines the weight discount factor for the significance of the third order term in Taylor approximation. The weight of a point `theta` is discounted by a factor of exp(-(qa(theta)-qa(MESLEhat))/refgap), where MESLEhat is the estimated MESLE and qa is the quadratic approximation to the simulated log-likelihoods (before weight discount). Defaults to `refgap=Inf`.
+#' @param autoAdjust logical. If TRUE, simulation points at which the third order term is statistically significant in the cubic approximation to the simulated log-likelihooods have discounted weights for metamodel fitting. The weights of the points relatively far from the estimated MESLE are more heavily discounted. These weight discount factors are multiplied to the originally given weights for parameter estimation. See Park (2025) for more details. If `autoAdjust` is FALSE, the weight discount step is skipped. Defaults to TRUE.
+#' @param refgap A positive real number that determines the weight discount factor for the significance of the third order term in Taylor approximation. The weight of a point `theta` is discounted by a factor of exp(-(qa(theta)-qa(MESLEhat))/refgap), where MESLEhat is the estimated MESLE and qa is the quadratic approximation to the simulated log-likelihoods. If `autoAdjust` is TRUE, `refgap` is interpreted as the initial value for the tuning algorithm. If `autoAdjust` is FALSE, `refgap` is used for weight adjustments without further tuning. The default value is Inf.
 #' @param ... Other optional arguments, not currently used.
 #'
 #' @details
 #' This is a generic function, taking a class `simll` object as the first argument.
 #' Parameter inference for implicitly defined simulation models can be carried out under a metamodel for the distribution of the log-likelihood estimator.
 #' See function `ht` for hypothesis testing and `ci` for confidence interval construction for a one-dimensional parameter.
-#' This function `optDesign` finds the next point at which a simulation is to be carried out such that the variance of the parameter estimate is reduced approximately the most.
-#' Points far from the estimated MESLE have discounted weights such that the third order term in the Taylor approximation is not statistically significant.
-#' The weight discount factor the a point at theta is given by exp(-(qa(theta)-qa(MESLEhat))^2/g^2), where qa is the quadratic approximation, MESLEhat is the estimated MLE, and g is a scaling parameter such that the resulting test for the third order approximation term is not statistically significant.
-#' These discount factors are multipled to the original `weights` given to the simulation points specified in the `s` object.
+#' This function, `optDesign`, proposes the next point at which a simulation is to be carried out such that the variance of the parameter estimate is reduced approximately the most.
+#' In order to balance efficiency and accuracy, the point is selected as far as possible from the current estimate of the parameter while ensuring that the quadratic approximation to the simulated log-likelihoods remain valid.
+#' Specifically, the weights for the existing simulation points are adjusted such that the third order term in a cubic approximation is statistically insignificant.
+#' The weight discount factor for point `theta` is given by exp(-(qa(theta)-qa(MESLEhat))/g), where qa is the quadratic approximation, MESLEhat is the estimated MLE, and g is a scaling parameter.
+#' These discount factors are multipled to the original `weights` given to the simulation points specified in the `simll` object.
+#' Moreover, in order to ensure that the cubic regression can be carried out without numerical issues, g is guaranteed not to fall below a value that makes the effective sample size (ESS) below (d+1)*(d+2)*(d+3)/6, which is the total number of parameter estimated in cubic regression, where d is the parameter dimension. Here ESS is calculated as (sum of adjusted weights)^2/(sum of squared adjusted weights).
 #'
-#' @return A matrix of parameter values at which next simulations are to be carried out for approximately best efficiency.
-#' Each row gives a parameter vector.
+#' The next simulation point is selected by approximately minimizing the scaled total Monte Carlo variation of the parameter estimate.
+#' The scaled total variation (STV) is defined as the trace of `c_hat^{-1} V` where `c_hat` is the quadratic coefficient matrix of the fitted quadratic polynomial and `V` is an approximate Monte Carlo variance of the estimate of the MESLE given by `-(1/2) * c_hat^{-1} b_hat` (here `b_hat` is the linear coefficient vector of the fitted quadratic polynomial.)
+#' The optimization is carried out using the BFGS algorithm via the `optim` function.
+#' See Park (2025) for more details.
+#' 
+#' @return A list containing the following entries.
+#' \itemize{
+#' \item{par: a proposal for the next simulation point.}
+#' \item{logSTV: the logarithm of the approximate scaled total variation (STV) evaluated at the proposed simulation point.}
+#' \item{wadj_new: the adjusted weight for the newly proposed simulation point.}
+#' \item{Wadj: the vector of all adjusted weights for the existing simulation points.}
+#' \item{refgap: the tuned value of g for weight adjustments.}
+#' }
 #'
 #' @references Park, J. (2025). Scalable simulation-based inference for implicitly defined models using a metamodel for log-likelihood estimator <https://doi.org/10.48550/arxiv.2311.09446>
 #' @export
-optDesign.simll <- function(s, init=NULL, weight=1, refgap=Inf, ...) {
-    #validate_simll(s)
+optDesign.simll <- function(simll, init=NULL, weight=1, autoAdjust=TRUE, refgap=Inf, ...) {
+    validate_simll(simll)
     vech <- function(mat) { # half-vectorization
         if (length(mat)==1) {
             mat <- cbind(mat)
@@ -82,29 +96,29 @@ optDesign.simll <- function(s, init=NULL, weight=1, refgap=Inf, ...) {
         c(1, vec, vech(vec2(vec)))
     }
     ## weighted quadratic regression
-    if (is.null(attr(attr(s, "params"), "dim"))) {
+    if (is.null(attr(attr(simll, "params"), "dim"))) {
         d <- 1
     } else {
-        d <- dim(attr(s, "params"))[2]
+        d <- dim(attr(simll, "params"))[2]
     }
-    if (!is.null(attr(s, "weights"))) {
-        if (!is.numeric(attr(s, "weights"))) {
-            stop("When the `simll` object `s` has `weights` attribute, it has to be a numeric vector.")
+    if (!is.null(attr(simll, "weights"))) {
+        if (!is.numeric(attr(simll, "weights"))) {
+            stop("When the `simll` object has `weights` attribute, it has to be a numeric vector.")
         }
-        if (dim(s)[2] != length(attr(s, "weights"))) {
-            stop("When the `simll` object `s` has `weights` attribute, the length of `weights` should be the same as the number of rows in the simulated log likelihood matrix in `s`.")
+        if (dim(simll)[2] != length(attr(simll, "weights"))) {
+            stop("When the `simll` object has `weights` attribute, the length of `weights` should be the same as the number of rows in the simulated log likelihood matrix in `simll`.")
         }
-        w <- attr(s, "weights")
+        w <- attr(simll, "weights")
     } else {
-        w <- rep(1, dim(s)[2])
+        w <- rep(1, dim(simll)[2])
     }
-    theta <- cbind(attr(s, "params")) # coerce into a matrix
+    theta <- cbind(attr(simll, "params")) # coerce into a matrix
     theta_mean <- apply(theta, 2, mean)
     theta_sd <- apply(theta, 2, sd)
     trans_n <- function(vec) { (vec-theta_mean)/theta_sd } # normalize by centering and scaling
     trans_b <- function(vec) { vec*theta_sd + theta_mean } # transform back to the original scale
     theta_n <- apply(theta, 1, trans_n) |> rbind() |> t() # apply trans_n rowwise (result:M-by-d matrix)
-    llmat <- unclass(s)
+    llmat <- unclass(simll)
     ll <- apply(llmat, 2, sum)
     M <- length(ll)
     Theta012 <- t(apply(theta_n, 1, vec012))
@@ -151,6 +165,7 @@ optDesign.simll <- function(s, init=NULL, weight=1, refgap=Inf, ...) {
         resids <- ll - c(Theta012%*%Ahat)
         sigsqhat <- c(resids%*%(wadj*resids)) / M
         MESLEhat <- unname(-solve(chat,bhat)/2)
+        if (!autoAdjust) { break } 
         Ahat_cubic <- c(solve(t(Theta0123)%*%(outer(wadj,rep(1,dim0123))*Theta0123), t(Theta0123)%*%(wadj*ll)))
         resids_cubic <- ll - c(Theta0123%*%Ahat_cubic)
         sigsqhat_cubic <- c(resids_cubic%*%(wadj*resids_cubic)) / M
@@ -160,18 +175,14 @@ optDesign.simll <- function(s, init=NULL, weight=1, refgap=Inf, ...) {
         pval_cubic <- pf(fstat, d*(d+1)*(d+2)/6, sum(w>0)-(d+1)*(d+2)*(d+3)/6, lower.tail=FALSE)
         ESS <- sum(wadj)^2/sum(wadj^2) # effective sample size (ESS)
         if (ESS <= (d+1)*(d+2)*(d+3)/6) { # if the ESS is too small, increase refgap
-            ##cat("refgap:",refgap,"pval_cubic:",pval_cubic,"sigsqhat:",sigsqhat,"sigsqhat_cubic:",sigsqhat_cubic,"sigratio:",sigratio,"multiplier:",multiplier,"fstat:",fstat,"ESS:",ESS,"\n")
             exit_upon_sufficient_ESS <- TRUE # break from loop as soon as the ESS is large enough
             refgap <- refgap * 1.5
             next
         }
         if (exit_upon_sufficient_ESS) {
-            ##cat("refgap:",refgap,"pval_cubic:",pval_cubic,"sigsqhat:",sigsqhat,"sigsqhat_cubic:",sigsqhat_cubic,"sigratio:",sigratio,"multiplier:",multiplier,"fstat:",fstat,"ESS:",ESS,"\n")
-            ##cat("break, sufficient ESS reached.\n")
             break
         }
         if (pval_cubic < .01) {
-            ##cat("refgap:",refgap,"pval_cubic:",pval_cubic,"sigsqhat:",sigsqhat,"sigsqhat_cubic:",sigsqhat_cubic,"sigratio:",sigratio,"multiplier:",multiplier,"fstat:",fstat,"ESS:",ESS,"\n")
             if (refgap==Inf) {
                 refgap <- qa(MESLEhat) - min(apply(theta_n, 1, qa))
             } else {
@@ -179,15 +190,10 @@ optDesign.simll <- function(s, init=NULL, weight=1, refgap=Inf, ...) {
             }
         } else if (pval_cubic > .3) {
             if (refgap >= 10*refgap_init) { # if refgap has been increased a lot already, stop. Note: in order to account for the case where pval_cubic > .3 even with refgap = Inf, the comparison should be ">=" rather than ">".
-                ##cat("refgap:",refgap,"pval_cubic:",pval_cubic,"sigsqhat:",sigsqhat,"sigsqhat_cubic:",sigsqhat_cubic,"sigratio:",sigratio,"multiplier:",multiplier,"fstat:",fstat,"ESS:",ESS,"\n")
-                ##cat("break, maximally increased refgap.\n")
                 break
             }
-            ##cat("refgap:",refgap,"pval_cubic:",pval_cubic,"sigsqhat:",sigsqhat,"sigsqhat_cubic:",sigsqhat_cubic,"sigratio:",sigratio,"multiplier:",multiplier,"fstat:",fstat,"ESS:",ESS,"\n")
             refgap <- refgap * 1.3
         } else {
-            ##cat("refgap:",refgap,"pval_cubic:",pval_cubic,"sigsqhat:",sigsqhat,"sigsqhat_cubic:",sigsqhat_cubic,"sigratio:",sigratio,"multiplier:",multiplier,"fstat:",fstat,"ESS:",ESS,"\n")
-            ##cat("break, p-val suitable.\n")
             break
         }
     }
@@ -247,7 +253,7 @@ optDesign.simll <- function(s, init=NULL, weight=1, refgap=Inf, ...) {
         init_n <- MESLEhat + (init_n - MESLEhat) * (-logwpen(init_n))^(-1/2)
     }
 
-    opt <- optim(trans_n(init_n), fn=logSTV, gr=plogSTVpPt, method="BFGS")
+    opt <- stats::optim(trans_n(init_n), fn=logSTV, gr=plogSTVpPt, method="BFGS")
 
     if (!opt$convergence%in%c(0,1)) {
         print(opt)
@@ -257,8 +263,6 @@ optDesign.simll <- function(s, init=NULL, weight=1, refgap=Inf, ...) {
         message("The optimization procedure did not end within the max number of iterations.")
     }
 
-    list(par=trans_b(opt$par), logSTV=opt$value, w=exp(logwpen(opt$par)), Wadj=wadj, refgap=refgap)
+    list(par=trans_b(opt$par), logSTV=opt$value, wadj_new=exp(logwpen(opt$par)), Wadj=wadj, refgap=refgap)
 }
 
-## TODO: add explanations for the return values
-## TODO: uncomment validate_simll

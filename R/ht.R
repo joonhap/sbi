@@ -281,8 +281,10 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
         ## first stage approximation of MESLEhat
         WTheta012 <- outer(w,rep(1,dim012))*Theta012
         Ahat <- c(solve(t(Theta012)%*%WTheta012, t(Theta012)%*%(w*ll)))
-        bhat <- Ahat[2:(d+1)]
-        vech_chat <- Ahat[(d+2):((d^2+3*d+2)/2)]
+        bindex <- 2:(d+1)
+        cindex <- (d+2):((d^2+3*d+2)/2)
+        bhat <- Ahat[bindex]
+        vech_chat <- Ahat[cindex]
         chat <- unvech(vech_chat)
         resids <- ll - c(Theta012%*%Ahat)
         sigsqhat <- c(resids%*%(w*resids)) / M
@@ -355,8 +357,8 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
             cubic_test <- TRUE
             WTheta012 <- outer(w,rep(1,dim012))*Theta012
             Ahat <- c(solve(t(Theta012)%*%WTheta012, t(Theta012)%*%(w*ll)))
-            bhat <- Ahat[2:(d+1)]
-            vech_chat <- Ahat[(d+2):((d^2+3*d+2)/2)]
+            bhat <- Ahat[bindex]
+            vech_chat <- Ahat[cindex]
             chat <- unvech(vech_chat)
             resids <- ll - c(Theta012%*%Ahat)
             sigsqhat <- c(resids%*%(w*resids)) / M

@@ -3,7 +3,7 @@
 \name{ci}
 \alias{ci}
 \alias{ci.simll}
-\title{Confidence interval for scalar parameter constructed using simulation log likelihoods}
+\title{Confidence interval for scalar parameter constructed using simulated log likelihoods}
 \usage{
 \method{ci}{simll}(
   simll,
@@ -11,6 +11,7 @@
   ci = NULL,
   case = NULL,
   weights = NULL,
+  autoAdjust = FALSE,
   K1_est_method = "batch",
   batch_size = NULL,
   max_lag = NULL,
@@ -19,15 +20,17 @@
 )
 }
 \arguments{
-\item{simll}{A class 'simll' object, containing simulation log likelihoods, the parameter values at which simulations are made, and the weights for those simulations for regression (optional). See help(simll).}
+\item{simll}{A class 'simll' object, containing simulated log likelihoods, the parameter values at which simulations are made, and the weights for those simulations for regression (optional). See help(simll).}
 
 \item{level}{A numeric vector of confidence levels.}
 
 \item{ci}{A character string indicating the quantity for which a confidence interval is to be constructed. Either "MESLE" or "parameter". See Details.}
 
-\item{case}{When \code{ci} is "parameter", \code{case} is either "iid" or "stationary" (default). \code{case} = "iid" means that the observations are iid, and \code{case} = "stationary" means that the observations form a stationary sequence. The \code{case} argument affects how the variance of the slope of the mean function (=K_1 in Park (2023)) is estimated.}
+\item{case}{When \code{ci} is "parameter", \code{case} is either "iid" or "stationary" (default). \code{case} = "iid" means that the observations are iid, and \code{case} = "stationary" means that the observations form a stationary sequence. The \code{case} argument affects how the variance of the slope of the mean function (=K_1 in Park (2025)) is estimated.}
 
-\item{weights}{An optional argument. The un-normalized weights of the simulation log likelihoods for regression. A numeric vector of length equal to the 'params' attribute of the 'simll' object. See Details below.}
+\item{weights}{An optional argument. The un-normalized weights of the simulated log likelihoods for regression. A numeric vector of length equal to the 'params' attribute of the 'simll' object. See Details below.}
+
+\item{autoAdjust}{logical. If TRUE, simulation points at which the third order term is statistically significant in the cubic approximation to the simulated log-likelihooods have discounted weights for metamodel fitting. The weights of the points relatively far from the estimated MESLE are more heavily discounted. These weight discount factors are multiplied to the originally given weights for parameter estimation. See Park (2025) for more details. If \code{autoAdjust} is FALSE, the weight discount step is skipped. Defaults to FALSE.}
 
 \item{K1_est_method}{Either "autocov" or "batch"}
 
@@ -35,7 +38,7 @@
 
 \item{max_lag}{When \code{test} is "parameter" and \code{case} is "stationary", the value of \code{max_lag} gives the truncation point for lagged autocovariance when estimating K1 as a sum of lagged autocovariances of estimates slopes. If not supplied, default is the maximum lag for which the lagged autocorrelation has absolute value greater than 4/sqrt(nobs), where the lagged autocorrelation is found up to lag \code{10*log10(nobs)}. Here \code{nobs} is the number of observations.}
 
-\item{plot_acf}{Logical.  When \code{test} is "parameter" and \code{case} is "stationary", If \code{plot_acf} is TRUE, the autocorrelation plot of the estimated slopes of the quadratic fit to the simulation log likelihoods is shown.}
+\item{plot_acf}{Logical.  When \code{test} is "parameter" and \code{case} is "stationary", If \code{plot_acf} is TRUE, the autocorrelation plot of the estimated slopes of the quadratic fit to the simulated log likelihoods is shown.}
 
 \item{...}{Other optional arguments, not currently used.}
 }
@@ -44,28 +47,28 @@ A list consisting of the followings are returned.
 \itemize{
 \item{regression_estimates: point estimates for the meta model parameters, a, b, c, and sigma^2.}
 \item{meta_model_MLE_for_*: point estimate for the quantity for which confidence intervals are constructed under a normal meta model}
-\item{confidence_interval: a data frame of the lower and upper bounds of the confidence intervals and the corresponding confidence levels. Note that in some unfortunate cases (especially if the quadratic coefficient of the estimated quadratic fit of the log likelihood estimates is close to zero or nonnegative), the confidence interval may be inverted, meaning that it is of the form (-infty, bound1) U (bound2, infty). This case can happen if the signal-to-noise ratio in simulation log likelihoods is too small. The inverted confidence interval will be indicated by the additional column "inverted" in the data frame taking values of 0 or 1.}
+\item{confidence_interval: a data frame of the lower and upper bounds of the confidence intervals and the corresponding confidence levels. Note that in some unfortunate cases (especially if the quadratic coefficient of the estimated quadratic fit of the log likelihood estimates is close to zero or nonnegative), the confidence interval may be inverted, meaning that it is of the form (-infty, bound1) U (bound2, infty). This case can happen if the signal-to-noise ratio in simulated log likelihoods is too small. The inverted confidence interval will be indicated by the additional column "inverted" in the data frame taking values of 0 or 1.}
 \item{max_lag: if \code{test}="parameter" and \code{case}="stationary", the maximum lag for computing the autocovariance in estimating K1 is shown.}
 \item{pval_cubic: The p-value of the test about whether the cubic term in the cubic polynomial regression is significant. If so, the constructed confidence interval may be biased.}
 }
 }
 \description{
-\code{ci} constructs confidence intervals for a scalar (one-dimensional) parameter using simulation log likelihoods. See Park (2023) for more information.
+\code{ci} constructs confidence intervals for a scalar (one-dimensional) parameter using simulated log likelihoods. See Park (2025) for more information.
 }
 \details{
 This is a generic function, taking a class 'simll' object as the first argument.
-Confidence intervals are constructed under a normal, locally quadratic meta model where the simulation log likelihoods given in the 'simll' object are normally distributed.
+Confidence intervals are constructed under a normal, locally quadratic meta model where the simulated log likelihoods given in the 'simll' object are normally distributed.
 
 When 'level' has length greater than one, a confidence interval is constructed for each value in the vector.
 
-Quadratic regression for the simulation log likelihoods is carried out to construct confidence intervals, where the x-axis values are the 'params' values of the 'simll' object and the y-axis values are the corresponding simulation log likelihoods.
-In the case where 'ci' = "parameter", inference on the simulation based surrogate will be carried out under the local asymptotic normality for simulation log likelihoods (see Park (2023) for more information.)
+Quadratic regression for the simulated log likelihoods is carried out to construct confidence intervals, where the x-axis values are the 'params' values of the 'simll' object and the y-axis values are the corresponding simulated log likelihoods.
+In the case where 'ci' = "parameter", inference on the simulation based surrogate will be carried out under the local asymptotic normality for simulated log likelihoods (see Park (2025) for more information.)
 The default value of 'ci' is "parameter".
 
 If 'ci' = "MESLE", confidence intervals are constructed for the maximum expected simulation likelihood estimate given the observed data.
 
-When quadratic regression is carried out, the weights for the simulation based likelihood estimates can be specified. The length of 'weights' should be equal to that of the 'params' attribute of the 'simll', which is equal to the number of rows in the simulation log likelihood matrix in the 'simll' object. It is important to note that the weights are not normalized (i.e., not sum to one). Multiplying all weights by the same constant changes the estimation outputs. If not supplied, the 'weights' attribute of the 'simll' object is used. If neither is supplied, 'weights' defaults to the vector of all ones.
+When quadratic regression is carried out, the weights for the simulation based likelihood estimates can be specified. The length of 'weights' should be equal to that of the 'params' attribute of the 'simll', which is equal to the number of rows in the simulated log likelihood matrix in the 'simll' object. It is important to note that the weights are not normalized (i.e., not sum to one). Multiplying all weights by the same constant changes the estimation outputs. If not supplied, the 'weights' attribute of the 'simll' object is used. If neither is supplied, 'weights' defaults to the vector of all ones.
 }
 \references{
-Park, J. (2023). On simulation based inference for implicitly defined model \url{https://doi.org/10.48550/arxiv.2311.09446}
+Park, J. (2025). Scalable simulation based inference for implicitly defined models using a metamodel for log-likelihood estimator \url{https://doi.org/10.48550/arxiv.2311.09446}
 }

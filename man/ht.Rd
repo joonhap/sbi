@@ -12,6 +12,7 @@
   case = NULL,
   type = NULL,
   weights = NULL,
+  autoAdjust = FALSE,
   K1_est_method = "batch",
   batch_size = NULL,
   max_lag = NULL,
@@ -21,17 +22,19 @@
 )
 }
 \arguments{
-\item{simll}{A class \code{simll} object, containing simulation log likelihoods, the parameter values at which simulations are made (may be omitted if all simulations are made at the same parameter value), and the weights for those simulations for regression (optional). See help(simll).}
+\item{simll}{A class \code{simll} object, containing simulated log likelihoods, the parameter values at which simulations are made (may be omitted if all simulations are made at the same parameter value), and the weights for those simulations for regression (optional). See help(simll).}
 
 \item{null.value}{The null value(s) for the hypothesis test. The expected format depends on which teset will be carried out. See the Details section for more information.}
 
 \item{test}{A character string indicating which is to be tested about. One of "moments", "MESLE", or "parameter". See Details.}
 
-\item{case}{When \code{test} is "parameter", \code{case} needs to be either "iid" or "stationary". \code{case} = "iid" means that the observations are iid, and \code{case} = "stationary" means that the observations form a stationary sequence. The \code{case} argument affects how the variance of the slope of the mean function (=K_1 in Park (2023)) is estimated. The default value is "stationary".}
+\item{case}{When \code{test} is "parameter", \code{case} needs to be either "iid" or "stationary". \code{case} = "iid" means that the observations are iid, and \code{case} = "stationary" means that the observations form a stationary sequence. The \code{case} argument affects how the variance of the slope of the mean function (=K_1 in Park (2025)) is estimated. The default value is "stationary".}
 
-\item{type}{When \code{test} is "moments", the \code{type} argument needs to be specified. \code{type} = "point" means that the test about the mean and the variance of simulation log likelihoods at a given parameter point is considered. \code{type} = "regression" means that the test about the mean function and the variance of simulation log likelihoods at various parameter values is considered. See Details.}
+\item{type}{When \code{test} is "moments", the \code{type} argument needs to be specified. \code{type} = "point" means that the test about the mean and the variance of simulated log likelihoods at a given parameter point is considered. \code{type} = "regression" means that the test about the mean function and the variance of simulated log likelihoods at various parameter values is considered. See Details.}
 
-\item{weights}{An optional argument. The un-normalized weights of the simulation log likelihoods for regression. A numeric vector of length equal to the \code{params} attribute of the \code{simll} object. See Details below.}
+\item{weights}{An optional argument. The un-normalized weights of the simulated log likelihoods for regression. A numeric vector of length equal to the \code{params} attribute of the \code{simll} object. See Details below.}
+
+\item{autoAdjust}{logical. If TRUE, simulation points at which the third order term is statistically significant in the cubic approximation to the simulated log-likelihooods have discounted weights for metamodel fitting. The weights of the points relatively far from the estimated MESLE are more heavily discounted. These weight discount factors are multiplied to the originally given weights for parameter estimation. See Park (2025) for more details. If \code{autoAdjust} is FALSE, the weight discount step is skipped. Defaults to FALSE.}
 
 \item{K1_est_method}{Either "batch" or "autocov". Used when \code{test} is "parameter" and \code{case} is "stationary". The default is "batch". See Details for more information.}
 
@@ -41,7 +44,7 @@
 
 \item{plot_acf}{Logical. Should the autocorrelation plot be generated when estimating K1 for the case where \code{test} is "parameter" and \code{case} is "stationary"?}
 
-\item{MCcorrection}{For tests on the simulation based parameter surrogate (\code{test}="parameter"), \code{MCcorrection} determines if and how the sampling distribution of the test statistic will be corrected by a Monte Carlo method to account for the variability in the estimate of K1. Possible values are "none" (default) and "Wishart". See the Details section and Park (2023) for more details.}
+\item{MCcorrection}{For tests on the simulation based parameter surrogate (\code{test}="parameter"), \code{MCcorrection} determines if and how the sampling distribution of the test statistic will be corrected by a Monte Carlo method to account for the variability in the estimate of K1. Possible values are "none" (default) and "Wishart". See the Details section and Park (2025) for more details.}
 
 \item{...}{Other optional arguments, not currently used.}
 }
@@ -53,36 +56,36 @@ A list consisting of the following components are returned.
 \item{Hypothesis_Tests: a data frame of the null values and the corresponding p-values. When \code{test}="moments" and \code{type}="regression", each null value is given in the form of c(a,b,c,sigma^2) where a, b, c, sigma^2 are first, second, third, and fourth entries of the given null value.}
 \item{pvalue_numerical_error_size: When \code{test}="moments", approximate size of error in numerical evaluation of p-values (automatically set to approximately 0.01 or 0.001). For these case, p-values are found using the SCL distributions, whose cumulative distribution functions are numerically evaluated using random number generations. Thus p-values have some stochastic error. The size of the numerical error is automatically set to approximately 0.01, but if any of the p-values found is less than 0.01, more computations are carried out to reduce the numerical error size to approximately 0.001. Note that when \code{test}="MESLE" or "parameter", the (standard) F distribution is used, so this list component is omitted.}
 \item{max_lag: if \code{test}="parameter" and \code{case}="stationary", the maximum lag for computing the autocovariance in estimating K1 is shown.}
-\item{pval_cubic: The p-value of the test about whether the cubic term in the cubic polynomial regression is significant. If so, the result of the ht function may be biased. The test on the cubic term is carried out only when the number of simulation log likelihoods is greater than \eqn{(d+1)*(d+2)*(d+3)/6} where \eqn{d} is the dimension of the parameter vector.}
+\item{pval_cubic: The p-value of the test about whether the cubic term in the cubic polynomial regression is significant. If so, the result of the ht function may be biased. The test on the cubic term is carried out only when the number of simulated log likelihoods is greater than \eqn{(d+1)*(d+2)*(d+3)/6} where \eqn{d} is the dimension of the parameter vector.}
 }
 }
 \description{
-\code{ht} carries out hypothesis tests for models defined implicitly by a random simulator. It takes as input estimates of the log likelihood obtained via simulations of the model. Tests are carried out using a simulation meta model. See Park (2023) for more details on the method.
+\code{ht} carries out hypothesis tests for models defined implicitly by a random simulator. It takes as input estimates of the log likelihood obtained via simulations of the model. Tests are carried out using a simulation meta model. See Park (2025) for more details on the method.
 }
 \details{
 This is a generic function, taking a class \code{simll} object as the first argument.
-Hypothesis tests are carried out under a normal meta model--that is, the simulation log likelihoods (whose values are given in the \code{simll} object) are normally distributed.
+Hypothesis tests are carried out under a normal metamodel--that is, the simulated log likelihoods (whose values are given in the \code{simll} object) are normally distributed.
 
 If \code{test} = "moments", the \code{type} argument needs to be either "point" or "regression".
-If \code{type} = "point", a test about the mean and the variance of the simulation log likelihood at a single parameter value is conducted.
-If \code{type} = "regression", the \code{simll} object should contain simulation log likelihoods obtained at more than one parameter values, specified by the \code{params} attribute of the \code{simll} object. A (weighted) quadratic regression for the simulation log likelihoods will be used for hypothesis tests, where the x-axis values are given by the \code{params} values of the \code{simll} object and the y-axis values are the corresponding simulation log likelihoods.
-The test is about the quadruple \eqn{a, b, c, sigma^2} where \eqn{a, b, c} are coefficients of the polynomial describing the mean of the simulation log likelihood (i.e., \eqn{l(\theta) = a + b \theta + c \theta^2}) and \eqn{\sigma^2} is the variance of the simulation log likelihood.
+If \code{type} = "point", a test about the mean and the variance of the simulated log likelihood at a single parameter value is conducted.
+If \code{type} = "regression", the \code{simll} object should contain simulated log likelihoods obtained at more than one parameter values, specified by the \code{params} attribute of the \code{simll} object. A (weighted) quadratic regression for the simulated log likelihoods will be used for hypothesis tests, where the x-axis values are given by the \code{params} values of the \code{simll} object and the y-axis values are the corresponding simulated log likelihoods.
+The test is about the quadruple \eqn{a, b, c, sigma^2} where \eqn{a, b, c} are coefficients of the polynomial describing the mean of the simulated log likelihood (i.e., \eqn{l(\theta) = a + b \theta + c \theta^2}) and \eqn{\sigma^2} is the variance of the simulated log likelihood.
 If \code{test} = "moments" and \code{type} is not specified, \code{type} defaults to "point" if the \code{params} attribute of the \code{simll} object is not supplied or has length one, and defaults to "regression" otherwise.
 
 When \code{test} = "MESLE" or "parameter", the \code{simll} object should have the \code{params} attribute.
 
-If \code{test} = "MESLE", the test is about the location of the maximum expected simulation log likelihood estimate.
+If \code{test} = "MESLE", the test is about the location of the maximum expected simulated log likelihood estimate.
 
-If \code{test} = "parameter", inference on the simulation based surrogate will be carried out under the local asymptotic normality for simulation log likelihood (see Park (2023) for more information.)
+If \code{test} = "parameter", inference on the simulation based surrogate will be carried out under the local asymptotic normality for simulated log likelihood (see Park (2025) for more information.)
 
 The default value for \code{test} is "parameter".
 
-When quadratic regression is carried out, the weights for the simulation based likelihood estimates can be specified. The length of \code{weights} should be equal to that of the \code{params} attribute of the \code{simll}, which is equal to the number of rows in the simulation log likelihood matrix in the \code{simll} object. It is important to note that the weights are not supposed to be normalized (i.e., sum to one). Multiplying all weights by the same constant changes the estimation outputs. If not supplied, the \code{weights} attribute of the \code{simll} object is used. If neither is supplied, \code{weights} defaults to the vector of all ones.
+When quadratic regression is carried out, the weights for the simulation based likelihood estimates can be specified. The length of \code{weights} should be equal to that of the \code{params} attribute of the \code{simll}, which is equal to the number of rows in the simulated log likelihood matrix in the \code{simll} object. It is important to note that the weights are not supposed to be normalized (i.e., sum to one). Multiplying all weights by the same constant changes the estimation outputs. If not supplied, the \code{weights} attribute of the \code{simll} object is used. If neither is supplied, \code{weights} defaults to the vector of all ones.
 
-When \code{test} is "moments" and \code{type} is "point", \code{null.value} is either a vector of length two (one entry for the mean and the other for the variance of the simulation log likelihoods), a matrix of two columns (one for the mean and the other for the variance), or a list of vectors of length two (each entry of the list gives a null value consisting of the mean and the variance.)
-When \code{test} is "moments" and \code{type} is "regression", \code{null.value} can be a list of length four, or a list of lists of length four. The first case corresponds to when a single null hypothesis is tested. The four components are a) the constant term in the quadratic mean function (scalar), b) the linear coefficient term in the mean function (vector of length \eqn{d} where \eqn{d} is the dimension of the parameter vector), c) the quadratic coefficient term in the mean function (symmetric matrix of dimension \eqn{d \times d}), and d) the variance of the simulation log likelihood (scalar). The second case is when more than one null values are tested. In this case each component of the list is a list having four entries as described for the case of a single null value.
+When \code{test} is "moments" and \code{type} is "point", \code{null.value} is either a vector of length two (one entry for the mean and the other for the variance of the simulated log likelihoods), a matrix of two columns (one for the mean and the other for the variance), or a list of vectors of length two (each entry of the list gives a null value consisting of the mean and the variance.)
+When \code{test} is "moments" and \code{type} is "regression", \code{null.value} can be a list of length four, or a list of lists of length four. The first case corresponds to when a single null hypothesis is tested. The four components are a) the constant term in the quadratic mean function (scalar), b) the linear coefficient term in the mean function (vector of length \eqn{d} where \eqn{d} is the dimension of the parameter vector), c) the quadratic coefficient term in the mean function (symmetric matrix of dimension \eqn{d \times d}), and d) the variance of the simulated log likelihood (scalar). The second case is when more than one null values are tested. In this case each component of the list is a list having four entries as described for the case of a single null value.
 When \code{test} is "MESLE" or "parameter", \code{null.value} is a vector of length \eqn{d} (a single null value), a matrix having \eqn{d} columns (each row giving a vector for a null value), or a list of vectors of length \eqn{d} (more than one null values).
 }
 \references{
-Park, J. (2023). On simulation-based inference for implicitly defined models \url{https://doi.org/10.48550/arxiv.2311.09446}
+Park, J. (2025). Scalable simulation-based inference for implicitly defined models using a metamodel for log-likelihood estimator \url{https://doi.org/10.48550/arxiv.2311.09446}
 }
