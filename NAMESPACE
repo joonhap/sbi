@@ -2,8 +2,10 @@
 
 S3method(ci,simll)
 S3method(ht,simll)
+S3method(optDesign,simll)
 export(ci)
 export(ht)
+export(optDesign)
 export(pscl)
 export(qscl)
 export(rscl)

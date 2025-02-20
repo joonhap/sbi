@@ -6,3 +6,7 @@ inst/doc
 *.Rmd~
 R/obsolete/
 src/obsolete/
+src/*.o
+src/*.so
+/doc/
+/Meta/

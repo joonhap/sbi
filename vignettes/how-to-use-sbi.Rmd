@@ -28,7 +28,7 @@ library(tidyr)
 
 ## Introduction
 This tutorial introduces you to the package `sbi` and explains how to use it using examples.
-This package implements parameter inference methods for stochastic models defined implicitly by a simulation algorithm, developed by Park, J. (2023) "On simulation-based inference for implicilty defined models" https://doi.org/10.48550/arXiv.2311.09446.
+This package implements parameter inference methods for stochastic models defined implicitly by a simulation algorithm, developed by Park, J. (2025). Scalable simulation-based inference for implicitly defined models using a metamodel for log-likelihood estimator <https://doi.org/10.48550/arxiv.2311.09446>
 First, the methodological and theoretical framework for inference is explained.
 Then how to create an `R` object that contains simulation-based log-likelihood estimates will be explained.
 How to carry out a hypothesis test will be explained first for independent and identically distributed (iid) data using a toy example.
@@ -36,7 +36,7 @@ Conducting hypothesis tests for a certain class of models generating dependent o
 
 ## Mathematical framework
 This section provides a mathematical basis for the methods implemented in the package `sbi`.
-Further details can be found in the article @park2023simulation.
+Further details can be found in the article @park2025simulation.
 If you want to learn only about how to use the package, you may skip to the [next section](#simll).
 
 We consider a collection of latent random variables $X$ distributed according to $P_\theta$, and partial observations $Y$ whose conditional distributions have density $g(y|x;\theta)$.
@@ -71,7 +71,7 @@ The maximizer of the mean function $\mu(\theta;y_{1:n}) := a(y_{1:n}) + b(y_{1:n
 #### Parameter inference using local asymptotic normality (LAN) for simulation log-likelihood
 Parameter inference is carried out by analyzing the distribution of the quadratic mean function $\mu(\theta;Y_{1:n})$ where $Y_{1:n}$ are partial observations of the underlying system realized at a given parameter value $\theta_0$.
 We use a local approximation drawn from the following asymptotic result, which is satisfied under reasonably mild regulatory conditions.
-The maximizer of the mean function averaged over the data distribution under $\theta_0$ will be referred to as a _simulation-based surrogate_.
+The maximizer of the mean function averaged over the data distribution under $\theta_0$ will be referred to as a _simulation-based proxy_.
 It  will be denoted by $\J(\theta_0)$ or simply by $\theta_*$ when the dependence on the true parameter value $\theta_0$ is not stressed.
 $$ \J(\theta_0) = \arg\max_\theta \E_{X\sim P_{\theta_0}} \E_{Y|X \sim g(\cdot|X, \theta_0)} ~\mu(\theta; Y_{1:n}).$$
 In general, $\J(\theta_0) \neq \theta_0$, but there are some simple examples where $\J(\theta_0) = \theta_0$.
@@ -112,12 +112,14 @@ library(sbi)
 The simulation-based inference is carried out using the `ht` function.
 When the parameter of interest is one-dimensional, confidence intervals may be constructed using the `ci` function.
 
+
+
 #### An example: gamma-Poisson observations
 As an example, we consider a latent process $X$ consisting of $n$ iid copies of gamma random variates, denoted by $(X_1, \dots, X_n)\overset{iid}\sim \Gamma(1, \theta)$ where the shape parameter is unity and the rate parameter is $\theta$.
 Partial observations $Y_i$ depend only on $X_i$ and Poisson-distributed: $Y_i|X_i \sim \text{Pois}(X_i)$.
 The observations $y_{1:n}$ are generated under $\theta = \theta_0 = 1$.
-For this model, the maximum expected simulation log-likelihood estimator (MESLE) is given by $1/\bar y = \frac{n}{\sum_{i=1}^n y_i}$, which is equal to the maximum likelihood estimator (MLE) given the observations $y_{1:n}$ (see Example 2 in @park2023simulation for mathematical details.)
-Furthermore, the simulation-based surrogate $\J(\theta_0)$ is equal to $\theta_0$.
+For this model, the maximum expected simulation log-likelihood estimator (MESLE) is given by $1/\bar y = \frac{n}{\sum_{i=1}^n y_i}$, which is equal to the maximum likelihood estimator (MLE) given the observations $y_{1:n}$ (see Example 2 in @park2025simulation for mathematical details.)
+Furthermore, the simulation-based proxy $\J(\theta_0)$ is equal to $\theta_0$.
 
 ```{r}
 n <- 1000 # number of iid observations
@@ -140,7 +142,7 @@ s <- simll(llest, params=sims_at)
 ```
 
 ## Hypothesis test on the maximum expected simulation log-likelihood estimator (MESLE)
-Hypothesis tests can be carried out for both the MESLE and the simulation-based surrogate.
+Hypothesis tests can be carried out for both the MESLE and the simulation-based proxy.
 Note that the MESLE is a statistic that depends on the observed data $y_{1:n}$, like the MLE.
 The MESLE needs to be _estimated_ using simulations, because the likelihood function is not accessible analytically.
 We can test $H_0: \hat \theta_\MESLE = \theta_{\MESLE,0}$, $H_1: \hat \theta_\MESLE \neq \theta_{\MESLE,0}$ for multiple null values $\theta_{\MESLE,0}$ simultaneously.
@@ -197,11 +199,11 @@ gg_gp_simll + geom_function(fun=est_quad, linetype="longdash", color='blue') +
         panel.grid.minor=element_blank())
 ```
 
-## Hypothesis test on the simulation-based surrogate
-The simulation-based surrogate $\J(\theta_0)$ for this example is equal to $\theta_0$, the true parameter value under which the observations were generated.
+## Hypothesis test on the simulation-based proxy
+The simulation-based proxy $\J(\theta_0)$ for this example is equal to $\theta_0$, the true parameter value under which the observations were generated.
 We can carry out a hypothesis test $H_0: \J(\theta_0) = \theta_{*,0}$, $H_1: \J(\theta_0) \neq \theta_{*,0}$ using the `ht` function with the `test` argument set equal to `"parameter"` (the default).
 We use the same set of simulation log-likelihoods stored in `s` and the same collection of null values used for the test on the MESLE. 
-For hypothesis testing for the simulation-based surrogate, we need to let the `ht` function know that the observations are iid so that the uncertainty may be correctly quantified.
+For hypothesis testing for the simulation-based proxy, we need to let the `ht` function know that the observations are iid so that the uncertainty may be correctly quantified.
 This can be done by passing the character string `"iid"` to the `case` argument.
 By default, the `ht` function assumes that the observations form a serially dependent, stationary sequence, which corresponds to `case="stationary"`.
 This case will be discussed in the next section.
@@ -211,11 +213,10 @@ ht_result
 ```
 
 
-
 ## Inference for non-iid observations
-When the observations are not iid, the hypothesis test on the MESLE is carried out in the same way as in the iid case, but the hypothesis test for the simulation-based parameter surrogate is carried out in a different way.
+When the observations are not iid, the hypothesis test on the MESLE is carried out in the same way as in the iid case, but the hypothesis test for the simulation-based parameter proxy is carried out in a different way.
 The reason for the difference for the non-iid case is that when estimating the unknown value of $K_1(\theta_*;\theta_0)$, the auto-correlation among $\frac{\partial \mu}{\partial \theta}(\theta_*; y_{1:n})$ need to be taken into consideration.
-We demonstrate hypothesis test on the simulation-based surrogate for the non-iid case using the following example.
+We demonstrate hypothesis test on the simulation-based proxy for the non-iid case using the following example.
 
 #### Stochastic volatility model
 We consider a stochastic volatility model where the distribution of the log rate of return $r_t$ of a stock at time $t$ is described by
@@ -231,8 +232,10 @@ The rates of return $r_t$ are observed for $t\in 1:T$ where $T=1000$.
 The stochastic volatility $\{s_t; t \in 1 : T\}$ is a Markov process with partial observations $\{r_t; t\in 1:T\}$.
 We simulate the stochastic volatility process for $\kappa=0.8, \tau=1$ and generate an observed data sequence $r_{1:T}$.
 
+
+
 Unbliased likelihood estimates for the sequence of observations may be obtained by the bootstrap particle filter, which uses an ensemble of Monte Carlo draws called particles simulated under a given set of parameters.
-We may use the logarithm of the obtained unbiased likelihood estimates as the simulation log-likelihoods for inference on the parameter surrogate.
+We may use the logarithm of the obtained unbiased likelihood estimates as the simulation log-likelihoods for inference on the parameter proxy.
 The bootstrap particle filter can be run using the package `pomp` with the reasonably small amount of effort of specifying the underlying process and the measurement process models.
 ```{r message=FALSE}
 library(pomp)
@@ -453,8 +456,8 @@ can be carried out by passing the character string `"moments"` to the `test` arg
 The `null.value` argument can be the list of the four elements in the order of $(a_0, b_0, c_0, \sigma_0^2)$. 
 The second element ($b_0$) is a vector and the third element ($c_0$) is a matrix.
 When testing more than one null values, `null.value` should be a list of lists of length four.
-For tests on the MESLE or the simulation-based surrogate, the test statistic follows the $F$-distribution.
-The test statistic for the metamodel parameters follows what is named the $\textsf{SCL}$ distribution in @park2023simulation.
+For tests on the MESLE or the simulation-based proxy, the test statistic follows the $F$-distribution.
+The test statistic for the metamodel parameters follows what is named the $\textsf{SCL}$ distribution in @park2025simulation.
 The quantiles and the cdf of the $\textsf{SCL}$ distribution are numerically found by drawing a number of random values from the distribution.
 The number of random variables is roughly chosen such that the Monte Carlo standard error for the obtained p-value is approximately 0.01.
 However, if any of the obtained p-values is less than 0.01, a greater number of random numbers are drawn from the $\textsf{SCL}$ distribution so that the Monte Carlo standard error of the p-value is approximately 0.001.
@@ -466,7 +469,7 @@ ht(s, null.value=null_moments, test="moments")
 #### Test on the mean and variance of the simulation log likelihood at a single parameter value
 Finally, the `ht` function can be used to test about the mean and the variance of the simulation log likelihood at a _single_ parameter value.
 For this, the `type` argument should be set to `"point"`.
-When the `type` argument is not provided, its default value is `"point"` if the object passed to the `simll` argument has no `params` attribute and `"regression"` otherwise.
+When the `type` argument is not provided, its default value is `"point"` if the object passed to the `s` argument has no `params` attribute and `"regression"` otherwise.
 All hypothesis tests described in earlier sections used the default `type="regression"`.
 
 As an example, suppose that the simulation log likelihood is normally distributed with mean $\mu=0$ and variance $\sigma^2 = 1$.
@@ -482,5 +485,22 @@ null_values <- rbind(c(0,1), c(0,0.8), c(0.2, 1))
 ht(s, null.value=null_values, test="moments", type="point")
 ```
 
+## Automatic weight adjustments for bias reduction
+Both the `ht` and `ci` functions have the option `autoAdjust` to automatically adjust the weights of the simulation points so that the error in quadratic approximation is small. 
+Specifically, the weights are multiplied by discount factors given by $exp(-\{q_2(\hat \theta_\MESLE)-q_2(\theta)\}/g)$ where $q_2$ is the fitted quadratic polynomial to the simulated log-likelihoods, $\theta$ is the given simulation point, and $g$ is a tuning parameter.
+These weight adjustments ensure that points far from $\hat\theta_\MESLE$ have small weights for estimating the parameter. 
+The value of $g$ is tuned iteratively by making sure that the p-value for the significance of the cubic term is between 0.01 and 0.3.
+If the p-value is too small (less than 0.01), in order to reduce the bias introduced, $g$ is decreased so that parameter estimation is carried out using effectively only points close to the estimated MESLE where the cubic term is negligibly small compared to the quadratic approximation.
+Conversely, if the p-value is large enough (larger than 0.3), there is a room to explore a wider region in the parameter sapce to improve estimation efficiency.
+Additionally, in order to ensure that the cubic regression can be carried out without numerical instability, $g$ is guaranteed to not fall below a value that makes the effective sample size (ESS) less than $(d+1)(d+2)(d+3)/6$, which is the number of scalar parameters estimated in cubic regression.
+Here the ESS is defined as $(\sum_{m=1}^M {w_m^{adj}})^2/(\sum_{m=1}^M {w_m^{adj}}^2)$, where $w_m^{adj}$, $m=1,\dots, M$, are the adjusted weights.
+
+## Proposal of the next simulation point for near-optimal efficiency
+The next simulation point for optimal estimation efficiency can be found using the `optDesign` function.
+This function returns a point that could (approximately) minimize the Monte Carlo variance of the estimate of the MESLE.
+If a point is too far from the estimated MESLE, then the adjusted weight for that point could be very small because the third order term in a cubic approximation could be significant at that point.
+That point could contribute little to decrease the Monte Carlo uncertainty in the parameter estimate.
+Conversely, a point too close to the estimated MESLE does not substantially reduce the variance of the parameter estimate either, since it has a low leverage in polynomial regression.
+The point returned by `optDesign` is a near-optimum balancing these two factors.
 
 ### References

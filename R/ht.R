@@ -5,44 +5,45 @@ ht <- function(simll, ...) {
 
 #' Hypothesis tests based on simulation based log likelihood estimates
 #'
-#' `ht` carries out hypothesis tests for models defined implicitly by a random simulator. It takes as input estimates of the log likelihood obtained via simulations of the model. Tests are carried out using a simulation meta model. See Park (2023) for more details on the method.
+#' `ht` carries out hypothesis tests for models defined implicitly by a random simulator. It takes as input estimates of the log likelihood obtained via simulations of the model. Tests are carried out using a simulation meta model. See Park (2025) for more details on the method.
 #'
 #' @name ht
-#' @param simll A class `simll` object, containing simulation log likelihoods, the parameter values at which simulations are made (may be omitted if all simulations are made at the same parameter value), and the weights for those simulations for regression (optional). See help(simll).
+#' @param simll A class `simll` object, containing simulated log likelihoods, the parameter values at which simulations are made (may be omitted if all simulations are made at the same parameter value), and the weights for those simulations for regression (optional). See help(simll).
 #' @param null.value The null value(s) for the hypothesis test. The expected format depends on which teset will be carried out. See the Details section for more information.
 #' @param test A character string indicating which is to be tested about. One of "moments", "MESLE", or "parameter". See Details.
-#' @param case When `test` is "parameter", `case` needs to be either "iid" or "stationary". `case` = "iid" means that the observations are iid, and `case` = "stationary" means that the observations form a stationary sequence. The `case` argument affects how the variance of the slope of the mean function (=K_1 in Park (2023)) is estimated. The default value is "stationary".
-#' @param type When `test` is "moments", the `type` argument needs to be specified. `type` = "point" means that the test about the mean and the variance of simulation log likelihoods at a given parameter point is considered. `type` = "regression" means that the test about the mean function and the variance of simulation log likelihoods at various parameter values is considered. See Details.
-#' @param weights An optional argument. The un-normalized weights of the simulation log likelihoods for regression. A numeric vector of length equal to the `params` attribute of the `simll` object. See Details below.
+#' @param case When `test` is "parameter", `case` needs to be either "iid" or "stationary". `case` = "iid" means that the observations are iid, and `case` = "stationary" means that the observations form a stationary sequence. The `case` argument affects how the variance of the slope of the mean function (=K_1 in Park (2025)) is estimated. The default value is "stationary".
+#' @param type When `test` is "moments", the `type` argument needs to be specified. `type` = "point" means that the test about the mean and the variance of simulated log likelihoods at a given parameter point is considered. `type` = "regression" means that the test about the mean function and the variance of simulated log likelihoods at various parameter values is considered. See Details.
+#' @param weights An optional argument. The un-normalized weights of the simulated log likelihoods for regression. A numeric vector of length equal to the `params` attribute of the `simll` object. See Details below.
+#' @param autoAdjust logical. If TRUE, simulation points at which the third order term is statistically significant in the cubic approximation to the simulated log-likelihooods have discounted weights for metamodel fitting. The weights of the points relatively far from the estimated MESLE are more heavily discounted. These weight discount factors are multiplied to the originally given weights for parameter estimation. See Park (2025) for more details. If `autoAdjust` is FALSE, the weight discount step is skipped. Defaults to FALSE.
 #' @param K1_est_method Either "batch" or "autocov". Used when `test` is "parameter" and `case` is "stationary". The default is "batch". See Details for more information.
 #' @param batch_size Numeric. The size of the batch when `K1_est_method` is "batch". If not supplied, the default value is `round(n^0.4)` where `n` is the number of observations in the data.
 #' @param max_lag When `test` is "parameter" and `case` is "stationary", the value of `max_lag` gives the truncation point for lagged autocovariance when estimating K1 as a sum of lagged autocovariances of estimates slopes. If not supplied, default is the maximum lag for which at least one of the entries of the matrix of lagged autocorrelation has absolute value greater than 4/sqrt(nobs), where the lagged autocorrelation is found up to lag `10*log10(nobs/d)`. Here `nobs` is the number of observations and `d` is the dimension of the parameter space.
 #' @param plot_acf Logical. Should the autocorrelation plot be generated when estimating K1 for the case where `test` is "parameter" and `case` is "stationary"?
-#' @param MCcorrection For tests on the simulation based parameter surrogate (`test`="parameter"), `MCcorrection` determines if and how the sampling distribution of the test statistic will be corrected by a Monte Carlo method to account for the variability in the estimate of K1. Possible values are "none" (default) and "Wishart". See the Details section and Park (2023) for more details.
+#' @param MCcorrection For tests on the simulation based parameter surrogate (`test`="parameter"), `MCcorrection` determines if and how the sampling distribution of the test statistic will be corrected by a Monte Carlo method to account for the variability in the estimate of K1. Possible values are "none" (default) and "Wishart". See the Details section and Park (2025) for more details.
 #' @param ... Other optional arguments, not currently used.
 #'
 #' @details
 #' This is a generic function, taking a class `simll` object as the first argument.
-#' Hypothesis tests are carried out under a normal meta model--that is, the simulation log likelihoods (whose values are given in the `simll` object) are normally distributed.
+#' Hypothesis tests are carried out under a normal metamodel--that is, the simulated log likelihoods (whose values are given in the `simll` object) are normally distributed.
 #'
 #' If `test` = "moments", the `type` argument needs to be either "point" or "regression".
-#' If `type` = "point", a test about the mean and the variance of the simulation log likelihood at a single parameter value is conducted.
-#' If `type` = "regression", the `simll` object should contain simulation log likelihoods obtained at more than one parameter values, specified by the `params` attribute of the `simll` object. A (weighted) quadratic regression for the simulation log likelihoods will be used for hypothesis tests, where the x-axis values are given by the `params` values of the `simll` object and the y-axis values are the corresponding simulation log likelihoods.
-#' The test is about the quadruple \eqn{a, b, c, sigma^2} where \eqn{a, b, c} are coefficients of the polynomial describing the mean of the simulation log likelihood (i.e., \eqn{l(\theta) = a + b \theta + c \theta^2}) and \eqn{\sigma^2} is the variance of the simulation log likelihood.
+#' If `type` = "point", a test about the mean and the variance of the simulated log likelihood at a single parameter value is conducted.
+#' If `type` = "regression", the `simll` object should contain simulated log likelihoods obtained at more than one parameter values, specified by the `params` attribute of the `simll` object. A (weighted) quadratic regression for the simulated log likelihoods will be used for hypothesis tests, where the x-axis values are given by the `params` values of the `simll` object and the y-axis values are the corresponding simulated log likelihoods.
+#' The test is about the quadruple \eqn{a, b, c, sigma^2} where \eqn{a, b, c} are coefficients of the polynomial describing the mean of the simulated log likelihood (i.e., \eqn{l(\theta) = a + b \theta + c \theta^2}) and \eqn{\sigma^2} is the variance of the simulated log likelihood.
 #' If `test` = "moments" and `type` is not specified, `type` defaults to "point" if the `params` attribute of the `simll` object is not supplied or has length one, and defaults to "regression" otherwise.
 #'
 #' When `test` = "MESLE" or "parameter", the `simll` object should have the `params` attribute.
 #'
-#' If `test` = "MESLE", the test is about the location of the maximum expected simulation log likelihood estimate.
+#' If `test` = "MESLE", the test is about the location of the maximum expected simulated log likelihood estimate.
 #'
-#' If `test` = "parameter", inference on the simulation based surrogate will be carried out under the local asymptotic normality for simulation log likelihood (see Park (2023) for more information.)
+#' If `test` = "parameter", inference on the simulation based surrogate will be carried out under the local asymptotic normality for simulated log likelihood (see Park (2025) for more information.)
 #'
 #' The default value for `test` is "parameter".
 #'
-#' When quadratic regression is carried out, the weights for the simulation based likelihood estimates can be specified. The length of `weights` should be equal to that of the `params` attribute of the `simll`, which is equal to the number of rows in the simulation log likelihood matrix in the `simll` object. It is important to note that the weights are not supposed to be normalized (i.e., sum to one). Multiplying all weights by the same constant changes the estimation outputs. If not supplied, the `weights` attribute of the `simll` object is used. If neither is supplied, `weights` defaults to the vector of all ones.
+#' When quadratic regression is carried out, the weights for the simulation based likelihood estimates can be specified. The length of `weights` should be equal to that of the `params` attribute of the `simll`, which is equal to the number of rows in the simulated log likelihood matrix in the `simll` object. It is important to note that the weights are not supposed to be normalized (i.e., sum to one). Multiplying all weights by the same constant changes the estimation outputs. If not supplied, the `weights` attribute of the `simll` object is used. If neither is supplied, `weights` defaults to the vector of all ones.
 #'
-#' When `test` is "moments" and `type` is "point", `null.value` is either a vector of length two (one entry for the mean and the other for the variance of the simulation log likelihoods), a matrix of two columns (one for the mean and the other for the variance), or a list of vectors of length two (each entry of the list gives a null value consisting of the mean and the variance.)
-#' When `test` is "moments" and `type` is "regression", `null.value` can be a list of length four, or a list of lists of length four. The first case corresponds to when a single null hypothesis is tested. The four components are a) the constant term in the quadratic mean function (scalar), b) the linear coefficient term in the mean function (vector of length \eqn{d} where \eqn{d} is the dimension of the parameter vector), c) the quadratic coefficient term in the mean function (symmetric matrix of dimension \eqn{d \times d}), and d) the variance of the simulation log likelihood (scalar). The second case is when more than one null values are tested. In this case each component of the list is a list having four entries as described for the case of a single null value.
+#' When `test` is "moments" and `type` is "point", `null.value` is either a vector of length two (one entry for the mean and the other for the variance of the simulated log likelihoods), a matrix of two columns (one for the mean and the other for the variance), or a list of vectors of length two (each entry of the list gives a null value consisting of the mean and the variance.)
+#' When `test` is "moments" and `type` is "regression", `null.value` can be a list of length four, or a list of lists of length four. The first case corresponds to when a single null hypothesis is tested. The four components are a) the constant term in the quadratic mean function (scalar), b) the linear coefficient term in the mean function (vector of length \eqn{d} where \eqn{d} is the dimension of the parameter vector), c) the quadratic coefficient term in the mean function (symmetric matrix of dimension \eqn{d \times d}), and d) the variance of the simulated log likelihood (scalar). The second case is when more than one null values are tested. In this case each component of the list is a list having four entries as described for the case of a single null value.
 #' When `test` is "MESLE" or "parameter", `null.value` is a vector of length \eqn{d} (a single null value), a matrix having \eqn{d} columns (each row giving a vector for a null value), or a list of vectors of length \eqn{d} (more than one null values).
 #'
 #' @return A list consisting of the following components are returned.
@@ -52,13 +53,17 @@ ht <- function(simll, ...) {
 #' \item{Hypothesis_Tests: a data frame of the null values and the corresponding p-values. When `test`="moments" and `type`="regression", each null value is given in the form of c(a,b,c,sigma^2) where a, b, c, sigma^2 are first, second, third, and fourth entries of the given null value.}
 #' \item{pvalue_numerical_error_size: When `test`="moments", approximate size of error in numerical evaluation of p-values (automatically set to approximately 0.01 or 0.001). For these case, p-values are found using the SCL distributions, whose cumulative distribution functions are numerically evaluated using random number generations. Thus p-values have some stochastic error. The size of the numerical error is automatically set to approximately 0.01, but if any of the p-values found is less than 0.01, more computations are carried out to reduce the numerical error size to approximately 0.001. Note that when `test`="MESLE" or "parameter", the (standard) F distribution is used, so this list component is omitted.}
 #' \item{max_lag: if `test`="parameter" and `case`="stationary", the maximum lag for computing the autocovariance in estimating K1 is shown.}
-#' \item{pval_cubic: The p-value of the test about whether the cubic term in the cubic polynomial regression is significant. If so, the result of the ht function may be biased. The test on the cubic term is carried out only when the number of simulation log likelihoods is greater than \eqn{(d+1)*(d+2)*(d+3)/6} where \eqn{d} is the dimension of the parameter vector.}
+#' \item{pval_cubic: The p-value of the test about whether the cubic term in the cubic polynomial regression is significant. If so, the result of the ht function may be biased. The test on the cubic term is carried out only when the number of simulated log likelihoods is greater than \eqn{(d+1)*(d+2)*(d+3)/6} where \eqn{d} is the dimension of the parameter vector.}
 #' }
 #'
-#' @references Park, J. (2023). On simulation-based inference for implicitly defined models <https://doi.org/10.48550/arxiv.2311.09446>
+#' @references Park, J. (2025). Scalable simulation-based inference for implicitly defined models using a metamodel for log-likelihood estimator <https://doi.org/10.48550/arxiv.2311.09446>
 #' @export
-ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), case=NULL, type=NULL, weights=NULL, K1_est_method="batch", batch_size=NULL, max_lag=NULL, plot_acf=FALSE, MCcorrection="none", ...) {
+ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), case=NULL, type=NULL, weights=NULL, autoAdjust=FALSE, K1_est_method="batch", batch_size=NULL, max_lag=NULL, plot_acf=FALSE, MCcorrection="none", ...) {
     validate_simll(simll)
+    if (is.null(test)) {
+        test <- "parameter"
+        message("The `test` argument is not supplied. Defaults to `paramter`.")
+    }
     match.arg(test, c("moments", "MESLE", "parameter"))
     if (test=="parameter") {
         if (is.null(case)) {
@@ -193,7 +198,7 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
                 stop("When `type` = 'regression' and the `weights` argument is given, `weights` have to be a numeric vector.")
             }
             if (length(weights) != dim(simll)[2]) {
-                stop("When `type` = 'regression' and the `weights` argument is given, the length of `weights` should be equal to the number of rows in the simulation log likelihood matrix in `simll`.")
+                stop("When `type` = 'regression' and the `weights` argument is given, the length of `weights` should be equal to the number of rows in the simulated log likelihood matrix in `simll`.")
             }
             w <- weights
         }
@@ -203,7 +208,7 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
                     stop("When the `simll` object has `weights` attribute, it has to be a numeric vector.")
                 }
                 if (dim(simll)[2] != length(attr(simll, "weights"))) {
-                    stop("When the `simll` object has `weights` attribute, the length of `weights` should be the same as the number of rows in the simulation log likelihood matrix in `simll`.")
+                    stop("When the `simll` object has `weights` attribute, the length of `weights` should be the same as the number of rows in the simulated log likelihood matrix in `simll`.")
                 }
                 w <- attr(simll, "weights")
             } else {
@@ -273,45 +278,117 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
         M <- length(ll)
         Theta012 <- t(apply(theta_n, 1, vec012))
         dim012 <- 1 + d + (d^2+d)/2
+        ## first stage approximation of MESLEhat
         WTheta012 <- outer(w,rep(1,dim012))*Theta012
         Ahat <- c(solve(t(Theta012)%*%WTheta012, t(Theta012)%*%(w*ll)))
-        ahat <- Ahat[1]
-        d <- dim(theta)[2]
-        bindex <- 2:(d+1) # the positions in A that correspond to b
+        bindex <- 2:(d+1)
+        cindex <- (d+2):((d^2+3*d+2)/2)
         bhat <- Ahat[bindex]
-        cindex <- (d+2):((d^2+3*d+2)/2) # the positions in A that correspond to vech(c)
         vech_chat <- Ahat[cindex]
         chat <- unvech(vech_chat)
-        ahat_b <- c(Ahat[1] - bhat%*%diag(1/theta_sd, nrow=length(theta_sd))%*%theta_mean + theta_mean%*%diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd))%*%theta_mean) # the constant term ahat on the original scale (transformed back)
-        bhat_b <- diag(1/theta_sd, nrow=length(theta_sd))%*%bhat - 2*diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd))%*%theta_mean # bhat on the original scale
-        chat_b <- diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd)) # chat on the original scale
         resids <- ll - c(Theta012%*%Ahat)
         sigsqhat <- c(resids%*%(w*resids)) / M
         MESLEhat <- unname(-solve(chat,bhat)/2)
-        ## cubic test
-        if (M > (d+1)*(d+2)*(d+3)/6) { # carry out cubic test if this condition is met
-            cubic_test <- TRUE
-            vec3 <- function(vec) {
-                d <- length(vec)
-                l <- 0
-                out <- numeric((d^3+2*d^2+d)/6)
-                for (k1 in 1:d) {
-                    for (k2 in 1:k1) {
-                        out[(l+1):(l+k2)] <- vec[k1]*vec[k2]*vec[1:k2]
-                        l <- l+k2
-                    }
+        cubic_test <- FALSE
+        vec3 <- function(vec) {
+            d <- length(vec)
+            l <- 0
+            out <- numeric((d^3+2*d^2+d)/6)
+            for (k1 in 1:d) {
+                for (k2 in 1:k1) {
+                    out[(l+1):(l+k2)] <- vec[k1]*vec[k2]*vec[1:k2]
+                    l <- l+k2
                 }
-                out
             }
-            Theta0123 <- cbind(Theta012, t(rbind(apply(theta_n, 1, vec3)))) # design matrix for cubic regression to test whether the cubic coefficient = 0
-            dim0123 <- dim(Theta0123)[2]
+            out
+        }
+        Theta0123 <- cbind(Theta012, t(rbind(apply(theta_n, 1, vec3)))) # design matrix for cubic regression to test whether the cubic coefficient = 0
+        dim0123 <- dim(Theta0123)[2]
+        if (autoAdjust) {
+            if (M <= (d+1)*(d+2)*(d+3)/6) { # carry out cubic test if this condition is met
+                stop("The number of simulations is not large enough to carry out cubic polynomial fitting (should be greater than (d+1)*(d+2)*(d+3)/6)")
+            }
+            cubic_test <- TRUE
+            qa <- function(x) { sum(vec012(x)*Ahat) }
+            logwpen <- function(point) { -(qa(MESLEhat)-qa(point))/refgap } # penalizaing weight (weight discount factor)
+            refgap <- Inf # reference value for the gap qa(MESLEhat)-qa(theta) where qa is the quadratic approximation
+            exit_upon_condition_met <- FALSE
+            repno <- 0
+            repeat{
+                repno <- repno + 1
+                if (repno > 30) {
+                    stop("Weight adjustments did not complete in thirty iterations.")
+                }
+                ## Weight points appropriately to make the third order term insignificant
+                wadj <- w * exp(apply(theta_n, 1, logwpen)) # adjusted weights
+                WadjTheta012 <- outer(wadj,rep(1,dim012))*Theta012
+                Ahat_try <- c(solve(t(Theta012)%*%WadjTheta012, t(Theta012)%*%(wadj*ll)))
+                bhat_try <- Ahat_try[2:(d+1)]
+                chat_try <- unvech(Ahat_try[(d+2):((d^2+3*d+2)/2)])
+                MESLEhat_try <- unname(-solve(chat_try,bhat_try)/2)
+                chat_nd <- all(eigen(chat_try)$values<0) # is chat negative definite?
+                weightedmean <- apply(wadj*theta_n, 2, sum)/sum(wadj)
+                est_issue <- FALSE
+                if (!chat_nd || sum((MESLEhat_try-weightedmean)^2)>8*d) {
+                    est_issue <- TRUE # issue with estimation
+                    if (refgap==Inf) {
+                        stop("Estimated curvature is not negative definite or close to singular. Consider manually adding more simulation points.")
+                    }
+                } else { # if no issue, updated Ahat and MESLEhat
+                    Ahat <- Ahat_try
+                    bhat <- bhat_try
+                    chat <- chat_try
+                    MESLEhat <- MESLEhat_try
+                }
+                ESS <- sum(wadj)^2/sum(wadj^2) # effective sample size (ESS)
+                if (ESS <= (d+1)*(d+2)*(d+3)/6 || est_issue) { # if the ESS is too small, or if chat is not negative definite, or the estimated MESLE is too far from the mean of the simulation points, increase refgap
+                    exit_upon_condition_met <- TRUE # break from loop as soon as the ESS is large enough
+                    refgap <- refgap * 1.5
+                    next
+                }
+                if (exit_upon_condition_met) {
+                    break
+                }
+                resids <- ll - c(Theta012%*%Ahat)
+                sigsqhat <- c(resids%*%(wadj*resids)) / M
+                Ahat_cubic <- c(solve(t(Theta0123)%*%(outer(wadj,rep(1,dim0123))*Theta0123), t(Theta0123)%*%(wadj*ll)))
+                resids_cubic <- ll - c(Theta0123%*%Ahat_cubic)
+                sigsqhat_cubic <- c(resids_cubic%*%(wadj*resids_cubic)) / M
+                sigratio <- (sigsqhat-sigsqhat_cubic)/sigsqhat_cubic
+                multiplier <- (sum(w>0)-(d+1)*(d+2)*(d+3)/6)/(d*(d+1)*(d+2)/6)
+                fstat <- sigratio * multiplier
+                pval_cubic <- pf(fstat, d*(d+1)*(d+2)/6, sum(w>0)-(d+1)*(d+2)*(d+3)/6, lower.tail=FALSE)
+                if (pval_cubic < .01) {
+                    if (refgap==Inf) {
+                        refgap <- qa(MESLEhat) - min(apply(theta_n, 1, qa))
+                    } else {
+                        refgap <- refgap / 1.8
+                    }
+                } else {
+                    break
+                }
+            }
+            w <- wadj
+            WTheta012 <- WadjTheta012
+        }
+        if (!autoAdjust && M > (d+1)*(d+2)*(d+3)/6) {
+            cubic_test <- TRUE
+            WTheta012 <- outer(w,rep(1,dim012))*Theta012
+            Ahat <- c(solve(t(Theta012)%*%WTheta012, t(Theta012)%*%(w*ll)))
+            bhat <- Ahat[bindex]
+            vech_chat <- Ahat[cindex]
+            chat <- unvech(vech_chat)
+            resids <- ll - c(Theta012%*%Ahat)
+            sigsqhat <- c(resids%*%(w*resids)) / M
+            MESLEhat <- unname(-solve(chat,bhat)/2)
             Ahat_cubic <- c(solve(t(Theta0123)%*%(outer(w,rep(1,dim0123))*Theta0123), t(Theta0123)%*%(w*ll)))
             resids_cubic <- ll - c(Theta0123%*%Ahat_cubic)
             sigsqhat_cubic <- c(resids_cubic%*%(w*resids_cubic)) / M
             pval_cubic <- pf((sigsqhat-sigsqhat_cubic)/sigsqhat_cubic*(sum(w>0)-(d+1)*(d+2)*(d+3)/6)/(d*(d+1)*(d+2)/6), d*(d+1)*(d+2)/6, sum(w>0)-(d+1)*(d+2)*(d+3)/6, lower.tail=FALSE)
-        } else {
-            cubic_test <- FALSE
         }
+        ahat_b <- c(Ahat[1] - bhat%*%diag(1/theta_sd, nrow=length(theta_sd))%*%theta_mean + theta_mean%*%diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd))%*%theta_mean) # the constant term ahat on the original scale (transformed back)
+        bhat_b <- diag(1/theta_sd, nrow=length(theta_sd))%*%bhat - 2*diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd))%*%theta_mean # bhat on the original scale
+        chat_b <- diag(1/theta_sd, nrow=length(theta_sd))%*%chat%*%diag(1/theta_sd, nrow=length(theta_sd)) # chat on the original scale
         ## test about moments
         if (test=="moments") {
             if (!is.list(null.value[[1]])) { # if the first element of null.value is not a list, it should be a list of length four (the null values for a, b, c, and sigma^2). This corresponds to the case where only a single quadruple is tested. If this is the case, coerce `null.value` into a list of a list of length four to be consistent with the other case where multiple quadruples are tested.
@@ -358,6 +435,9 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
             if (cubic_test) {
                 out <- c(out, pval_cubic=pval_cubic)
             }
+            if (autoAdjust) {
+                out[["updated_weights"]] <- w
+            }
             return(out)
         }
         ## test about MESLE
@@ -387,6 +467,9 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
             )
             if (cubic_test) {
                 out <- c(out, pval_cubic=pval_cubic)
+            }
+            if (autoAdjust) {
+                out[["updated_weights"]] <- w
             }
             return(out)
         }
@@ -495,9 +578,11 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
             if (cubic_test) {
                 out <- c(out, pval_cubic=pval_cubic)
             }
+            if (autoAdjust) {
+                out[["updated_weights"]] <- w
+            }
             return(out)
         }
     }
 }
-
 
