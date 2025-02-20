@@ -312,18 +312,45 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
             qa <- function(x) { sum(vec012(x)*Ahat) }
             logwpen <- function(point) { -(qa(MESLEhat)-qa(point))/refgap } # penalizaing weight (weight discount factor)
             refgap <- Inf # reference value for the gap qa(MESLEhat)-qa(theta) where qa is the quadratic approximation
-            exit_upon_sufficient_ESS <- FALSE
+            exit_upon_condition_met <- FALSE
+            repno <- 0
             repeat{
+                repno <- repno + 1
+                if (repno > 30) {
+                    stop("Weight adjustments did not complete in thirty iterations.")
+                }
                 ## Weight points appropriately to make the third order term insignificant
                 wadj <- w * exp(apply(theta_n, 1, logwpen)) # adjusted weights
                 WadjTheta012 <- outer(wadj,rep(1,dim012))*Theta012
-                Ahat <- c(solve(t(Theta012)%*%WadjTheta012, t(Theta012)%*%(wadj*ll)))
-                bhat <- Ahat[2:(d+1)]
-                vech_chat <- Ahat[(d+2):((d^2+3*d+2)/2)]
-                chat <- unvech(vech_chat)
+                Ahat_try <- c(solve(t(Theta012)%*%WadjTheta012, t(Theta012)%*%(wadj*ll)))
+                bhat_try <- Ahat_try[2:(d+1)]
+                chat_try <- unvech(Ahat_try[(d+2):((d^2+3*d+2)/2)])
+                MESLEhat_try <- unname(-solve(chat_try,bhat_try)/2)
+                chat_nd <- all(eigen(chat_try)$values<0) # is chat negative definite?
+                weightedmean <- apply(wadj*theta_n, 2, sum)/sum(wadj)
+                est_issue <- FALSE
+                if (!chat_nd || sum((MESLEhat_try-weightedmean)^2)>8*d) {
+                    est_issue <- TRUE # issue with estimation
+                    if (refgap==Inf) {
+                        stop("Estimated curvature is not negative definite or close to singular. Consider manually adding more simulation points.")
+                    }
+                } else { # if no issue, updated Ahat and MESLEhat
+                    Ahat <- Ahat_try
+                    bhat <- bhat_try
+                    chat <- chat_try
+                    MESLEhat <- MESLEhat_try
+                }
+                ESS <- sum(wadj)^2/sum(wadj^2) # effective sample size (ESS)
+                if (ESS <= (d+1)*(d+2)*(d+3)/6 || est_issue) { # if the ESS is too small, or if chat is not negative definite, or the estimated MESLE is too far from the mean of the simulation points, increase refgap
+                    exit_upon_condition_met <- TRUE # break from loop as soon as the ESS is large enough
+                    refgap <- refgap * 1.5
+                    next
+                }
+                if (exit_upon_condition_met) {
+                    break
+                }
                 resids <- ll - c(Theta012%*%Ahat)
                 sigsqhat <- c(resids%*%(wadj*resids)) / M
-                MESLEhat <- unname(-solve(chat,bhat)/2)
                 Ahat_cubic <- c(solve(t(Theta0123)%*%(outer(wadj,rep(1,dim0123))*Theta0123), t(Theta0123)%*%(wadj*ll)))
                 resids_cubic <- ll - c(Theta0123%*%Ahat_cubic)
                 sigsqhat_cubic <- c(resids_cubic%*%(wadj*resids_cubic)) / M
@@ -331,15 +358,6 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
                 multiplier <- (sum(w>0)-(d+1)*(d+2)*(d+3)/6)/(d*(d+1)*(d+2)/6)
                 fstat <- sigratio * multiplier
                 pval_cubic <- pf(fstat, d*(d+1)*(d+2)/6, sum(w>0)-(d+1)*(d+2)*(d+3)/6, lower.tail=FALSE)
-                ESS <- sum(wadj)^2/sum(wadj^2) # effective sample size (ESS)
-                if (ESS <= (d+1)*(d+2)*(d+3)/6) { # if the ESS is too small, increase refgap
-                    exit_upon_sufficient_ESS <- TRUE # break from loop as soon as the ESS is large enough
-                    refgap <- refgap * 1.5
-                    next
-                }
-                if (exit_upon_sufficient_ESS) {
-                    break
-                }
                 if (pval_cubic < .01) {
                     if (refgap==Inf) {
                         refgap <- qa(MESLEhat) - min(apply(theta_n, 1, qa))

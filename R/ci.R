@@ -135,33 +135,51 @@ ci.simll <- function(simll, level, ci=NULL, case=NULL, weights=NULL, autoAdjust=
         }
         qa <- function(x) { sum(c(1, x, x^2)*Ahat) }
         logwpen <- function(point) { -(qa(MESLEhat)-qa(point))/refgap } # penalizaing weight (weight discount factor)
-        vec3 <- function(val) {
-            val^3
-        }
         theta0123 <- cbind(theta012, theta^3) # design matrix for cubic regression to test whether the cubic coefficient = 0
         refgap <- Inf # reference value for the gap qa(MESLEhat)-qa(theta) where qa is the quadratic approximation
-        exit_upon_sufficient_ESS <- FALSE
+        exit_upon_condition_met <- FALSE
+        repno <- 0
         repeat{
+            repno <- repno + 1
+            if (repno > 30) {
+                stop("Weight adjustments did not complete in thirty iterations.")
+            }
             ## Weight points appropriately to make the third order term insignificant
             wadj <- w * exp(apply(theta, 1, logwpen)) # adjusted weights
-            WadjTheta012 <- outer(wadj,rep(1,3))*theta012
-            Ahat <- c(solve(t(theta012)%*%WadjTheta012, t(theta012)%*%(wadj*ll)))
+            Wadjtheta012 <- outer(wadj,rep(1,3))*theta012
+            Ahat_try <- c(solve(t(theta012)%*%Wadjtheta012, t(theta012)%*%(wadj*ll)))
+            bhat_try <- Ahat_try[2:(d+1)]
+            chat_try <- Ahat_try[(d+2):((d^2+3*d+2)/2)]
+            MESLEhat_try <- unname(-solve(chat_try,bhat_try)/2)
+            chat_nd <- all(eigen(chat_try)$values<0) # is chat negative definite?
+            weightedmean <- apply(wadj*theta, 2, sum)/sum(wadj)
+            est_issue <- FALSE
+            if (!chat_nd || sum((MESLEhat_try-weightedmean)^2)>8*d) {
+                est_issue <- TRUE # issue with estimation
+                if (refgap==Inf) {
+                    stop("Estimated curvature is not negative definite or close to singular. Consider manually adding more simulation points.")
+                }
+            } else { # if no issue, updated Ahat and MESLEhat
+                Ahat <- Ahat_try
+                bhat <- bhat_try
+                chat <- chat_try
+                MESLEhat <- MESLEhat_try
+            }
+            ESS <- sum(wadj)^2/sum(wadj^2) # effective sample size (ESS)
+            if (ESS <= (d+1)*(d+2)*(d+3)/6 || est_issue) { # if the ESS is too small, or if chat is not negative definite, or the estimated MESLE is too far from the mean of the simulation points, increase refgap
+                exit_upon_condition_met <- TRUE # break from loop as soon as the ESS is large enough
+                refgap <- refgap * 1.5
+                next
+            }
+            if (exit_upon_condition_met) {
+                break
+            }
             resids <- ll - c(theta012%*%Ahat)
             sigsqhat <- c(resids%*%(wadj*resids)) / M
-            MESLEhat <- unname(-Ahat[2]/(2*Ahat[3]))
             Ahat_cubic <- c(solve(t(theta0123)%*%(outer(wadj,rep(1,4))*theta0123), t(theta0123)%*%(wadj*ll)))
             resids_cubic <- ll - c(theta0123%*%Ahat_cubic)
             sigsqhat_cubic <- c(resids_cubic%*%(wadj*resids_cubic)) / M
             pval_cubic <- pf((sigsqhat-sigsqhat_cubic)/sigsqhat_cubic*(sum(w>0)-4), 1, sum(w>0)-4, lower.tail=FALSE)
-            ESS <- sum(wadj)^2/sum(wadj^2) # effective sample size (ESS)
-            if (ESS <= (d+1)*(d+2)*(d+3)/6) { # if the ESS is too small, increase refgap
-                exit_upon_sufficient_ESS <- TRUE # break from loop as soon as the ESS is large enough
-                refgap <- refgap * 1.5
-                next
-            }
-            if (exit_upon_sufficient_ESS) {
-                break
-            }
             if (pval_cubic < .01) {
                 if (refgap==Inf) {
                     refgap <- qa(MESLEhat) - min(apply(theta, 1, qa))
@@ -204,7 +222,7 @@ ci.simll <- function(simll, level, ci=NULL, case=NULL, weights=NULL, autoAdjust=
         if (any(lub["inverted",]==1)) { # if for any given level the confidence interval is inverted (Case 2)
             warning(paste0("For level(s) ", toString(unlist(level)[which(lub["inverted",]==1)]), ", the constructed confidence is of the form (-Inf, bound_1) U (bound_2, Inf)."), call.=FALSE)
         } else { # otherwise, remove the "inverted" column
-            lub <- lub[-4,]
+            ##lub <- lub[-4,] # "inverted" is no longer removed
         }
         out <- list(regression_estimates=list(a=Ahat[1], b=Ahat[2], c=Ahat[3], sigma_sq=sigsqhat),
             meta_model_MLE_for_MESLE=c(MESLE=MESLEhat),
@@ -302,7 +320,7 @@ ci.simll <- function(simll, level, ci=NULL, case=NULL, weights=NULL, autoAdjust=
         if (any(lub["inverted",]==1)) { # if for any given level the confidence interval is inverted (Case 2)
             warning(paste0("For level(s) ", toString(unlist(level)[which(lub["inverted",]==1)]), ", the constructed confidence is of the form (-Inf, bound_1) U (bound_2, Inf)."), call.=FALSE)
         } else { # otherwise, remove the "inverted" column
-            lub <- lub[-4,]
+            ##lub <- lub[-4,] # "inverted" is no longer removed
         }
         out <- list(regression_estimates=list(a=Ahat[1], b=Ahat[2], c=Ahat[3], sigma_sq=sigsqhat),
             meta_model_MLE_for_parameter=c(parameter=thetastarhat, K1=K1hat, K2=K2hat, error_variance=sigsqhat_lan),

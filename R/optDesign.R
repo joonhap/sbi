@@ -13,6 +13,7 @@ optDesign <- function(simll, ...) {
 #' @param weight (optional) A positive real number indicating the user-assigned weight for the new design point. The default value is 1. This value should be chosen relative to the weights in the provided simll object.
 #' @param autoAdjust logical. If TRUE, simulation points at which the third order term is statistically significant in the cubic approximation to the simulated log-likelihooods have discounted weights for metamodel fitting. The weights of the points relatively far from the estimated MESLE are more heavily discounted. These weight discount factors are multiplied to the originally given weights for parameter estimation. See Park (2025) for more details. If `autoAdjust` is FALSE, the weight discount step is skipped. Defaults to TRUE.
 #' @param refgap A positive real number that determines the weight discount factor for the significance of the third order term in Taylor approximation. The weight of a point `theta` is discounted by a factor of exp(-(qa(theta)-qa(MESLEhat))/refgap), where MESLEhat is the estimated MESLE and qa is the quadratic approximation to the simulated log-likelihoods. If `autoAdjust` is TRUE, `refgap` is interpreted as the initial value for the tuning algorithm. If `autoAdjust` is FALSE, `refgap` is used for weight adjustments without further tuning. The default value is Inf.
+#' @param refgap_for_comp (optional) A value of refgap with which to compute the log(STV) to be reported at the end. A potential use for this argument is to compare log(STV) values across iterative applications of this function, since the STV value can depend significantly on the value of tuned value of refgap.
 #' @param ... Other optional arguments, not currently used.
 #'
 #' @details
@@ -30,7 +31,7 @@ optDesign <- function(simll, ...) {
 #' The scaled total variation (STV) is defined as the trace of `c_hat^{-1} V` where `c_hat` is the quadratic coefficient matrix of the fitted quadratic polynomial and `V` is an approximate Monte Carlo variance of the estimate of the MESLE given by `-(1/2) * c_hat^{-1} b_hat` (here `b_hat` is the linear coefficient vector of the fitted quadratic polynomial.)
 #' The optimization is carried out using the BFGS algorithm via the `optim` function.
 #' See Park (2025) for more details.
-#' 
+#'
 #' @return A list containing the following entries.
 #' \itemize{
 #' \item{par: a proposal for the next simulation point.}
@@ -42,7 +43,7 @@ optDesign <- function(simll, ...) {
 #'
 #' @references Park, J. (2025). Scalable simulation-based inference for implicitly defined models using a metamodel for log-likelihood estimator <https://doi.org/10.48550/arxiv.2311.09446>
 #' @export
-optDesign.simll <- function(simll, init=NULL, weight=1, autoAdjust=TRUE, refgap=Inf, ...) {
+optDesign.simll <- function(simll, init=NULL, weight=1, autoAdjust=TRUE, refgap=Inf, refgap_for_comp=NULL, ...) {
     validate_simll(simll)
     vech <- function(mat) { # half-vectorization
         if (length(mat)==1) {
@@ -153,19 +154,46 @@ optDesign.simll <- function(simll, init=NULL, weight=1, autoAdjust=TRUE, refgap=
     Theta0123 <- cbind(Theta012, t(rbind(apply(theta_n, 1, vec3)))) # design matrix for cubic regression to test whether the cubic coefficient = 0
     dim0123 <- dim(Theta0123)[2]
     refgap_init <- refgap # initial value of refgap
-    exit_upon_sufficient_ESS <- FALSE
+    exit_upon_condition_met <- FALSE
+    repno <- 0
     repeat{
+        repno <- repno + 1
+        if (repno > 30) {
+            stop("Weight adjustments did not complete in thirty iterations.")
+        }
         ## Weight points appropriately to make the third order term insignificant
         wadj <- w * exp(apply(theta_n, 1, logwpen)) # adjusted weights
         WadjTheta012 <- outer(wadj,rep(1,dim012))*Theta012
-        Ahat <- c(solve(t(Theta012)%*%WadjTheta012, t(Theta012)%*%(wadj*ll)))
-        bhat <- Ahat[2:(d+1)]
-        vech_chat <- Ahat[(d+2):((d^2+3*d+2)/2)]
-        chat <- unvech(vech_chat)
+        Ahat_try <- c(solve(t(Theta012)%*%WadjTheta012, t(Theta012)%*%(wadj*ll)))
+        bhat_try <- Ahat_try[2:(d+1)]
+        chat_try <- unvech(Ahat_try[(d+2):((d^2+3*d+2)/2)])
+        MESLEhat_try <- unname(-solve(chat_try,bhat_try)/2)
+        chat_nd <- all(eigen(chat_try)$values<0) # is chat negative definite?
+        weightedmean <- apply(wadj*theta_n, 2, sum)/sum(wadj)
+        est_issue <- FALSE
+        if (!chat_nd || sum((MESLEhat_try-weightedmean)^2)>8*d) {
+            est_issue <- TRUE # issue with estimation
+            if (refgap==Inf) {
+                stop("Estimated curvature is not negative definite or close to singular. Consider manually adding more simulation points.")
+            }
+        } else { # if no issue, updated Ahat and MESLEhat
+            Ahat <- Ahat_try
+            bhat <- bhat_try
+            chat <- chat_try
+            MESLEhat <- MESLEhat_try
+        }
+        if (!autoAdjust) { break }
+        ESS <- sum(wadj)^2/sum(wadj^2) # effective sample size (ESS)
+        if (ESS <= (d+1)*(d+2)*(d+3)/6 || est_issue) { # if the ESS is too small, or if chat is not negative definite, or the estimated MESLE is too far from the mean of the simulation points, increase refgap
+            exit_upon_condition_met <- TRUE # break from loop as soon as the ESS is large enough
+            refgap <- refgap * 1.5
+            next
+        }
+        if (exit_upon_condition_met) {
+            break
+        }
         resids <- ll - c(Theta012%*%Ahat)
         sigsqhat <- c(resids%*%(wadj*resids)) / M
-        MESLEhat <- unname(-solve(chat,bhat)/2)
-        if (!autoAdjust) { break } 
         Ahat_cubic <- c(solve(t(Theta0123)%*%(outer(wadj,rep(1,dim0123))*Theta0123), t(Theta0123)%*%(wadj*ll)))
         resids_cubic <- ll - c(Theta0123%*%Ahat_cubic)
         sigsqhat_cubic <- c(resids_cubic%*%(wadj*resids_cubic)) / M
@@ -173,15 +201,6 @@ optDesign.simll <- function(simll, init=NULL, weight=1, autoAdjust=TRUE, refgap=
         multiplier <- (sum(w>0)-(d+1)*(d+2)*(d+3)/6)/(d*(d+1)*(d+2)/6)
         fstat <- sigratio * multiplier
         pval_cubic <- pf(fstat, d*(d+1)*(d+2)/6, sum(w>0)-(d+1)*(d+2)*(d+3)/6, lower.tail=FALSE)
-        ESS <- sum(wadj)^2/sum(wadj^2) # effective sample size (ESS)
-        if (ESS <= (d+1)*(d+2)*(d+3)/6) { # if the ESS is too small, increase refgap
-            exit_upon_sufficient_ESS <- TRUE # break from loop as soon as the ESS is large enough
-            refgap <- refgap * 1.5
-            next
-        }
-        if (exit_upon_sufficient_ESS) {
-            break
-        }
         if (pval_cubic < .01) {
             if (refgap==Inf) {
                 refgap <- qa(MESLEhat) - min(apply(theta_n, 1, qa))
@@ -220,13 +239,13 @@ optDesign.simll <- function(simll, init=NULL, weight=1, autoAdjust=TRUE, refgap=
         pPt012pPti <- c(0,ei,vech(pPtsqpPti)) # partial point^{0:2} / partial point[index]
         pt012 <- vec012(point)
         logwpenpt <- logwpen(point)
-        out <- exp(logwpenpt) * (Dlogwpen(point)*outer(pt012,pt012) + outer(pPt012pPti,pt012)+outer(pt012,pPt012pPti))
+        out <- exp(logwpenpt) * (Dlogwpen(point)[index]*outer(pt012,pt012) + outer(pPt012pPti,pt012)+outer(pt012,pPt012pPti))
         out * weight
     }
     VinvAhat <- function(point) {
         t(Theta012)%*%WadjTheta012 + exp(logwpen(point))*outer(vec012(point),vec012(point)) # inverse of (variance of Ahat / sigma^2)
     }
-    pSTVpPti <- function(point, index) { # partial STV(MESLEhat) / partial point[index], where STV = trace(-chat^{-1}%*%Var(MESLEhat)) is the scaled total variation of MESLEhat
+    pSTVpPti <- function(point, index) { # partial STV(MESLEhat) / partial point[index], where STV = trace(-chat^{-1}%*%Var(MESLEhat)) is the scaled total variation of MESLEhat. However, if chat is not positive definite, use the weighted variance of the simulation points instead
         V_pMpAhatT <- solve(VinvAhat(point), t(pMpAhat)) # Var(Ahat) %*% (partial MESLEhat / partial Ahat)^T (divided by sigma^2)
         sum(diag(solve(chat, t(V_pMpAhatT) %*% pVinvpPti(point, index) %*% V_pMpAhatT)))
     }
@@ -234,7 +253,8 @@ optDesign.simll <- function(simll, init=NULL, weight=1, autoAdjust=TRUE, refgap=
         sapply(1:d, function(i) { pSTVpPti(point, i) })
     }
     STV <- function(point) { # STV(MESLEhat) when a new simulation is conducted at `point`
-        -sum(diag(solve(chat, pMpAhat %*% solve(VinvAhat(point), t(pMpAhat)))))
+        V_pMpAhatT <- solve(VinvAhat(point), t(pMpAhat)) # Var(Ahat) %*% (partial MESLEhat / partial Ahat)^T (divided by sigma^2)
+        -sum(diag(solve(chat, pMpAhat %*% V_pMpAhatT)))
     }
     logSTV <- function(point) { log(STV(point)) }
     plogSTVpPt <- function(point) { # partial log(STV(MESLEhat)) / partial point
@@ -253,7 +273,7 @@ optDesign.simll <- function(simll, init=NULL, weight=1, autoAdjust=TRUE, refgap=
         init_n <- MESLEhat + (init_n - MESLEhat) * (-logwpen(init_n))^(-1/2)
     }
 
-    opt <- stats::optim(trans_n(init_n), fn=logSTV, gr=plogSTVpPt, method="BFGS")
+    opt <- stats::optim(init_n, fn=logSTV, gr=plogSTVpPt, method="L-BFGS-B", lower=apply(theta_n,2,min)-.5, upper=apply(theta_n,2,max)+.5)
 
     if (!opt$convergence%in%c(0,1)) {
         print(opt)
@@ -263,6 +283,16 @@ optDesign.simll <- function(simll, init=NULL, weight=1, autoAdjust=TRUE, refgap=
         message("The optimization procedure did not end within the max number of iterations.")
     }
 
-    list(par=trans_b(opt$par), logSTV=opt$value, wadj_new=exp(logwpen(opt$par)), Wadj=wadj, refgap=refgap)
-}
+    out <- list(par=trans_b(opt$par), logSTV=opt$value, wadj_new=exp(logwpen(opt$par)), Wadj=wadj, refgap=refgap)
 
+    if (!is.null(refgap_for_comp)) { # recompute logSTV at refgap=refgap_for_comp
+        refgap <- refgap_for_comp # report logSTV at this value of refgap
+        wadj <- w * exp(apply(theta_n, 1, logwpen)) # adjusted weights
+        WadjTheta012 <- outer(wadj,rep(1,dim012))*Theta012
+        VinvAhat_opt <- t(Theta012)%*%WadjTheta012 + exp(logwpen(opt$par))*outer(vec012(opt$par),vec012(opt$par))
+        out[["logSTV_for_comp"]] <- log(-sum(diag(solve(chat, pMpAhat %*% solve(VinvAhat_opt, t(pMpAhat))))))
+        ##out[["logSTV_for_comp"]] <- log(sum(diag(solve(VinvAhat_opt))))
+    }
+
+    out
+}
