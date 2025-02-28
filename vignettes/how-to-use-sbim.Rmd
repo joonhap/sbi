@@ -1,9 +1,9 @@
 ---
-title: "How to use package sbi: simulation-based inference"
+title: "How to use package sbim: Simulation-Based Inference using a Metamodel for Log-Likelihood Estimator"
 output: rmarkdown::html_vignette
-bibliography: how-to-use-sbi.bib
+bibliography: how-to-use-sbim.bib
 vignette: >
-  %\VignetteIndexEntry{How to use package sbi: simulation-based inference}
+  %\VignetteIndexEntry{How to use package sbim: Simulation-Based Inference using a Metamodel for Log-Likelihood Estimator}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 sansfont: LiberationSans
@@ -27,15 +27,15 @@ library(tidyr)
 \newcommand\logit{\text{logit}}
 
 ## Introduction
-This tutorial introduces you to the package `sbi` and explains how to use it using examples.
-This package implements parameter inference methods for stochastic models defined implicitly by a simulation algorithm, developed by Park, J. (2025). Scalable simulation-based inference for implicitly defined models using a metamodel for log-likelihood estimator <https://doi.org/10.48550/arxiv.2311.09446>
+This tutorial introduces you to the package `sbim` and explains how to use it using examples.
+This package implements parameter inference methods for stochastic models defined implicitly by a simulation algorithm, developed by Park, J. (2025). Scalable simulation-based inference for implicitly defined models using a metamodel for log-likelihood estimator \doi{10.48550/arxiv.2311.09446}.
 First, the methodological and theoretical framework for inference is explained.
 Then how to create an `R` object that contains simulation-based log-likelihood estimates will be explained.
 How to carry out a hypothesis test will be explained first for independent and identically distributed (iid) data using a toy example.
 Conducting hypothesis tests for a certain class of models generating dependent observations will be explained next using an example of stochastic volatility model.
 
 ## Mathematical framework
-This section provides a mathematical basis for the methods implemented in the package `sbi`.
+This section provides a mathematical basis for the methods implemented in the package `sbim`.
 Further details can be found in the article @park2025simulation.
 If you want to learn only about how to use the package, you may skip to the [next section](#simll).
 
@@ -99,14 +99,14 @@ Doing so requires having the `devtools` package installed.
 ```{r eval=FALSE}
 install.packages('devtools') # skip this line if `devtools` is already installed.
 ```
-Then install the `sbi` package:
+Then install the `sbim` package:
 ```{r eval=FALSE}
 devtools::install_github("joonhap/sbi")
 ```
 The package source code may be downloaded in tar.gz format [from here](.) (not active yet, as of Dec 2023).
 The package can be loaded as usual:
 ```{r}
-library(sbi)  
+library(sbim)  
 ```
 
 The simulation-based inference is carried out using the `ht` function.
@@ -323,7 +323,7 @@ set.seed(729875)
 llp_est <- simplify2array(lapply(1:nrow(sims_at_Nat), function(i) {
     sp <- sims_at_Nat[i,]
     ## run the particle filter for each simulation point
-    pfSV <- pfilter(pomp(SV_t, params=sp), Np=Np, save.state="weighted") 
+    pfSV <- pfilter(pomp(SV_t, params=sp), Np=Np, save.states="prediction") 
     ## estimate the simulation log-likelihood for each r_t
     lme <- sapply(saved_states(pfSV)$weights, logmeanexp)
     lme
@@ -384,7 +384,7 @@ sims_at_Nat[,inc] <- sapply(1:length(inc), function(i) btrans[[parid[i]]](sims_i
 set.seed(729875)
 llp_est <- simplify2array(lapply(1:nrow(sims_at_Nat), function(i) {
     sp <- sims_at_Nat[i,]
-    pfSV <- pfilter(pomp(SV_t, params=sp), Np=Np, save.state="weighted")
+    pfSV <- pfilter(pomp(SV_t, params=sp), Np=Np, save.states="prediction")
     lme <- sapply(saved_states(pfSV)$weights, logmeanexp)
     lme
 }))
@@ -427,7 +427,7 @@ sims_at_Nat[,inc] <- sapply(1:length(inc), function(i) btrans[[parid[i]]](sims_i
 set.seed(729875)
 llp_est <- simplify2array(lapply(1:nrow(sims_at_Nat), function(i) {
     sp <- sims_at_Nat[i,]
-    pfSV <- pfilter(pomp(SV_t, params=sp), Np=Np, save.state="weighted")
+    pfSV <- pfilter(pomp(SV_t, params=sp), Np=Np, save.states="prediction")
     lme <- sapply(saved_states(pfSV)$weights, logmeanexp)
     lme
 }))

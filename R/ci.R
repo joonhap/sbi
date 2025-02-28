@@ -43,8 +43,21 @@ ci <- function(simll, ...) {
 #' \item{pval_cubic: The p-value of the test about whether the cubic term in the cubic polynomial regression is significant. If `pval_cubic` is small, the constructed confidence interval may be biased. When `autoAdjust` is TRUE, `pval_cubic` is computed with the adjusted weights.}
 #' \item{updated_weights: When `autoAdjust` is TRUE, the modified weights for the simulation points are returned.}
 #' }
-#'
-#' @references Park, J. (2025). Scalable simulation based inference for implicitly defined models using a metamodel for log-likelihood estimator <https://doi.org/10.48550/arxiv.2311.09446>
+#' @examples
+#' # State process: X_i ~ N(theta0, tau^2), Observation process: Y_i ~ N(X_i, 1)
+#' theta0 <- 0 # true parameter
+#' n <- 200 # number of observations
+#' xhidden <- rnorm(n, theta0, 30) # hidden x values
+#' ydata <- rnorm(n, xhidden, 1) # observed y values
+#' theta_sim <- runif(300, -10, 10) # simulation points
+#' ll <- sapply(theta_sim, function(t) { # simulation-based log-likelihood estimates (except constant)
+#' x <- rnorm(n, t, 30)
+#' -(x-ydata)^2/2
+#' })
+#' plot(theta_sim, apply(ll, 2, sum)) # display the log-likelihood estimates
+#' s <- simll(ll, params=theta_sim) # create a `simll` object
+#' ci(s, level=0.95, ci="parameter", case="iid")
+#' @references Park, J. (2025). Scalable simulation based inference for implicitly defined models using a metamodel for Monte Carlo log-likelihood estimator \doi{10.48550/arxiv.2311.09446}
 #' @export
 ci.simll <- function(simll, level, ci=NULL, case=NULL, weights=NULL, autoAdjust=FALSE, K1_est_method="batch", batch_size=NULL, max_lag=NULL, plot_acf=FALSE, ...) {
     validate_simll(simll)

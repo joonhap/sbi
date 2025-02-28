@@ -42,7 +42,7 @@ optDesign <- function(simll, ...) {
 #' \item{logSTV_for_comp: when `refgap_for_comp` is not NULL, log(STV) is evaluated using the provided value of `refgap_for_comp` and reported as `logSTV_for_comp`.}
 #' }
 #'
-#' @references Park, J. (2025). Scalable simulation-based inference for implicitly defined models using a metamodel for log-likelihood estimator <https://doi.org/10.48550/arxiv.2311.09446>
+#' @references Park, J. (2025). Scalable simulation-based inference for implicitly defined models using a metamodel for Monte Carlo log-likelihood estimator \doi{10.48550/arxiv.2311.09446}
 #' @export
 optDesign.simll <- function(simll, init=NULL, weight=1, autoAdjust=TRUE, refgap=Inf, refgap_for_comp=NULL, ...) {
     validate_simll(simll)
@@ -119,7 +119,7 @@ optDesign.simll <- function(simll, init=NULL, weight=1, autoAdjust=TRUE, refgap=
     theta_sd <- apply(theta, 2, sd)
     trans_n <- function(vec) { (vec-theta_mean)/theta_sd } # normalize by centering and scaling
     trans_b <- function(vec) { vec*theta_sd + theta_mean } # transform back to the original scale
-    theta_n <- apply(theta, 1, trans_n) |> rbind() |> t() # apply trans_n rowwise (result:M-by-d matrix)
+    theta_n <- t(rbind(apply(theta, 1, trans_n))) # apply trans_n rowwise (result:M-by-d matrix)
     llmat <- unclass(simll)
     ll <- apply(llmat, 2, sum)
     M <- length(ll)

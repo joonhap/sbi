@@ -61,5 +61,5 @@ The optimization is carried out using the BFGS algorithm via the \code{optim} fu
 See Park (2025) for more details.
 }
 \references{
-Park, J. (2025). Scalable simulation-based inference for implicitly defined models using a metamodel for log-likelihood estimator \url{https://doi.org/10.48550/arxiv.2311.09446}
+Park, J. (2025). Scalable simulation-based inference for implicitly defined models using a metamodel for Monte Carlo log-likelihood estimator \doi{10.48550/arxiv.2311.09446}
 }

@@ -3,7 +3,7 @@
 
 #' The SCL distribution
 #'
-#' Quantile function, distribution function, and random generation for the SCL distribution family. See Park (2023) for information about the SCL distributions.
+#' Quantile function, distribution function, and random generation for the SCL distribution family. See Park (2025) for information about the SCL distributions.
 #'
 #' @name SCL
 #' @param p vector of probabilities
@@ -25,18 +25,18 @@
 #' rscl(10, 7, 2)
 #' @export
 qscl <- function(p, M, k, num_error_size = 0.01, lower = TRUE, log_p = FALSE, force = FALSE) {
-    .Call(`_sbi_qscl`, p, M, k, num_error_size, lower, log_p, force)
+    .Call(`_sbim_qscl`, p, M, k, num_error_size, lower, log_p, force)
 }
 
 #' @rdname SCL
 #' @export
 pscl <- function(q, M, k, num_error_size = 0.01, lower = TRUE, log_p = FALSE, force = FALSE) {
-    .Call(`_sbi_pscl`, q, M, k, num_error_size, lower, log_p, force)
+    .Call(`_sbim_pscl`, q, M, k, num_error_size, lower, log_p, force)
 }
 
 #' @rdname SCL
 #' @export
 rscl <- function(n, M, k) {
-    .Call(`_sbi_rscl`, n, M, k)
+    .Call(`_sbim_rscl`, n, M, k)
 }
 

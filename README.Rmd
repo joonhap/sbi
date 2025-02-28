@@ -6,27 +6,11 @@ output: github_document
 knitr::opts_chunk$set(echo=TRUE)
 ```
 
-## package sbi: Simulation-based inference
+## package sbim: Simulation-Based Inference using a Metamodel for Log-likelihood Estimator
 
-This package offers parameter inference methods for models defined
-implicitly using a random simulator of a stochastic system under
-study. In particular, the probability density function for the
-stochastic system is not assumed to be available. Inference carried out using
-estimates of the log likelihood of the data obtained via simulating the
-system process. The inference methods implemented in this package are
-explained in Park, J. (2025). These methods are built on a _simulation meta model_ which assumes that
-the estimates of the log likelihood are approximately normally
-distributed with the mean function that is locally quadratic around its
-maximum. Parameter estimation and uncertainty quantification can be
-carried out using the "ht" function (for hypothesis testing) and the
-"ci" function (for constructing a confidence interval for a
-one-dimensional parameter).
+Description: Parameter inference methods for models defined implicitly using a random simulator. Inference is carried out using simulation-based estimates of the log likelihood of the data. The inference methods implemented in this package are explained in Park, J. (2025) "Scalable simulation-based inference for implicitly defined models using a metamodel for Monte Carlo log-likelihood estimator" \doi{10.48550/arxiv.2311.09446}. These methods are built on a simulation metamodel which assumes that the estimates of the log likelihood are approximately normally distributed with the mean function that is locally quadratic around its maximum. Parameter estimation and uncertainty quantification can be carried out using the "ht" function (for hypothesis testing) and the "ci" function (for constructing a confidence interval for one-dimensional parameters).
 
 See package documentation and vignette for detailed explanation.
 
 #### References
-Park, J. (2025). Scalable simulation-based inference for implicitly defined models using a metamodel for log-likelihood estimator <https://doi.org/10.48550/arxiv.2311.09446>
-
-
-
-
+Park, J. (2025). Scalable simulation-based inference for implicitly defined models using a metamodel for Monte Carlo log-likelihood estimator \doi{10.48550/arxiv.2311.09446}

@@ -1,4 +1,4 @@
-#' @references Park, J. (2023) On simulation-based inference for implicitly defined models (https://arxiv.org/abs/2311.09446)
+#' @references Park, J. (2025) Scalable simulation-based inference for implicitly defined models using a metamodel for Monte Carlo log-likelihood estimator \doi{10.48550/arxiv.2311.09446}
 #' @keywords internal
 "_PACKAGE"
 
@@ -12,6 +12,6 @@
 #' @importFrom stats rWishart
 #' @importFrom stats sd
 #' @importFrom stats var
-#' @useDynLib sbi, .registration = TRUE
+#' @useDynLib sbim, .registration = TRUE
 ## usethis namespace: end
 NULL

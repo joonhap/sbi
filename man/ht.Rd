@@ -87,6 +87,21 @@ When \code{test} is "moments" and \code{type} is "point", \code{null.value} is e
 When \code{test} is "moments" and \code{type} is "regression", \code{null.value} can be a list of length four, or a list of lists of length four. The first case corresponds to when a single null hypothesis is tested. The four components are a) the constant term in the quadratic mean function (scalar), b) the linear coefficient term in the mean function (vector of length \eqn{d} where \eqn{d} is the dimension of the parameter vector), c) the quadratic coefficient term in the mean function (symmetric matrix of dimension \eqn{d \times d}), and d) the variance of the simulated log likelihood (scalar). The second case is when more than one null values are tested. In this case each component of the list is a list having four entries as described for the case of a single null value.
 When \code{test} is "MESLE" or "parameter", \code{null.value} is a vector of length \eqn{d} (a single null value), a matrix having \eqn{d} columns (each row giving a vector for a null value), or a list of vectors of length \eqn{d} (more than one null values).
 }
+\examples{
+# State process: X_i ~ N(theta0, tau^2), Observation process: Y_i ~ N(X_i, 1)
+theta0 <- 0 # true parameter
+n <- 200 # number of observations
+xhidden <- rnorm(n, theta0, 30) # hidden x values
+ydata <- rnorm(n, xhidden, 1) # observed y values
+theta_sim <- runif(300, -10, 10) # simulation points
+ll <- sapply(theta_sim, function(t) { # simulation-based log-likelihood estimates (except constant)
+x <- rnorm(n, t, 30)
+-(x-ydata)^2/2
+})
+plot(theta_sim, apply(ll, 2, sum)) # display the log-likelihood estimates
+s <- simll(ll, params=theta_sim) # create a `simll` object
+ht(s, null.value=list(-1,0,1), test="parameter", case="iid")
+}
 \references{
-Park, J. (2025). Scalable simulation-based inference for implicitly defined models using a metamodel for log-likelihood estimator \url{https://doi.org/10.48550/arxiv.2311.09446}
+Park, J. (2025). Scalable simulation-based inference for implicitly defined models using a metamodel for Monte Carlo log-likelihood estimator \doi{10.48550/arxiv.2311.09446}
 }

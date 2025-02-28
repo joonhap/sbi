@@ -56,8 +56,21 @@ ht <- function(simll, ...) {
 #' \item{pval_cubic: The p-value of the test about whether the cubic term in the cubic polynomial regression is significant. If `pval_cubic` is small, the result of the `ht` function may be biased. The test on the cubic term is carried out only when the number of simulated log likelihoods is greater than \eqn{(d+1)*(d+2)*(d+3)/6} where \eqn{d} is the dimension of the parameter vector. When `autoAdjust` is TRUE, `pval_cubic` is computed with the adjusted weights.}
 #' \item{updated_weights: When `autoAdjust` is TRUE, the modified weights for the simulation points are returned.}
 #' }
-#'
-#' @references Park, J. (2025). Scalable simulation-based inference for implicitly defined models using a metamodel for log-likelihood estimator <https://doi.org/10.48550/arxiv.2311.09446>
+#' @examples
+#' # State process: X_i ~ N(theta0, tau^2), Observation process: Y_i ~ N(X_i, 1)
+#' theta0 <- 0 # true parameter
+#' n <- 200 # number of observations
+#' xhidden <- rnorm(n, theta0, 30) # hidden x values
+#' ydata <- rnorm(n, xhidden, 1) # observed y values
+#' theta_sim <- runif(300, -10, 10) # simulation points
+#' ll <- sapply(theta_sim, function(t) { # simulation-based log-likelihood estimates (except constant)
+#' x <- rnorm(n, t, 30)
+#' -(x-ydata)^2/2
+#' })
+#' plot(theta_sim, apply(ll, 2, sum)) # display the log-likelihood estimates
+#' s <- simll(ll, params=theta_sim) # create a `simll` object
+#' ht(s, null.value=list(-1,0,1), test="parameter", case="iid")
+#' @references Park, J. (2025). Scalable simulation-based inference for implicitly defined models using a metamodel for Monte Carlo log-likelihood estimator \doi{10.48550/arxiv.2311.09446}
 #' @export
 ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), case=NULL, type=NULL, weights=NULL, autoAdjust=FALSE, K1_est_method="batch", batch_size=NULL, max_lag=NULL, plot_acf=FALSE, MCcorrection="none", ...) {
     validate_simll(simll)
@@ -273,7 +286,7 @@ ht.simll <- function(simll, null.value, test=c("parameter","MESLE","moments"), c
         theta_sd <- apply(theta, 2, sd)
         trans_n <- function(vec) { (vec-theta_mean)/theta_sd } # normalize by centering and scaling
         trans_b <- function(vec) { vec*theta_sd + theta_mean } # transform back to the original scale
-        theta_n <- apply(theta, 1, trans_n) |> rbind() |> t() # apply trans_n rowwise
+        theta_n <- t(rbind(apply(theta, 1, trans_n))) # apply trans_n rowwise
         llmat <- unclass(simll)
         ll <- apply(llmat, 2, sum)
         M <- length(ll)

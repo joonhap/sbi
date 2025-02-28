@@ -4,7 +4,7 @@
 
 //' The SCL distribution
 //'
-//' Quantile function, distribution function, and random generation for the SCL distribution family. See Park (2023) for information about the SCL distributions.
+//' Quantile function, distribution function, and random generation for the SCL distribution family. See Park (2025) for information about the SCL distributions.
 //'
 //' @name SCL
 //' @param p vector of probabilities

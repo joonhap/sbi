@@ -70,6 +70,21 @@ If 'ci' = "MESLE", confidence intervals are constructed for the maximum expected
 
 When quadratic regression is carried out, the weights for the simulation based likelihood estimates can be specified. The length of 'weights' should be equal to that of the 'params' attribute of the 'simll', which is equal to the number of rows in the simulated log likelihood matrix in the 'simll' object. It is important to note that the weights are not normalized (i.e., not sum to one). Multiplying all weights by the same constant changes the estimation outputs. If not supplied, the 'weights' attribute of the 'simll' object is used. If neither is supplied, 'weights' defaults to the vector of all ones.
 }
+\examples{
+# State process: X_i ~ N(theta0, tau^2), Observation process: Y_i ~ N(X_i, 1)
+theta0 <- 0 # true parameter
+n <- 200 # number of observations
+xhidden <- rnorm(n, theta0, 30) # hidden x values
+ydata <- rnorm(n, xhidden, 1) # observed y values
+theta_sim <- runif(300, -10, 10) # simulation points
+ll <- sapply(theta_sim, function(t) { # simulation-based log-likelihood estimates (except constant)
+x <- rnorm(n, t, 30)
+-(x-ydata)^2/2
+})
+plot(theta_sim, apply(ll, 2, sum)) # display the log-likelihood estimates
+s <- simll(ll, params=theta_sim) # create a `simll` object
+ci(s, level=0.95, ci="parameter", case="iid")
+}
 \references{
-Park, J. (2025). Scalable simulation based inference for implicitly defined models using a metamodel for log-likelihood estimator \url{https://doi.org/10.48550/arxiv.2311.09446}
+Park, J. (2025). Scalable simulation based inference for implicitly defined models using a metamodel for Monte Carlo log-likelihood estimator \doi{10.48550/arxiv.2311.09446}
 }
