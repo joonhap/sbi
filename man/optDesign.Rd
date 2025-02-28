@@ -5,7 +5,15 @@
 \alias{optDesign.simll}
 \title{Find the next optimal design point for simulation-based inference}
 \usage{
-\method{optDesign}{simll}(simll, init = NULL, weight = 1, refgap = Inf, ...)
+\method{optDesign}{simll}(
+  simll,
+  init = NULL,
+  weight = 1,
+  autoAdjust = TRUE,
+  refgap = Inf,
+  refgap_for_comp = NULL,
+  ...
+)
 }
 \arguments{
 \item{simll}{A class \code{simll} object, containing simulation log likelihoods, the parameter values at which simulations are made, and the weights for those simulations for regression (optional). See help(simll).}
@@ -14,7 +22,11 @@
 
 \item{weight}{(optional) A positive real number indicating the user-assigned weight for the new design point. The default value is 1. This value should be chosen relative to the weights in the provided simll object.}
 
-\item{refgap}{(optional) A positive real number that determines the weight discount factor for the significance of the third order term in Taylor approximation. The weight of a point \code{theta} is discounted by a factor of exp(-(qa(theta)-qa(MESLEhat))/refgap), where MESLEhat is the estimated MESLE and qa is the quadratic approximation to the simulated log-likelihoods (before weight discount). Defaults to \code{refgap=Inf}.}
+\item{autoAdjust}{logical. If TRUE, simulation points at which the third order term is statistically significant in the cubic approximation to the simulated log-likelihooods have discounted weights for metamodel fitting. The weights of the points relatively far from the estimated MESLE are more heavily discounted. These weight discount factors are multiplied to the originally given weights for parameter estimation. See Park (2025) for more details. If \code{autoAdjust} is FALSE, the weight discount step is skipped. Defaults to TRUE.}
+
+\item{refgap}{A positive real number that determines the weight discount factor for the significance of the third order term in Taylor approximation. The weight of a point \code{theta} is discounted by a factor of exp(-(qa(theta)-qa(MESLEhat))/refgap), where MESLEhat is the estimated MESLE and qa is the quadratic approximation to the simulated log-likelihoods. If \code{autoAdjust} is TRUE, \code{refgap} is interpreted as the initial value for the tuning algorithm. If \code{autoAdjust} is FALSE, \code{refgap} is used for weight adjustments without further tuning. The default value is Inf.}
+
+\item{refgap_for_comp}{(optional) A value of refgap with which to compute the log(STV) to be reported at the end. A potential use for this argument is to compare log(STV) values across iterative applications of this function, as the reported logSTV value can vary significantly depending on the tuned value of refgap.}
 
 \item{...}{Other optional arguments, not currently used.}
 }
@@ -26,6 +38,7 @@ A list containing the following entries.
 \item{wadj_new: the adjusted weight for the newly proposed simulation point.}
 \item{Wadj: the vector of all adjusted weights for the existing simulation points.}
 \item{refgap: the tuned value of g for weight adjustments.}
+\item{logSTV_for_comp: when \code{refgap_for_comp} is not NULL, log(STV) is evaluated using the provided value of \code{refgap_for_comp} and reported as \code{logSTV_for_comp}.}
 }
 }
 \description{

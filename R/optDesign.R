@@ -13,7 +13,7 @@ optDesign <- function(simll, ...) {
 #' @param weight (optional) A positive real number indicating the user-assigned weight for the new design point. The default value is 1. This value should be chosen relative to the weights in the provided simll object.
 #' @param autoAdjust logical. If TRUE, simulation points at which the third order term is statistically significant in the cubic approximation to the simulated log-likelihooods have discounted weights for metamodel fitting. The weights of the points relatively far from the estimated MESLE are more heavily discounted. These weight discount factors are multiplied to the originally given weights for parameter estimation. See Park (2025) for more details. If `autoAdjust` is FALSE, the weight discount step is skipped. Defaults to TRUE.
 #' @param refgap A positive real number that determines the weight discount factor for the significance of the third order term in Taylor approximation. The weight of a point `theta` is discounted by a factor of exp(-(qa(theta)-qa(MESLEhat))/refgap), where MESLEhat is the estimated MESLE and qa is the quadratic approximation to the simulated log-likelihoods. If `autoAdjust` is TRUE, `refgap` is interpreted as the initial value for the tuning algorithm. If `autoAdjust` is FALSE, `refgap` is used for weight adjustments without further tuning. The default value is Inf.
-#' @param refgap_for_comp (optional) A value of refgap with which to compute the log(STV) to be reported at the end. A potential use for this argument is to compare log(STV) values across iterative applications of this function, since the STV value can depend significantly on the value of tuned value of refgap.
+#' @param refgap_for_comp (optional) A value of refgap with which to compute the log(STV) to be reported at the end. A potential use for this argument is to compare log(STV) values across iterative applications of this function, as the reported logSTV value can vary significantly depending on the tuned value of refgap.
 #' @param ... Other optional arguments, not currently used.
 #'
 #' @details
@@ -39,6 +39,7 @@ optDesign <- function(simll, ...) {
 #' \item{wadj_new: the adjusted weight for the newly proposed simulation point.}
 #' \item{Wadj: the vector of all adjusted weights for the existing simulation points.}
 #' \item{refgap: the tuned value of g for weight adjustments.}
+#' \item{logSTV_for_comp: when `refgap_for_comp` is not NULL, log(STV) is evaluated using the provided value of `refgap_for_comp` and reported as `logSTV_for_comp`.}
 #' }
 #'
 #' @references Park, J. (2025). Scalable simulation-based inference for implicitly defined models using a metamodel for log-likelihood estimator <https://doi.org/10.48550/arxiv.2311.09446>
@@ -291,7 +292,6 @@ optDesign.simll <- function(simll, init=NULL, weight=1, autoAdjust=TRUE, refgap=
         WadjTheta012 <- outer(wadj,rep(1,dim012))*Theta012
         VinvAhat_opt <- t(Theta012)%*%WadjTheta012 + exp(logwpen(opt$par))*outer(vec012(opt$par),vec012(opt$par))
         out[["logSTV_for_comp"]] <- log(-sum(diag(solve(chat, pMpAhat %*% solve(VinvAhat_opt, t(pMpAhat))))))
-        ##out[["logSTV_for_comp"]] <- log(sum(diag(solve(VinvAhat_opt))))
     }
 
     out

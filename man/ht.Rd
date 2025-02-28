@@ -34,7 +34,7 @@
 
 \item{weights}{An optional argument. The un-normalized weights of the simulated log likelihoods for regression. A numeric vector of length equal to the \code{params} attribute of the \code{simll} object. See Details below.}
 
-\item{autoAdjust}{logical. If TRUE, simulation points at which the third order term is statistically significant in the cubic approximation to the simulated log-likelihooods have discounted weights for metamodel fitting. The weights of the points relatively far from the estimated MESLE are more heavily discounted. These weight discount factors are multiplied to the originally given weights for parameter estimation. See Park (2025) for more details. If \code{autoAdjust} is FALSE, the weight discount step is skipped. Defaults to FALSE.}
+\item{autoAdjust}{logical. If TRUE, simulation points at which the third order term is statistically significant in the cubic approximation to the simulated log-likelihooods have discounted weights for metamodel fitting. The weights of the points relatively far from the estimated MESLE are more heavily discounted. These weight discount factors are multiplied to the originally given weights for parameter estimation. If \code{autoAdjust} is FALSE, the weight discount step is skipped. Defaults to FALSE. See ?optDesign and Park (2025) for more details.}
 
 \item{K1_est_method}{Either "batch" or "autocov". Used when \code{test} is "parameter" and \code{case} is "stationary". The default is "batch". See Details for more information.}
 
@@ -56,7 +56,8 @@ A list consisting of the following components are returned.
 \item{Hypothesis_Tests: a data frame of the null values and the corresponding p-values. When \code{test}="moments" and \code{type}="regression", each null value is given in the form of c(a,b,c,sigma^2) where a, b, c, sigma^2 are first, second, third, and fourth entries of the given null value.}
 \item{pvalue_numerical_error_size: When \code{test}="moments", approximate size of error in numerical evaluation of p-values (automatically set to approximately 0.01 or 0.001). For these case, p-values are found using the SCL distributions, whose cumulative distribution functions are numerically evaluated using random number generations. Thus p-values have some stochastic error. The size of the numerical error is automatically set to approximately 0.01, but if any of the p-values found is less than 0.01, more computations are carried out to reduce the numerical error size to approximately 0.001. Note that when \code{test}="MESLE" or "parameter", the (standard) F distribution is used, so this list component is omitted.}
 \item{max_lag: if \code{test}="parameter" and \code{case}="stationary", the maximum lag for computing the autocovariance in estimating K1 is shown.}
-\item{pval_cubic: The p-value of the test about whether the cubic term in the cubic polynomial regression is significant. If so, the result of the ht function may be biased. The test on the cubic term is carried out only when the number of simulated log likelihoods is greater than \eqn{(d+1)*(d+2)*(d+3)/6} where \eqn{d} is the dimension of the parameter vector.}
+\item{pval_cubic: The p-value of the test about whether the cubic term in the cubic polynomial regression is significant. If \code{pval_cubic} is small, the result of the \code{ht} function may be biased. The test on the cubic term is carried out only when the number of simulated log likelihoods is greater than \eqn{(d+1)*(d+2)*(d+3)/6} where \eqn{d} is the dimension of the parameter vector. When \code{autoAdjust} is TRUE, \code{pval_cubic} is computed with the adjusted weights.}
+\item{updated_weights: When \code{autoAdjust} is TRUE, the modified weights for the simulation points are returned.}
 }
 }
 \description{

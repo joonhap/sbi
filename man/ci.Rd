@@ -30,7 +30,7 @@
 
 \item{weights}{An optional argument. The un-normalized weights of the simulated log likelihoods for regression. A numeric vector of length equal to the 'params' attribute of the 'simll' object. See Details below.}
 
-\item{autoAdjust}{logical. If TRUE, simulation points at which the third order term is statistically significant in the cubic approximation to the simulated log-likelihooods have discounted weights for metamodel fitting. The weights of the points relatively far from the estimated MESLE are more heavily discounted. These weight discount factors are multiplied to the originally given weights for parameter estimation. See Park (2025) for more details. If \code{autoAdjust} is FALSE, the weight discount step is skipped. Defaults to FALSE.}
+\item{autoAdjust}{logical. If TRUE, simulation points at which the third order term is statistically significant in the cubic approximation to the simulated log-likelihooods have discounted weights for metamodel fitting. The weights of the points relatively far from the estimated MESLE are more heavily discounted. These weight discount factors are multiplied to the originally given weights for parameter estimation. If \code{autoAdjust} is FALSE, the weight discount step is skipped. Defaults to FALSE. See ?optDesign and Park (2025) for more details.}
 
 \item{K1_est_method}{Either "autocov" or "batch"}
 
@@ -49,7 +49,8 @@ A list consisting of the followings are returned.
 \item{meta_model_MLE_for_*: point estimate for the quantity for which confidence intervals are constructed under a normal meta model}
 \item{confidence_interval: a data frame of the lower and upper bounds of the confidence intervals and the corresponding confidence levels. Note that in some unfortunate cases (especially if the quadratic coefficient of the estimated quadratic fit of the log likelihood estimates is close to zero or nonnegative), the confidence interval may be inverted, meaning that it is of the form (-infty, bound1) U (bound2, infty). This case can happen if the signal-to-noise ratio in simulated log likelihoods is too small. The inverted confidence interval will be indicated by the additional column "inverted" in the data frame taking values of 0 or 1.}
 \item{max_lag: if \code{test}="parameter" and \code{case}="stationary", the maximum lag for computing the autocovariance in estimating K1 is shown.}
-\item{pval_cubic: The p-value of the test about whether the cubic term in the cubic polynomial regression is significant. If so, the constructed confidence interval may be biased.}
+\item{pval_cubic: The p-value of the test about whether the cubic term in the cubic polynomial regression is significant. If \code{pval_cubic} is small, the constructed confidence interval may be biased. When \code{autoAdjust} is TRUE, \code{pval_cubic} is computed with the adjusted weights.}
+\item{updated_weights: When \code{autoAdjust} is TRUE, the modified weights for the simulation points are returned.}
 }
 }
 \description{
