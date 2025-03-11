@@ -54,11 +54,3 @@ a list consisting of the numeric vector of quantiles and the num_error_size (num
 \description{
 Quantile function, distribution function, and random generation for the SCL distribution family. See Park (2025) for information about the SCL distributions.
 }
-\examples{
-qscl(.99, 5, 2)
-qscl(c(.01, .05, .95, .99), 10, 2.3)
-qscl(c(.01, .05, .95, .99), 10, 2.3, num_error_size=0.01, lower=TRUE)
-pscl(c(-8.3, -5.9), 8, 1)
-pscl(c(-8.3, -5.9), 8 ,1, force=TRUE)
-rscl(10, 7, 2)
-}

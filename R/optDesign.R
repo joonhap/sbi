@@ -277,7 +277,6 @@ optDesign.simll <- function(simll, init=NULL, weight=1, autoAdjust=TRUE, refgap=
     opt <- stats::optim(init_n, fn=logSTV, gr=plogSTVpPt, method="L-BFGS-B", lower=apply(theta_n,2,min)-.5, upper=apply(theta_n,2,max)+.5)
 
     if (!opt$convergence%in%c(0,1)) {
-        print(opt)
         stop("The optimization procedure did not end properly.")
     }
     if (opt$convergence==1) {

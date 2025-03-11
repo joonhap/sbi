@@ -17,13 +17,6 @@
 //' @param log_p logical; if TRUE, probabilities p are given as log(p).
 //' @param force logical; if TRUE, the function will run regardless of how long it will take. If FALSE, the function will ask if you want to continue, stop, or give a new num_error_size value whenever the expected run time is longer than 15 seconds. 
 //' @return a list consisting of the numeric vector of quantiles and the num_error_size (numeric) used.
-//' @examples
-//' qscl(.99, 5, 2)
-//' qscl(c(.01, .05, .95, .99), 10, 2.3)
-//' qscl(c(.01, .05, .95, .99), 10, 2.3, num_error_size=0.01, lower=TRUE)
-//' pscl(c(-8.3, -5.9), 8, 1)
-//' pscl(c(-8.3, -5.9), 8 ,1, force=TRUE)
-//' rscl(10, 7, 2)
 //' @export
 // [[Rcpp::export]]
 Rcpp::List qscl(Rcpp::NumericVector p, const double M, const double k, double num_error_size = 0.01, const bool lower = true, const bool log_p = false, const bool force = false) {
