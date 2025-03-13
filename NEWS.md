@@ -1,3 +1,3 @@
-# sbim 1.0.0
+# sbim 1.0.1
 
-* Initial CRAN submission.
+* Corrects a typo in the "Value" section in the documentation for function simll().
