@@ -94,7 +94,11 @@ When $w(\theta_m)$, $m\in 1:M$ are not all the same, we carry out weighted quadr
 
 
 ## Getting started {#simll}
-The package can be installed from the [package author's github repository](https://github.com/joonhap/sbi) as follows.
+This package can be installed from CRAN. 
+```{r eval=FALSE}
+install.packages('sbim') 
+```
+However, the most up-to-date version may be downloaded from the [package author's github repository](https://github.com/joonhap/sbi) as follows.
 Doing so requires having the `devtools` package installed.
 ```{r eval=FALSE}
 install.packages('devtools') # skip this line if `devtools` is already installed.
@@ -103,7 +107,6 @@ Then install the `sbim` package:
 ```{r eval=FALSE}
 devtools::install_github("joonhap/sbi")
 ```
-The package source code may be downloaded in tar.gz format [from here](.) (not active yet, as of Dec 2023).
 The package can be loaded as usual:
 ```{r}
 library(sbim)  
